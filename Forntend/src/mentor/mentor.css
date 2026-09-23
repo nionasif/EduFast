@@ -1,0 +1,427 @@
+/* ==========================================================================
+   EduFast 24/7 Mentor & TA Portal Stylesheet
+   Glassmorphic, Ultra-Modern Dark Obsidian Theme for Doubt Solving Squad
+   ========================================================================== */
+
+:root {
+  --mentor-bg: #0b0f19;
+  --mentor-surface: #111827;
+  --mentor-card: rgba(17, 24, 39, 0.75);
+  --mentor-card-hover: rgba(30, 41, 59, 0.85);
+  --mentor-border: rgba(255, 255, 255, 0.08);
+  --mentor-border-highlight: rgba(16, 185, 129, 0.4);
+  --mentor-text: #f8fafc;
+  --mentor-text-muted: #94a3b8;
+  --mentor-emerald: #10b981;
+  --mentor-emerald-glow: rgba(16, 185, 129, 0.25);
+  --mentor-teal: #0ea5e9;
+  --mentor-amber: #f59e0b;
+  --mentor-rose: #f43f5e;
+  --mentor-indigo: #6366f1;
+}
+
+.mentor-portal-wrapper {
+  min-height: 100vh;
+  background-color: var(--mentor-bg);
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+  color: var(--mentor-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.mentor-topbar {
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--mentor-border);
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.mentor-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  cursor: pointer;
+}
+
+.mentor-logo-badge {
+  background: linear-gradient(135deg, #10b981, #0ea5e9);
+  color: #ffffff;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+  box-shadow: 0 0 15px var(--mentor-emerald-glow);
+}
+
+.mentor-title-group h1 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mentor-title-group p {
+  font-size: 0.75rem;
+  color: var(--mentor-text-muted);
+  margin: 0;
+}
+
+.mentor-shift-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Nav Tabs */
+.mentor-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.4rem;
+  border-radius: 12px;
+  border: 1px solid var(--mentor-border);
+}
+
+.mentor-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--mentor-text-muted);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mentor-tab-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mentor-tab-btn.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(14, 165, 233, 0.2));
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.tab-badge {
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+}
+
+/* Layout Grid */
+.mentor-content-body {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 1.5rem;
+  flex: 1;
+}
+
+/* Stats Summary Row */
+.mentor-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.mentor-stat-card {
+  background: var(--mentor-card);
+  border: 1px solid var(--mentor-border);
+  padding: 1.25rem;
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.mentor-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.stat-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+.stat-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.stat-lbl {
+  font-size: 0.75rem;
+  color: var(--mentor-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* Doubt Cards */
+.doubt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1.25rem;
+}
+
+.doubt-card {
+  background: var(--mentor-card);
+  border: 1px solid var(--mentor-border);
+  border-radius: 16px;
+  padding: 1.25rem;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.25s ease;
+}
+
+.doubt-card:hover {
+  border-color: var(--mentor-border-highlight);
+  background: var(--mentor-card-hover);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.doubt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.student-info {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.student-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.doubt-subject-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.badge-physics {
+  background: rgba(14, 165, 233, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+}
+
+.badge-chemistry {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge-math {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-biology {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.doubt-question-text {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+  margin-bottom: 1rem;
+  background: rgba(15, 23, 42, 0.5);
+  padding: 0.85rem;
+  border-radius: 10px;
+  border-left: 3px solid var(--mentor-emerald);
+}
+
+.doubt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--mentor-border);
+}
+
+.btn-claim {
+  background: linear-gradient(135deg, #10b981, #0d9488);
+  color: white;
+  border: none;
+  padding: 0.5rem 1.15rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-claim:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+}
+
+/* Active Solver Workspace */
+.solver-container {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 1.5rem;
+}
+
+.solver-pane {
+  background: var(--mentor-card);
+  border: 1px solid var(--mentor-border);
+  border-radius: 20px;
+  padding: 1.5rem;
+  backdrop-filter: blur(16px);
+}
+
+.formula-shortcut-bar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.formula-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: monospace;
+}
+
+.formula-chip:hover {
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.solution-textarea {
+  width: 100%;
+  min-height: 220px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--mentor-border);
+  border-radius: 12px;
+  color: #f8fafc;
+  padding: 1rem;
+  font-family: inherit;
+  font-size: 0.92rem;
+  resize: vertical;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.solution-textarea:focus {
+  border-color: var(--mentor-emerald);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+@media (max-width: 960px) {
+  .solver-container {
+    grid-template-columns: 1fr;
+  }
+
+  .mentor-topbar {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+
+  .mentor-nav-tabs {
+    overflow-x: auto;
+    width: 100%;
+  }
+}

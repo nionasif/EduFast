@@ -1,0 +1,466 @@
+/* ==========================================================================
+   Student Leaderboard Stylesheet
+   Dedicated Component CSS for Hall of Fame & Live Leaderboard
+   ========================================================================== */
+
+.lb-banner {
+  background: linear-gradient(135deg, #0f3938 0%, #175351 60%, #1e3a5f 100%);
+  border-radius: 16px;
+  padding: 1.75rem;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.lb-bg-pattern {
+  position: absolute;
+  top: -10px;
+  right: 15px;
+  font-size: 7.5rem;
+  opacity: 0.07;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Header ── */
+.lb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 2;
+}
+
+.lb-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.lb-header-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #ffffff;
+}
+
+.lb-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.lb-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #34d399;
+  animation: pulse 1.8s infinite;
+}
+
+.lb-header-desc {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 0.25rem;
+}
+
+.lb-btn-view-all {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(6px);
+}
+
+.lb-btn-view-all:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+/* ── Metric & Group Controls ── */
+.lb-controls-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 2;
+}
+
+.lb-metric-tabs {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.lb-metric-tab {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  border: none;
+  padding: 0.35rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lb-metric-tab.active {
+  background: #ED8936;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.lb-group-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.lb-group-filter-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
+.lb-group-filter-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.25rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lb-group-filter-btn.active {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── User Status Banner ── */
+.lb-user-status-card {
+  background: linear-gradient(90deg, rgba(49, 151, 149, 0.35) 0%, rgba(30, 58, 95, 0.45) 100%);
+  border: 1px solid rgba(49, 151, 149, 0.5);
+  border-radius: 12px;
+  padding: 0.75rem 1.1rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.lb-user-rank-badge {
+  font-weight: 900;
+  font-size: 0.95rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.lb-user-rank-badge.rank-1 { background: #ECC94B; color: #744210; }
+.lb-user-rank-badge.rank-2 { background: #E2E8F0; color: #1A202C; }
+.lb-user-rank-badge.rank-3 { background: #ED8936; color: #ffffff; }
+.lb-user-rank-badge.rank-other { background: #319795; color: #ffffff; }
+
+.lb-user-pos-text {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.lb-user-pos-text .highlight {
+  color: #ECC94B;
+}
+
+.lb-user-hint-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 0.1rem;
+}
+
+.lb-btn-action {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.lb-btn-action:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Carousel ── */
+.lb-carousel {
+  display: flex;
+  gap: 0.85rem;
+  overflow-x: auto;
+  padding-bottom: 0.65rem;
+  position: relative;
+  z-index: 2;
+}
+
+.lb-card {
+  flex: 0 0 240px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  position: relative;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.lb-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.lb-card.user {
+  background: linear-gradient(135deg, rgba(49, 151, 149, 0.45) 0%, rgba(20, 60, 65, 0.55) 100%);
+  border: 2px solid #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+.lb-card.gold {
+  border: 1.5px solid rgba(246, 224, 94, 0.7);
+  box-shadow: 0 0 14px rgba(246, 224, 94, 0.25);
+}
+
+.lb-card-you-tag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #38bdf8;
+  color: #0f172a;
+  font-size: 0.62rem;
+  font-weight: 900;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0 0 0 8px;
+  letter-spacing: 0.04em;
+}
+
+.lb-rank-circle {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-weight: 900;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.lb-rank-circle.gold { background: linear-gradient(135deg, #F6E05E, #D69E2E); color: #744210; }
+.lb-rank-circle.silver { background: linear-gradient(135deg, #EDF2F7, #CBD5E0); color: #2D3748; }
+.lb-rank-circle.bronze { background: linear-gradient(135deg, #FBD38D, #ED8936); color: #7B341E; }
+.lb-rank-circle.other { background: #E2E8F0; color: #4A5568; }
+
+.lb-card-avatar {
+  font-size: 1.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lb-details {
+  overflow: hidden;
+  flex: 1;
+}
+
+.lb-card-name {
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-card-metric {
+  font-size: 0.75rem;
+  margin-top: 0.1rem;
+}
+
+.lb-card-target {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Modal ── */
+.lb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 1rem;
+}
+
+.lb-modal-content {
+  background: #ffffff;
+  color: #2d3748;
+  border-radius: 16px;
+  max-width: 680px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: modalSlideUp 0.25s ease;
+}
+
+.lb-modal-header {
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, #319795 0%, #175351 100%);
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lb-modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ffffff;
+}
+
+.lb-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.lb-modal-close:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.lb-modal-controls {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.lb-modal-search-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e0;
+  font-size: 0.85rem;
+}
+
+.lb-modal-search-input:focus {
+  outline: none;
+  border-color: #319795;
+}
+
+.lb-modal-body {
+  padding: 1rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.lb-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 0.5rem;
+  transition: background 0.15s ease;
+}
+
+.lb-modal-row.user {
+  background: #f0fdf4;
+  border: 2px solid #22c55e;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.15);
+}
+
+.lb-modal-footer {
+  padding: 0.85rem 1.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  text-align: right;
+}
