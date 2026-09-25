@@ -797,7 +797,15 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     name: teacherUser?.name || '',
     email: teacherUser?.email || '',
     mobile: teacherUser?.mobile || '',
+    fathersName: teacherUser?.fathersName || '',
+    dob: teacherUser?.dob || '',
+    group: teacherUser?.group || teacherUser?.wing || 'Science',
+    wing: teacherUser?.wing || teacherUser?.group || 'Science',
+    subject: teacherUser?.subject || 'Higher Mathematics',
+    institution: teacherUser?.institution || '',
     qualification: teacherUser?.qualification || '',
+    experience: teacherUser?.experience || '5+ Years',
+    designation: teacherUser?.designation || 'Senior Instructor',
     department: teacherUser?.department || '',
     bio: teacherUser?.bio || '',
     avatar: teacherUser?.avatar || null
@@ -809,7 +817,15 @@ export default function TeacherPortalPage({ onExitToPublic }) {
         name: teacherUser.name || '',
         email: teacherUser.email || '',
         mobile: teacherUser.mobile || '',
+        fathersName: teacherUser.fathersName || '',
+        dob: teacherUser.dob || '',
+        group: teacherUser.group || teacherUser.wing || 'Science',
+        wing: teacherUser.wing || teacherUser.group || 'Science',
+        subject: teacherUser.subject || 'Higher Mathematics',
+        institution: teacherUser.institution || '',
         qualification: teacherUser.qualification || '',
+        experience: teacherUser.experience || '5+ Years',
+        designation: teacherUser.designation || 'Senior Instructor',
         department: teacherUser.department || '',
         bio: teacherUser.bio || '',
         avatar: teacherUser.avatar || null
@@ -817,16 +833,31 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     }
   }, [teacherUser]);
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     const updated = {
       ...teacherUser,
-      ...profileForm
+      ...profileForm,
+      department: `${profileForm.designation || 'Senior Instructor'}, ${profileForm.group || 'Science'} Wing`,
+      isVerified: true
     };
     saveTeacherProfile(updated);
     setTeacherUser(updated);
     localStorage.setItem('edufast_teacher_session', JSON.stringify(updated));
-    addToast('Profile information updated successfully!', 'success');
+    localStorage.setItem('edufast_teacher_profile', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('edufast-teacher-update', { detail: updated }));
+
+    try {
+      await fetch('/api/teachers/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+    } catch (err) {
+      console.warn('Teacher update profile backend sync warning:', err);
+    }
+
+    addToast('শিক্ষক প্রোফাইল তথ্য সফলভাবে সংরক্ষিত হয়েছে!', 'success');
   };
 
   // -------------------------------------------------------------
@@ -1001,10 +1032,14 @@ export default function TeacherPortalPage({ onExitToPublic }) {
 
         {activeTab === 'settings' && (
           <TeacherProfileTab
+            teacherUser={teacherUser}
             profileForm={profileForm}
             setProfileForm={setProfileForm}
             handleSaveProfile={handleSaveProfile}
             theme={theme}
+            coursesCount={myCourses.length}
+            liveCount={myLiveSessions.length}
+            recordingsCount={myRecordings.length}
           />
         )}
       </main>

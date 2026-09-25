@@ -26,6 +26,7 @@ const SignupPage = lazy(() => import('./common/pages/SignupPage'));
 const LoginPage = lazy(() => import('./common/pages/LoginPage'));
 
 import AIAssistant from './student/components/AIAssistant';
+import StudentProfileModal from './student/components/StudentProfileModal';
 import { socket } from './socket';
 import {
   getStudentCoins,
@@ -36,6 +37,22 @@ import {
   clearAllNotifications,
   registerStudentInLocalStore
 } from './data/mockData';
+
+import { useLanguage } from './context/LanguageContext';
+import {
+  Globe,
+  LayoutDashboard,
+  BookOpen,
+  FileQuestion,
+  Video,
+  GraduationCap,
+  Award,
+  Headphones,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  MessageSquare
+} from 'lucide-react';
 
 import './App.css';
 
@@ -276,12 +293,27 @@ const PROTECTED_PAGES = [
   'study-lounge'
 ];
 
+const getSubfolderPrefix = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.pathname.toLowerCase().startsWith('/edufast') ? '/EduFast' : '';
+  }
+  return '';
+};
+
+const normalizeRoutePath = (rawPath) => {
+  let path = (rawPath || '/').toLowerCase();
+  if (path.startsWith('/edufast')) {
+    path = path.slice(8) || '/';
+  }
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.slice(0, -1);
+  }
+  return path || '/';
+};
+
 const getInitialRoute = () => {
   if (typeof window !== 'undefined') {
-    let path = window.location.pathname.toLowerCase();
-    if (path.length > 1 && path.endsWith('/')) {
-      path = path.slice(0, -1);
-    }
+    const path = normalizeRoutePath(window.location.pathname);
     const hash = window.location.hash.toLowerCase();
     if (hash === '#admin') return 'admin';
     if (hash === '#teacher') return 'teacher';
@@ -310,6 +342,7 @@ const getInitialRoute = () => {
 };
 
 function App() {
+  const { language, toggleLanguage, t } = useLanguage();
   const initialRoute = getInitialRoute();
   // Navigation & User State
   const [currentPage, setCurrentPage] = useState(initialRoute); // 'landing', 'login', 'signup', 'dashboard', 'admissions', 'courses', 'mocktest', 'admin'
@@ -335,6 +368,7 @@ function App() {
   const [signupRole, setSignupRole] = useState('student'); // 'student' | 'teacher'
   const [selectedAdmissionUnivId, setSelectedAdmissionUnivId] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => {
@@ -404,12 +438,18 @@ function App() {
       }
     };
 
+    const handleOpenProfileModal = () => {
+      setIsProfileEditOpen(true);
+    };
+
     window.addEventListener('edufast-data-update', handleNotifUpdate);
     window.addEventListener('edufast-notification-added', handleNewNotification);
+    window.addEventListener('open-student-profile', handleOpenProfileModal);
     socket.on('class:status_change', handleClassStatus);
     return () => {
       window.removeEventListener('edufast-data-update', handleNotifUpdate);
       window.removeEventListener('edufast-notification-added', handleNewNotification);
+      window.removeEventListener('open-student-profile', handleOpenProfileModal);
       socket.off('class:status_change', handleClassStatus);
     };
   }, []);
@@ -441,13 +481,14 @@ function App() {
   // Synchronize URL on initial mount (e.g. '/' -> '/home')
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const currentPath = window.location.pathname.toLowerCase();
+      const prefix = getSubfolderPrefix();
+      const currentPath = normalizeRoutePath(window.location.pathname);
       if (currentPath === '/' || currentPath === '' || currentPath === '/landing') {
-        window.history.replaceState({ page: 'landing' }, '', '/home');
+        window.history.replaceState({ page: 'landing' }, '', `${prefix}/home`);
       } else {
         const expectedPath = PAGE_TO_PATH[currentPage];
         if (expectedPath && currentPath !== expectedPath) {
-          window.history.replaceState({ page: currentPage }, '', expectedPath);
+          window.history.replaceState({ page: currentPage }, '', `${prefix}${expectedPath}`);
         }
       }
     }
@@ -457,10 +498,7 @@ function App() {
   useEffect(() => {
     const handlePopState = () => {
       if (typeof window === 'undefined') return;
-      let path = window.location.pathname.toLowerCase();
-      if (path.length > 1 && path.endsWith('/')) {
-        path = path.slice(0, -1);
-      }
+      const path = normalizeRoutePath(window.location.pathname);
       const hash = window.location.hash.toLowerCase();
 
       let targetPage = 'landing';
@@ -471,9 +509,10 @@ function App() {
       else if (hash === '#signup') targetPage = 'signup';
       else if (ROUTE_MAP[path]) targetPage = ROUTE_MAP[path];
 
+      const prefix = getSubfolderPrefix();
       if (PROTECTED_PAGES.includes(targetPage) && !currentUser) {
         setCurrentPage('landing');
-        window.history.replaceState({ page: 'landing' }, '', '/home');
+        window.history.replaceState({ page: 'landing' }, '', `${prefix}/home`);
       } else {
         setCurrentPage(targetPage);
       }
@@ -569,6 +608,8 @@ function App() {
 
   const handleTeacherLoginSuccess = (teacherObj) => {
     localStorage.setItem('edufast_teacher_session', JSON.stringify(teacherObj));
+    localStorage.setItem('edufast_teacher_profile', JSON.stringify(teacherObj));
+    window.dispatchEvent(new CustomEvent('edufast-teacher-update', { detail: teacherObj }));
     setCurrentPage('teacher');
     if (typeof window !== 'undefined') {
       window.history.pushState({ page: 'teacher' }, '', '/teacher');
@@ -579,6 +620,8 @@ function App() {
 
   const handleTeacherRegisterSuccess = (newTeacherData) => {
     localStorage.setItem('edufast_teacher_session', JSON.stringify(newTeacherData));
+    localStorage.setItem('edufast_teacher_profile', JSON.stringify(newTeacherData));
+    window.dispatchEvent(new CustomEvent('edufast-teacher-update', { detail: newTeacherData }));
     setCurrentPage('teacher');
     if (typeof window !== 'undefined') {
       window.history.pushState({ page: 'teacher' }, '', '/teacher');
@@ -775,22 +818,48 @@ function App() {
 
       {/* 1. Navbars System */}
       <nav className="navbar">
-        {/* Logo left */}
-        <div
-          className="logo-container"
-          style={{ cursor: 'pointer' }}
-          title="Go to Landing Page"
-          onClick={() => {
-            navigateTo('landing');
-          }}
-        >
-          Edufast<span className="logo-dot">.</span>
-        </div>
+        {/* Logo left (shown on public pages) */}
+        {!currentUser && (
+          <div
+            className="logo-container"
+            style={{ cursor: 'pointer' }}
+            title="Go to Landing Page"
+            onClick={() => {
+              navigateTo('landing');
+            }}
+          >
+            Edufast<span className="logo-dot">.</span>
+          </div>
+        )}
 
         {/* Right side public vs auth links */}
         {!currentUser ? (
           // PUBLIC NAVBAR (Landing - নোটিফিকেশন লগইন ছাড়া দেখাবে না)
           <div className="nav-links" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {/* Language Switcher */}
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              title={language === 'bn' ? 'Switch to English' : 'বাংলায় দেখুন'}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                border: '1px solid rgba(13, 148, 136, 0.35)',
+                color: 'var(--primary-teal)',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '20px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Globe style={{ width: '13px', height: '13px' }} />
+              <span>{language === 'bn' ? 'English' : 'বাংলা'}</span>
+            </button>
+
             <button className="theme-toggle-btn" onClick={toggleDarkMode} aria-label="Toggle Dark Mode" style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.25rem', padding: '0 0.5rem' }}>
               {isDarkMode ? '☀️' : '🌙'}
             </button>
@@ -801,7 +870,7 @@ function App() {
                 navigateTo('login', 'student');
               }}
             >
-              Login
+              {language === 'bn' ? 'লগইন' : 'Login'}
             </button>
             <button
               className="btn btn-teal"
@@ -810,35 +879,54 @@ function App() {
                 navigateTo('signup', 'student');
               }}
             >
-              Sign Up
+              {language === 'bn' ? 'সাইন আপ' : 'Sign Up'}
             </button>
           </div>
         ) : (
-          // AUTHENTICATED NAVBAR (Dashboard)
+          // AUTHENTICATED NAVBAR (Streamlined Topbar with Sidebar Toggle)
           <>
-            {/* Hamburger toggle (mobile only) */}
-            <button
-              className="hamburger-btn"
-              onClick={(e) => { e.stopPropagation(); setIsMobileMenuOpen(prev => !prev); }}
-              aria-label="Toggle menu"
-            >
-              <span className={`hamburger-icon ${isMobileMenuOpen ? 'open' : ''}`}>
-                <span /><span /><span />
-              </span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            {/* Left: Clean Single Logo */}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div
+                className="logo-container"
+                style={{ cursor: 'pointer', margin: 0, padding: 0 }}
+                title="Go to Dashboard"
+                onClick={() => navigateTo('dashboard')}
+              >
+                Edufast<span className="logo-dot">.</span>
+              </div>
+            </div>
 
-            {/* Desktop nav-links */}
-            <div className="nav-links desktop-nav" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {/* Right: Controls (Language, Theme, Coins, Notifications, Avatar) */}
+            <div className="nav-links desktop-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              {/* Language Switcher */}
+              <button
+                type="button"
+                onClick={toggleLanguage}
+                title={language === 'bn' ? 'Switch to English' : 'বাংলায় দেখুন'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  backgroundColor: 'rgba(13, 148, 136, 0.12)',
+                  border: '1px solid rgba(13, 148, 136, 0.35)',
+                  color: 'var(--primary-teal)',
+                  padding: '0.32rem 0.65rem',
+                  borderRadius: '20px',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Globe style={{ width: '13px', height: '13px' }} />
+                <span>{language === 'bn' ? 'English' : 'বাংলা'}</span>
+              </button>
+
               <button className="theme-toggle-btn" onClick={toggleDarkMode} aria-label="Toggle Dark Mode" style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '1.25rem', padding: '0 0.5rem' }}>
                 {isDarkMode ? '☀️' : '🌙'}
               </button>
-              <a className={`nav-link ${currentPage === 'dashboard' ? 'active' : ''}`} onClick={() => navigateTo('dashboard')}>Dashboard</a>
-              <a className={`nav-link ${currentPage === 'courses' ? 'active' : ''}`} onClick={() => navigateTo('courses')}>Course Hub</a>
-              <a className={`nav-link ${currentPage === 'question-bank' ? 'active' : ''}`} onClick={() => navigateTo('question-bank')}>Question Bank</a>
-              <a className={`nav-link ${currentPage === 'live-classes' ? 'active' : ''}`} onClick={() => navigateTo('live-classes')}>Live Classes</a>
-              <a className={`nav-link ${currentPage === 'admissions' ? 'active' : ''}`} onClick={() => navigateTo('admissions')}>Admissions</a>
-              <a className={`nav-link ${currentPage === 'mocktest' ? 'active' : ''}`} onClick={() => navigateTo('mocktest')}>📝 Mock Tests</a>
-              <a className={`nav-link ${currentPage === 'study-lounge' ? 'active' : ''}`} onClick={() => navigateTo('study-lounge')} style={{ color: '#38bdf8', fontWeight: 600 }}>🎧 Study Lounge</a>
 
               {/* Live Student EduCoins Pill */}
               <div
@@ -890,22 +978,13 @@ function App() {
                 {isAvatarDropdownOpen && (
                   <div className="avatar-dropdown" onClick={(e) => e.stopPropagation()}>
                     <button className="dropdown-item" onClick={openProfileEditor}>👤 Profile & Details</button>
-                    <button
-                      className="dropdown-item"
-                      style={{ color: 'var(--primary-teal, #319795)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                      onClick={() => {
-                        setIsAvatarDropdownOpen(false);
-                        window.dispatchEvent(new CustomEvent('open-mentor-chat'));
-                      }}
-                    >
-                      💬 Chat with Mentor (২৪/৭ মেন্টর)
-                    </button>
                     <div className="dropdown-divider" />
                     <button className="dropdown-item" style={{ color: '#e53e3e' }} onClick={handleSignOut}>🚪 Sign Out</button>
                   </div>
                 )}
               </div>
             </div>
+          </div>
 
             {/* Mobile slide-down menu */}
             {isMobileMenuOpen && (
@@ -939,9 +1018,180 @@ function App() {
         )}
       </nav>
 
-      {/* 2. Routing Views Wrapper */}
-      <main style={{ flexGrow: 1 }}>
-        <Suspense fallback={<PageLoadingFallback />}>
+      {/* 2. Routing Views Wrapper with Professional Collapsible Sidebar */}
+      <div style={{ display: 'flex', flexGrow: 1, minHeight: 'calc(100vh - 65px)', position: 'relative' }}>
+        {/* Student Sidebar for Authenticated Users */}
+        {currentUser && !['landing', 'login', 'signup'].includes(currentPage) && (
+          <aside
+            style={{
+              width: isSidebarCollapsed ? '72px' : '240px',
+              backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+              borderRight: `1px solid ${isDarkMode ? '#1e293b' : '#e2e8f0'}`,
+              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              padding: '1rem 0.6rem',
+              flexShrink: 0,
+              zIndex: 40,
+              position: 'sticky',
+              top: '65px',
+              height: 'calc(100vh - 65px)',
+              overflowY: 'auto',
+              boxShadow: isDarkMode ? '4px 0 16px rgba(0,0,0,0.3)' : '2px 0 10px rgba(0,0,0,0.03)'
+            }}
+          >
+            {/* Nav Items List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              {[
+                { id: 'dashboard', label: t('dashboard') || 'Dashboard', icon: LayoutDashboard },
+                { id: 'courses', label: t('courses') || 'Course Hub', icon: BookOpen },
+                { id: 'question-bank', label: t('questionBank') || 'Question Bank', icon: FileQuestion },
+                { id: 'live-classes', label: t('liveClasses') || 'Live Classes', icon: Video, badge: 'LIVE' },
+                { id: 'admissions', label: t('admissions') || 'Admissions', icon: GraduationCap },
+                { id: 'mocktest', label: t('mockTests') || 'Mock Tests', icon: Award },
+                { id: 'study-lounge', label: t('studyLounge') || 'Study Lounge', icon: Headphones, accent: '#38bdf8' }
+              ].map((item) => {
+                const Icon = item.icon;
+                const isActive = currentPage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => navigateTo(item.id)}
+                    title={isSidebarCollapsed ? item.label : undefined}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      width: '100%',
+                      padding: isSidebarCollapsed ? '0.75rem 0' : '0.65rem 0.85rem',
+                      justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: isActive
+                        ? (isDarkMode ? 'rgba(13, 148, 136, 0.25)' : '#ccfbf1')
+                        : 'transparent',
+                      color: isActive
+                        ? 'var(--primary-teal)'
+                        : (item.accent || (isDarkMode ? '#cbd5e1' : '#475569')),
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: '0.88rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                      textAlign: 'left'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255,255,255,0.06)' : '#f1f5f9';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }
+                    }}
+                  >
+                    <Icon style={{ width: '19px', height: '19px', flexShrink: 0 }} />
+                    {!isSidebarCollapsed && (
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                        {item.label}
+                      </span>
+                    )}
+                    {!isSidebarCollapsed && item.badge && (
+                      <span style={{
+                        fontSize: '0.6rem',
+                        fontWeight: 800,
+                        backgroundColor: '#ef4444',
+                        color: '#fff',
+                        padding: '0.1rem 0.4rem',
+                        borderRadius: '4px'
+                      }}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom Section: Mentor Support & Collapse Button */}
+            <div style={{
+              borderTop: `1px solid ${isDarkMode ? '#1e293b' : '#e2e8f0'}`,
+              paddingTop: '0.75rem',
+              paddingBottom: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem'
+            }}>
+              {/* Collapse / Expand Toggle Button (in sidebar, positioned 20px up) */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(prev => !prev)}
+                title={isSidebarCollapsed ? (language === 'bn' ? 'সাইডবার প্রসারিত করুন' : 'Expand Sidebar') : (language === 'bn' ? 'সাইডবার গুটিয়ে নিন' : 'Collapse Sidebar')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  width: '100%',
+                  padding: isSidebarCollapsed ? '0.7rem 0' : '0.6rem 0.85rem',
+                  justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                  color: isDarkMode ? '#94a3b8' : '#64748b',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {isSidebarCollapsed ? (
+                  <ChevronRight style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+                ) : (
+                  <>
+                    <ChevronLeft style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {language === 'bn' ? 'সাইডবার বন্ধ করুন' : 'Collapse Sidebar'}
+                    </span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-mentor-chat'))}
+                title={isSidebarCollapsed ? '24/7 Live Mentor' : undefined}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  width: '100%',
+                  padding: isSidebarCollapsed ? '0.7rem 0' : '0.6rem 0.85rem',
+                  justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(13, 148, 136, 0.3)',
+                  backgroundColor: isDarkMode ? 'rgba(13, 148, 136, 0.15)' : '#f0fdfa',
+                  color: 'var(--primary-teal)',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <MessageSquare style={{ width: '18px', height: '18px', flexShrink: 0 }} />
+                {!isSidebarCollapsed && (
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {language === 'bn' ? '২৪/৭ লাইভ মেন্টর' : '24/7 Live Mentor'}
+                  </span>
+                )}
+              </button>
+            </div>
+          </aside>
+        )}
+
+        {/* Main Content Area */}
+        <main style={{ flexGrow: 1, minWidth: 0 }}>
+          <Suspense fallback={<PageLoadingFallback />}>
           {currentPage === 'landing' && (
             <LandingPage
               onNavigate={navigateTo}
@@ -992,6 +1242,7 @@ function App() {
             <StudentDashboardPage
               user={currentUser}
               onNavigate={navigateTo}
+              onOpenProfile={() => setIsProfileEditOpen(true)}
             />
           )}
 
@@ -1027,6 +1278,7 @@ function App() {
           )}
         </Suspense>
       </main>
+    </div>
 
       {/* 3. Toast Notifications Overlay */}
       <div className="toast-container">
@@ -1054,155 +1306,19 @@ function App() {
         initialRole={loginModalRole}
       />
 
-      {/* 5. Protected Profile Editor Modal Overlay */}
-      {isProfileEditOpen && currentUser && (
-        <div className="modal-backdrop" onClick={() => setIsProfileEditOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setIsProfileEditOpen(false)}>&times;</button>
-
-            <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
-              <h3 style={{ color: 'var(--primary-teal)', fontSize: '1.4rem', margin: 0 }}>Edit Your Profile</h3>
-              <p style={{ color: 'var(--gray-500)', fontSize: '0.8rem', margin: 0 }}>Update details and upload an avatar under 1MB.</p>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="edit-profile-modal-body">
-              {/* Avatar upload layout with preview */}
-              <div className="avatar-upload-preview">
-                {editProfileForm.avatar ? (
-                  <img src={editProfileForm.avatar} alt="Preview" className="avatar-preview-circle" />
-                ) : (
-                  <div className="avatar-preview-circle">{currentUser.name.charAt(0)}</div>
-                )}
-
-                <div>
-                  <div className="file-input-wrapper">
-                    <label className="file-input-button">
-                      📁 Choose Profile Pic
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarChange}
-                        style={{ display: 'none' }}
-                      />
-                    </label>
-                  </div>
-                  <div className="file-size-info">Max size allowed is 1MB.</div>
-                  {fileSizeError && <div className="size-error">{fileSizeError}</div>}
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Full Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editProfileForm.name}
-                  onChange={(e) => setEditProfileForm({ ...editProfileForm, name: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Father's Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editProfileForm.fathersName}
-                  onChange={(e) => setEditProfileForm({ ...editProfileForm, fathersName: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mother's Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={editProfileForm.mothersName}
-                  onChange={(e) => setEditProfileForm({ ...editProfileForm, mothersName: e.target.value })}
-                  required
-                />
-              </div>
-
-              {/* Senior Mentor Support Card inside Student Profile */}
-              <div style={{
-                marginTop: '1.5rem',
-                padding: '1rem',
-                background: 'linear-gradient(135deg, rgba(49, 151, 149, 0.08) 0%, rgba(13, 148, 136, 0.14) 100%)',
-                border: '1px solid rgba(49, 151, 149, 0.3)',
-                borderRadius: '12px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary-teal, #319795)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    👨‍🏫 আপনার নির্ধারিত সিনিয়র মেন্টর (Assigned Mentor)
-                  </span>
-                  <span style={{ fontSize: '0.72rem', backgroundColor: '#def7ec', color: '#03543f', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                    ● Online 24/7
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'var(--primary-teal, #319795)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', flexShrink: 0 }}>
-                    👨‍🏫
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-charcoal, #2d3748)' }}>
-                      Engr. Rakibul Hasan (BUET CSE)
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--gray-600, #718096)' }}>
-                      Senior Academic Mentor & Doubt Solver • Rating: ⭐ 4.9/5.0
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-teal"
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem 1rem',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.45rem',
-                    backgroundColor: 'var(--primary-teal, #319795)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#ffffff',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => {
-                    setIsProfileEditOpen(false);
-                    window.dispatchEvent(new CustomEvent('open-mentor-chat'));
-                  }}
-                >
-                  💬 মেন্টরের সাথে সরাসরি কথা বলুন (Chat with Mentor)
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0.5rem 1.25rem' }}
-                  onClick={() => setIsProfileEditOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-teal"
-                  style={{ padding: '0.5rem 1.25rem', backgroundColor: 'var(--primary-teal)' }}
-                  disabled={!!fileSizeError}
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-
-          </div>
-        </div>
-      )}
+      {/* 5. Protected Comprehensive Student Profile Modal */}
+      <StudentProfileModal
+        isOpen={isProfileEditOpen}
+        onClose={() => setIsProfileEditOpen(false)}
+        user={currentUser}
+        onUpdateUser={(updatedUser) => {
+          setCurrentUser(updatedUser);
+          try {
+            localStorage.setItem('edufast_student_session', JSON.stringify(updatedUser));
+          } catch (e) {}
+        }}
+        addToast={addToast}
+      />
 
       {/* 6. Unified Global AI Admission Advisor & 24/7 Live Mentor Solver */}
       <AIAssistant user={currentUser} onOpenLogin={() => setIsLoginModalOpen(true)} />

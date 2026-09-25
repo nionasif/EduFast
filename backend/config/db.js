@@ -115,6 +115,33 @@ async function initDb() {
       FOREIGN KEY (userId) REFERENCES users_auth(id) ON DELETE CASCADE
     );
 
+    -- 2b. Dedicated Teacher Profiles Table (Credentials, Academic & Personal info)
+    CREATE TABLE IF NOT EXISTS teachers (
+      id TEXT PRIMARY KEY,
+      userId INTEGER,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE,
+      mobile TEXT,
+      fathersName TEXT,
+      dob TEXT,
+      academicGroup TEXT,
+      subject TEXT,
+      institution TEXT,
+      qualification TEXT,
+      experience TEXT,
+      designation TEXT,
+      department TEXT,
+      bio TEXT,
+      avatar TEXT,
+      rating REAL DEFAULT 5.0,
+      studentsCount INTEGER DEFAULT 0,
+      coursesCount INTEGER DEFAULT 0,
+      liveHours REAL DEFAULT 0,
+      isVerified INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users_auth(id) ON DELETE CASCADE
+    );
+
     -- 3. Dedicated Question Bank Table (MCQs & Admission Practice)
     CREATE TABLE IF NOT EXISTS question_bank (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -237,6 +264,12 @@ async function initDb() {
     if (!columnNames.includes('avatar')) {
       await db.exec('ALTER TABLE students ADD COLUMN avatar TEXT;');
     }
+    if (!columnNames.includes('sscYear')) {
+      await db.exec('ALTER TABLE students ADD COLUMN sscYear TEXT;');
+    }
+    if (!columnNames.includes('hscYear')) {
+      await db.exec('ALTER TABLE students ADD COLUMN hscYear TEXT;');
+    }
   } catch (migErr) {
     console.warn('[DB Migration] Notice on students schema update:', migErr.message);
   }
@@ -296,6 +329,33 @@ async function initDb() {
         ['teacher', 'teacher@edufast.com', '01711111111', 'teacher123', 1]);
       await db.run('INSERT OR IGNORE INTO users_auth (role, email, mobile, password, isVerified) VALUES (?, ?, ?, ?, ?)',
         ['mentor', 'mentor@edufast.com', '01722222222', 'mentor123', 1]);
+
+      // Seed default teacher in teachers table
+      await db.run(`INSERT OR IGNORE INTO teachers (
+        id, name, email, mobile, fathersName, dob, academicGroup, subject,
+        institution, qualification, experience, designation, department, bio,
+        rating, studentsCount, coursesCount, liveHours, isVerified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+        'teacher-default',
+        'Dr. Mahfuzur Rahman',
+        'teacher@edufast.com',
+        '01711111111',
+        'Md. Abdur Rahim',
+        '1988-06-15',
+        'Science',
+        'Higher Mathematics',
+        'BUET / Notre Dame College',
+        'Ph.D in Applied Mathematics (BUET)',
+        '8+ Years',
+        'Senior Lead Instructor',
+        'Senior Lead Instructor, Science Wing',
+        'Lead Higher Mathematics & Engineering admission instructor with 8+ years of dedicated mentoring experience.',
+        4.9,
+        2450,
+        6,
+        120,
+        1
+      ]);
     }
 
     // Seed universities if empty

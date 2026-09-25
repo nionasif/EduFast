@@ -4,14 +4,13 @@ import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/EduFast/', // <-- Added this line for GitHub Pages subfolder compatibility
+export default defineConfig(({ command }) => ({
+  base: command === 'serve' ? '/' : (process.env.VITE_BASE_PATH || '/EduFast/'),
   plugins: [
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss()
-  ],
-  base: process.env.VITE_BASE_PATH || '/EduFast',    
+  ],    
   server: {
     proxy: {
       '/api': {
@@ -39,4 +38,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

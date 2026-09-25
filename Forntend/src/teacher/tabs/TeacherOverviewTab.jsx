@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Radio, Video, Plus, BookOpen, Users, Play
+  Radio, Video, Plus, BookOpen, Users, Play, Mail, CheckCircle, User, Phone, Building
 } from 'lucide-react';
 
 export default function TeacherOverviewTab({
@@ -14,7 +14,8 @@ export default function TeacherOverviewTab({
   handleStartLiveClass,
   handleOpenAddRecording,
   setPreviewRecording,
-  theme
+  theme,
+  onOpenProfileModal
 }) {
   return (
     <div>
@@ -33,16 +34,101 @@ export default function TeacherOverviewTab({
         gap: '1rem',
         transition: 'all 0.3s ease'
       }}>
-        <div>
+        <div style={{ maxWidth: '650px' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-teal)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Instructor Command Studio
           </span>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: theme.text, margin: '0.25rem 0 0.5rem 0' }}>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: theme.text, margin: '0.25rem 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             Welcome back, {teacherUser?.name || 'Instructor'}!
+            <span style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              color: '#059669',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              padding: '0.12rem 0.5rem',
+              borderRadius: '20px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem'
+            }}>
+              <CheckCircle style={{ width: '12px', height: '12px' }} />
+              Verified Instructor
+            </span>
           </h2>
-          <p style={{ color: theme.textMuted, margin: 0, fontSize: '0.95rem' }}>
+
+          <p style={{ color: theme.textMuted, margin: '0 0 0.75rem 0', fontSize: '0.92rem' }}>
             Broadcast live interactive classes, publish complete courses, and share high-yield recordings.
           </p>
+
+          {/* Teacher Profile Quick Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.78rem' }}>
+            {teacherUser?.email && (
+              <span style={{
+                backgroundColor: theme.cardBgElevated || 'rgba(0,0,0,0.04)',
+                border: `1px solid ${theme.cardBorder}`,
+                padding: '0.22rem 0.6rem',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: 'var(--primary-teal)',
+                fontWeight: 600
+              }}>
+                <Mail style={{ width: '13px', height: '13px' }} />
+                {teacherUser.email}
+                <CheckCircle style={{ width: '11px', height: '11px', color: '#10b981' }} />
+              </span>
+            )}
+            {teacherUser?.mobile && (
+              <span style={{
+                backgroundColor: theme.cardBgElevated || 'rgba(0,0,0,0.04)',
+                border: `1px solid ${theme.cardBorder}`,
+                padding: '0.22rem 0.6rem',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: theme.textSecondary,
+                fontWeight: 600
+              }}>
+                <Phone style={{ width: '12px', height: '12px', color: 'var(--primary-teal)' }} />
+                {teacherUser.mobile}
+              </span>
+            )}
+            {teacherUser?.subject && (
+              <span style={{
+                backgroundColor: theme.cardBgElevated || 'rgba(0,0,0,0.04)',
+                border: `1px solid ${theme.cardBorder}`,
+                padding: '0.22rem 0.6rem',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: theme.textSecondary,
+                fontWeight: 600
+              }}>
+                <BookOpen style={{ width: '12px', height: '12px', color: 'var(--primary-teal)' }} />
+                {teacherUser.subject}
+              </span>
+            )}
+            {teacherUser?.institution && (
+              <span style={{
+                backgroundColor: theme.cardBgElevated || 'rgba(0,0,0,0.04)',
+                border: `1px solid ${theme.cardBorder}`,
+                padding: '0.22rem 0.6rem',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: theme.textSecondary,
+                fontWeight: 600
+              }}>
+                <Building style={{ width: '12px', height: '12px', color: 'var(--primary-teal)' }} />
+                {teacherUser.institution}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>

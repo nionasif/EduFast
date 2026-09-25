@@ -9,6 +9,48 @@ const {
   preVerifiedEmails
 } = require('../services/otpService');
 
+/**
+ * Normalizes and formats full student record for client session
+ */
+function formatStudentResponse(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name || 'Student',
+    email: row.email || '',
+    mobile: row.mobile || '',
+    fathersName: row.fathersName || '',
+    mothersName: row.mothersName || '',
+    dob: row.dob || '',
+    group: row.academicGroup || 'Science',
+    academicGroup: row.academicGroup || 'Science',
+    avatar: row.avatar || null,
+    isVerified: Boolean(row.isVerified),
+    coins: Number(row.coins) || 0,
+    score: Number(row.score) || 0.0,
+    streak: Number(row.streak) || 0,
+    target: row.target || '',
+    ssc: {
+      roll: row.sscRoll || '',
+      reg: row.sscReg || '',
+      board: row.sscBoard || 'Dhaka',
+      year: row.sscYear || '2024',
+      gpa: row.sscGpa !== null && row.sscGpa !== undefined ? Number(row.sscGpa) : 0.0,
+      school: row.sscSchool || ''
+    },
+    hsc: {
+      roll: row.hscRoll || '',
+      reg: row.hscReg || '',
+      board: row.hscBoard || 'Dhaka',
+      year: row.hscYear || '2026',
+      gpa: row.hscGpa !== null && row.hscGpa !== undefined ? Number(row.hscGpa) : 0.0,
+      school: row.hscCollege || '',
+      college: row.hscCollege || ''
+    },
+    purchasedCourses: []
+  };
+}
+
 // -------------------------------------------------------------
 // AUTH: PRE-REGISTRATION EMAIL OTP DISPATCH
 // -------------------------------------------------------------
@@ -181,14 +223,14 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
         await db.run(`
           UPDATE students SET
             name = ?, fathersName = ?, mothersName = ?, dob = ?, mobile = ?, academicGroup = ?,
-            sscRoll = ?, sscReg = ?, sscBoard = ?, sscGpa = ?, sscSchool = ?,
-            hscRoll = ?, hscReg = ?, hscBoard = ?, hscGpa = ?, hscCollege = ?,
+            sscRoll = ?, sscReg = ?, sscBoard = ?, sscGpa = ?, sscSchool = ?, sscYear = ?,
+            hscRoll = ?, hscReg = ?, hscBoard = ?, hscGpa = ?, hscCollege = ?, hscYear = ?,
             password = ?, isVerified = 1, otpHash = NULL, otpExpiresAt = NULL, otpAttempts = 0
           WHERE id = ?
         `, [
           name, fathersName || null, mothersName || null, dob || null, mobile, group || 'Science',
-          ssc?.roll || null, ssc?.reg || null, ssc?.board || null, Number(ssc?.gpa) || 0.0, ssc?.school || null,
-          hsc?.roll || null, hsc?.reg || null, hsc?.board || null, Number(hsc?.gpa) || 0.0, hsc?.school || hsc?.college || null,
+          ssc?.roll || null, ssc?.reg || null, ssc?.board || null, Number(ssc?.gpa) || 0.0, ssc?.school || null, ssc?.year || null,
+          hsc?.roll || null, hsc?.reg || null, hsc?.board || null, Number(hsc?.gpa) || 0.0, hsc?.school || hsc?.college || null, hsc?.year || null,
           password || existingStudent.password || null,
           existingStudent.id
         ]);
@@ -198,7 +240,7 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
           success: true,
           isVerified: true,
           message: 'Account registered and verified successfully!',
-          user: verifiedUser
+          user: formatStudentResponse(verifiedUser)
         });
       }
 
@@ -224,8 +266,8 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
       const updateQuery = `
         UPDATE students SET
           name = ?, fathersName = ?, mothersName = ?, dob = ?, mobile = ?, academicGroup = ?,
-          sscRoll = ?, sscReg = ?, sscBoard = ?, sscGpa = ?, sscSchool = ?,
-          hscRoll = ?, hscReg = ?, hscBoard = ?, hscGpa = ?, hscCollege = ?,
+          sscRoll = ?, sscReg = ?, sscBoard = ?, sscGpa = ?, sscSchool = ?, sscYear = ?,
+          hscRoll = ?, hscReg = ?, hscBoard = ?, hscGpa = ?, hscCollege = ?, hscYear = ?,
           password = ?, otpHash = ?, otpExpiresAt = ?, otpAttempts = 0, lastOtpSentAt = ?
         WHERE id = ?
       `;
@@ -242,11 +284,13 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
         ssc?.board || null,
         Number(ssc?.gpa) || 0.0,
         ssc?.school || null,
+        ssc?.year || null,
         hsc?.roll || null,
         hsc?.reg || null,
         hsc?.board || null,
         Number(hsc?.gpa) || 0.0,
         hsc?.school || hsc?.college || null,
+        hsc?.year || null,
         password || existingStudent.password || null,
         hashed,
         expiresAt,
@@ -275,10 +319,10 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
     const insertQuery = `
       INSERT INTO students (
         name, fathersName, mothersName, dob, mobile, email, academicGroup,
-        sscRoll, sscReg, sscBoard, sscGpa, sscSchool,
-        hscRoll, hscReg, hscBoard, hscGpa, hscCollege,
+        sscRoll, sscReg, sscBoard, sscGpa, sscSchool, sscYear,
+        hscRoll, hscReg, hscBoard, hscGpa, hscCollege, hscYear,
         password, isVerified, otpHash, otpExpiresAt, otpAttempts, lastOtpSentAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `;
 
     const result = await db.run(insertQuery, [
@@ -294,11 +338,13 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
       ssc?.board || null,
       Number(ssc?.gpa) || 0.0,
       ssc?.school || null,
+      ssc?.year || null,
       hsc?.roll || null,
       hsc?.reg || null,
       hsc?.board || null,
       Number(hsc?.gpa) || 0.0,
       hsc?.school || hsc?.college || null,
+      hsc?.year || null,
       password || null,
       isAlreadyEmailVerified ? 1 : 0,
       isAlreadyEmailVerified ? null : hashed,
@@ -315,7 +361,7 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
         message: 'Account registered and email verified!',
         email: cleanEmail,
         studentId: result.lastID,
-        user: verifiedStudent
+        user: formatStudentResponse(verifiedStudent)
       });
     }
 
@@ -441,14 +487,7 @@ router.post('/api/auth/verify-otp', async (req, res) => {
     return res.json({
       success: true,
       message: 'Email verified successfully! Your EduFast account is now active.',
-      user: {
-        id: verifiedUser.id,
-        name: verifiedUser.name,
-        email: verifiedUser.email,
-        mobile: verifiedUser.mobile,
-        group: verifiedUser.academicGroup,
-        isVerified: true
-      }
+      user: formatStudentResponse(verifiedUser)
     });
   } catch (err) {
     console.error('OTP verification error:', err);
@@ -659,30 +698,7 @@ router.post('/api/auth/login', async (req, res) => {
       success: true,
       isVerified: true,
       message: 'Login successful!',
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        mobile: user.mobile,
-        group: user.academicGroup,
-        dob: user.dob,
-        isVerified: true,
-        ssc: {
-          roll: user.sscRoll,
-          reg: user.sscReg,
-          board: user.sscBoard,
-          gpa: user.sscGpa,
-          school: user.sscSchool
-        },
-        hsc: {
-          roll: user.hscRoll,
-          reg: user.hscReg,
-          board: user.hscBoard,
-          gpa: user.hscGpa,
-          school: user.hscCollege
-        },
-        purchasedCourses: []
-      }
+      user: formatStudentResponse(user)
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -693,4 +709,216 @@ router.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// -------------------------------------------------------------
+// TEACHER API: PROFILE, REGISTRATION & UPDATE
+// -------------------------------------------------------------
+function formatTeacherResponse(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name || 'Instructor',
+    email: row.email || '',
+    mobile: row.mobile || '',
+    fathersName: row.fathersName || '',
+    dob: row.dob || '',
+    group: row.academicGroup || row.group || 'Science',
+    wing: row.academicGroup || row.group || 'Science',
+    subject: row.subject || 'Higher Mathematics',
+    institution: row.institution || '',
+    qualification: row.qualification || '',
+    experience: row.experience || '5+ Years',
+    designation: row.designation || 'Senior Instructor',
+    department: row.department || `${row.designation || 'Senior Instructor'}, ${row.academicGroup || 'Science'} Wing`,
+    bio: row.bio || '',
+    avatar: row.avatar || null,
+    rating: Number(row.rating) || 5.0,
+    studentsCount: Number(row.studentsCount) || 0,
+    coursesCount: Number(row.coursesCount) || 0,
+    liveHours: Number(row.liveHours) || 0,
+    isVerified: Boolean(row.isVerified !== 0)
+  };
+}
+
+// 1. GET Teacher Profile
+router.get('/api/teachers/profile', async (req, res) => {
+  try {
+    const db = getDb();
+    const { email, id } = req.query;
+    if (!email && !id) {
+      return res.status(400).json({ success: false, error: 'Teacher email or id is required.' });
+    }
+
+    const teacher = email
+      ? await db.get('SELECT * FROM teachers WHERE LOWER(email) = LOWER(?)', [String(email).trim()])
+      : await db.get('SELECT * FROM teachers WHERE id = ?', [id]);
+
+    if (!teacher) {
+      return res.status(404).json({ success: false, error: 'Teacher profile not found.' });
+    }
+
+    return res.json({
+      success: true,
+      teacher: formatTeacherResponse(teacher)
+    });
+  } catch (err) {
+    console.error('Get teacher profile error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch teacher profile.' });
+  }
+});
+
+// 2. REGISTER Teacher
+router.post('/api/teachers/register', async (req, res) => {
+  try {
+    const db = getDb();
+    const {
+      name, email, mobile, fathersName, dob, group, subject, institution,
+      qualification, experience, designation, bio, password
+    } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, error: 'Name and email are required for teacher.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const teacherId = req.body.id || `teacher-${Date.now()}`;
+    const department = req.body.department || `${designation || 'Senior Instructor'}, ${group || 'Science'} Wing`;
+
+    // Check existing
+    const existing = await db.get('SELECT * FROM teachers WHERE LOWER(email) = ?', [cleanEmail]);
+    if (existing) {
+      await db.run(`
+        UPDATE teachers SET
+          name = ?, mobile = ?, fathersName = ?, dob = ?, academicGroup = ?,
+          subject = ?, institution = ?, qualification = ?, experience = ?,
+          designation = ?, department = ?, bio = ?, isVerified = 1
+        WHERE id = ?
+      `, [
+        name, mobile || existing.mobile, fathersName || existing.fathersName, dob || existing.dob,
+        group || existing.academicGroup, subject || existing.subject, institution || existing.institution,
+        qualification || existing.qualification, experience || existing.experience,
+        designation || existing.designation, department, bio || existing.bio, existing.id
+      ]);
+
+      const updated = await db.get('SELECT * FROM teachers WHERE id = ?', [existing.id]);
+      return res.json({
+        success: true,
+        message: 'Teacher profile updated.',
+        teacher: formatTeacherResponse(updated)
+      });
+    }
+
+    await db.run(`
+      INSERT INTO teachers (
+        id, name, email, mobile, fathersName, dob, academicGroup, subject,
+        institution, qualification, experience, designation, department, bio,
+        rating, studentsCount, coursesCount, liveHours, isVerified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `, [
+      teacherId, name, cleanEmail, mobile || '', fathersName || '', dob || '',
+      group || 'Science', subject || 'Higher Mathematics', institution || '',
+      qualification || '', experience || '5+ Years', designation || 'Senior Instructor',
+      department, bio || '', 5.0, 0, 0, 0
+    ]);
+
+    // Also register in users_auth
+    if (password) {
+      await db.run('INSERT OR IGNORE INTO users_auth (role, email, mobile, password, isVerified) VALUES (?, ?, ?, ?, 1)',
+        ['teacher', cleanEmail, mobile || `017${Date.now().toString().slice(-8)}`, password]);
+    }
+
+    const created = await db.get('SELECT * FROM teachers WHERE id = ?', [teacherId]);
+    return res.json({
+      success: true,
+      message: 'Teacher registered successfully.',
+      teacher: formatTeacherResponse(created)
+    });
+  } catch (err) {
+    console.error('Teacher register error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to register teacher: ' + err.message });
+  }
+});
+
+// 3. UPDATE Teacher Profile
+router.post('/api/teachers/update-profile', async (req, res) => {
+  try {
+    const db = getDb();
+    const {
+      id, email, name, fathersName, dob, mobile, group, wing,
+      subject, institution, qualification, experience, designation, department,
+      bio, avatar
+    } = req.body;
+
+    if (!id && !email) {
+      return res.status(400).json({ success: false, error: 'Teacher ID or Email is required.' });
+    }
+
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    let teacher = null;
+    if (id) {
+      teacher = await db.get('SELECT * FROM teachers WHERE id = ?', [id]);
+    }
+    if (!teacher && cleanEmail) {
+      teacher = await db.get('SELECT * FROM teachers WHERE LOWER(email) = ?', [cleanEmail]);
+    }
+
+    const targetGroup = group || wing || teacher?.academicGroup || 'Science';
+    const targetDept = department || `${designation || teacher?.designation || 'Instructor'}, ${targetGroup} Wing`;
+
+    if (teacher) {
+      await db.run(`
+        UPDATE teachers SET
+          name = COALESCE(?, name),
+          mobile = COALESCE(?, mobile),
+          fathersName = COALESCE(?, fathersName),
+          dob = COALESCE(?, dob),
+          academicGroup = COALESCE(?, academicGroup),
+          subject = COALESCE(?, subject),
+          institution = COALESCE(?, institution),
+          qualification = COALESCE(?, qualification),
+          experience = COALESCE(?, experience),
+          designation = COALESCE(?, designation),
+          department = COALESCE(?, department),
+          bio = COALESCE(?, bio),
+          avatar = COALESCE(?, avatar)
+        WHERE id = ?
+      `, [
+        name || null, mobile || null, fathersName || null, dob || null, targetGroup,
+        subject || null, institution || null, qualification || null, experience || null,
+        designation || null, targetDept, bio || null, avatar || null, teacher.id
+      ]);
+
+      const updated = await db.get('SELECT * FROM teachers WHERE id = ?', [teacher.id]);
+      return res.json({
+        success: true,
+        message: 'Teacher profile updated successfully.',
+        teacher: formatTeacherResponse(updated)
+      });
+    } else {
+      // Create if not found
+      const newId = id || `teacher-${Date.now()}`;
+      await db.run(`
+        INSERT INTO teachers (
+          id, name, email, mobile, fathersName, dob, academicGroup, subject,
+          institution, qualification, experience, designation, department, bio, avatar, isVerified
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `, [
+        newId, name || 'Instructor', cleanEmail || '', mobile || '', fathersName || '', dob || '',
+        targetGroup, subject || 'Higher Mathematics', institution || '', qualification || '',
+        experience || '5+ Years', designation || 'Senior Instructor', targetDept, bio || '', avatar || null
+      ]);
+
+      const created = await db.get('SELECT * FROM teachers WHERE id = ?', [newId]);
+      return res.json({
+        success: true,
+        message: 'Teacher profile created successfully.',
+        teacher: formatTeacherResponse(created)
+      });
+    }
+  } catch (err) {
+    console.error('Teacher update-profile error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update teacher profile: ' + err.message });
+  }
+});
+
 module.exports = router;
+

@@ -183,6 +183,7 @@ export default function SignupPage({
         roll: sscDetails.roll,
         reg: sscDetails.reg,
         board: sscDetails.board,
+        year: sscDetails.year || '2024',
         gpa: parseFloat(sscDetails.gpa),
         school: sscDetails.school
       },
@@ -190,8 +191,10 @@ export default function SignupPage({
         roll: hscDetails.roll,
         reg: hscDetails.reg,
         board: hscDetails.board,
+        year: hscDetails.year || '2026',
         gpa: parseFloat(hscDetails.gpa),
-        school: hscDetails.college
+        school: hscDetails.college,
+        college: hscDetails.college
       },
       avatar: null,
       purchasedCourses: []
@@ -292,24 +295,43 @@ export default function SignupPage({
       name: teacherInfo.name.trim(),
       email: teacherInfo.email.trim(),
       mobile: teacherMobile,
-      dob: teacherInfo.dob,
-      department: `${teacherProfessional.designation}, ${teacherInfo.group} Wing`,
-      qualification: `${teacherProfessional.qualification} (${teacherProfessional.institution})`,
-      bio: teacherProfessional.bio || `${teacherProfessional.subject} Lead Instructor with ${teacherProfessional.experience} of mentoring experience.`,
-      subject: teacherProfessional.subject,
-      institution: teacherProfessional.institution,
-      experience: teacherProfessional.experience,
+      fathersName: teacherInfo.fathersName?.trim() || '',
+      dob: teacherInfo.dob || '',
+      group: teacherInfo.group || 'Science',
+      wing: teacherInfo.group || 'Science',
+      academicGroup: teacherInfo.group || 'Science',
+      subject: teacherProfessional.subject || 'Higher Mathematics',
+      institution: teacherProfessional.institution?.trim() || '',
+      qualification: teacherProfessional.qualification?.trim() || '',
+      experience: teacherProfessional.experience || '5+ Years',
+      designation: teacherProfessional.designation?.trim() || 'Senior Instructor',
+      department: `${teacherProfessional.designation?.trim() || 'Senior Instructor'}, ${teacherInfo.group || 'Science'} Wing`,
+      bio: teacherProfessional.bio?.trim() || `${teacherProfessional.subject || 'Higher Mathematics'} Lead Instructor with ${teacherProfessional.experience || '5+ Years'} of mentoring experience.`,
       avatar: null,
-      rating: 0,
+      rating: 5.0,
       studentsCount: 0,
       coursesCount: 0,
-      liveHours: 0
+      liveHours: 0,
+      isVerified: true
     };
+
+    // Asynchronously sync with backend SQLite
+    fetch('/api/teachers/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...newTeacher,
+        password: teacherPasswords.password
+      })
+    }).catch(err => console.warn('Teacher backend register notice:', err));
+
+    localStorage.setItem('edufast_teacher_session', JSON.stringify(newTeacher));
+    localStorage.setItem('edufast_teacher_profile', JSON.stringify(newTeacher));
+    window.dispatchEvent(new CustomEvent('edufast-teacher-update', { detail: newTeacher }));
 
     if (onTeacherRegisterSuccess) {
       onTeacherRegisterSuccess(newTeacher);
     } else {
-      localStorage.setItem('edufast_teacher_session', JSON.stringify(newTeacher));
       addToast(`Welcome ${newTeacher.name}! Teacher Studio account created.`, 'success');
       onNavigate('teacher');
     }
@@ -1080,9 +1102,10 @@ export default function SignupPage({
           onClose={() => setIsEmailOtpOpen(false)}
           email={emailForOtp}
           onVerificationSuccess={(verifiedUser) => {
+            const userPayload = (verifiedUser && verifiedUser.user) ? verifiedUser.user : verifiedUser;
             const finalUser = {
               ...pendingStudent,
-              ...verifiedUser,
+              ...userPayload,
               isVerified: true
             };
             onRegisterSuccess(finalUser);

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Radio, Video, BookOpen, AlertCircle, Settings,
-  BarChart2, ArrowLeft, LogOut, Sun, Moon, Globe
+  BarChart2, ArrowLeft, LogOut, Sun, Moon, Globe, User, CheckCircle
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function TeacherHeader({
   activeTab,
@@ -16,8 +17,10 @@ export default function TeacherHeader({
   onLogout,
   isDarkMode,
   toggleDarkMode,
-  theme
+  theme,
+  onOpenProfileModal
 }) {
+  const { language, toggleLanguage } = useLanguage();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -33,12 +36,12 @@ export default function TeacherHeader({
   }, []);
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart2 },
-    { id: 'live-studio', label: 'Live Studio', icon: Radio, badge: isLiveStudioActive ? 'LIVE' : null },
-    { id: 'recordings', label: 'Recordings', icon: Video, count: recordingsCount },
-    { id: 'courses', label: 'Courses', icon: BookOpen, count: coursesCount },
-    { id: 'notices', label: 'Notices', icon: AlertCircle, count: noticesCount },
-    { id: 'settings', label: 'Settings', icon: Settings }
+    { id: 'overview', label: language === 'bn' ? 'ওভারভিউ' : 'Overview', icon: BarChart2 },
+    { id: 'live-studio', label: language === 'bn' ? 'লাইভ স্টুডিও' : 'Live Studio', icon: Radio, badge: isLiveStudioActive ? 'LIVE' : null },
+    { id: 'recordings', label: language === 'bn' ? 'রেকর্ডিংস' : 'Recordings', icon: Video, count: recordingsCount },
+    { id: 'courses', label: language === 'bn' ? 'কোর্সেস' : 'Courses', icon: BookOpen, count: coursesCount },
+    { id: 'notices', label: language === 'bn' ? 'নোটিশ' : 'Notices', icon: AlertCircle, count: noticesCount },
+    { id: 'settings', label: language === 'bn' ? 'প্রোফাইল সেটিংস' : 'Settings', icon: Settings }
   ];
 
   return (
@@ -140,6 +143,31 @@ export default function TeacherHeader({
 
       {/* Right Action Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
+        {/* Language Switcher Toggle */}
+        <button
+          type="button"
+          onClick={toggleLanguage}
+          title={language === 'bn' ? 'Switch to English' : 'বাংলায় পরিবর্তন করুন'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            backgroundColor: 'rgba(13, 148, 136, 0.15)',
+            border: '1px solid rgba(13, 148, 136, 0.35)',
+            borderRadius: '20px',
+            padding: '0.3rem 0.65rem',
+            color: 'var(--primary-teal)',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Globe style={{ width: '13px', height: '13px' }} />
+          <span>{language === 'bn' ? 'English' : 'বাংলা'}</span>
+        </button>
+
         {/* Dark / Light Mode Toggle */}
         <button
           type="button"
@@ -343,11 +371,12 @@ export default function TeacherHeader({
                     background: 'none',
                     width: '100%',
                     textAlign: 'left',
+                    fontWeight: 600,
                     transition: 'background-color 0.15s'
                   }}
                 >
                   <Settings style={{ width: '15px', height: '15px', color: 'var(--primary-teal)' }} />
-                  <span>Profile Settings</span>
+                  <span>{language === 'bn' ? 'প্রোফাইল সেটিংস ও এডিট' : 'Profile Settings & Edit'}</span>
                 </button>
 
                 <button

@@ -207,28 +207,39 @@ export const DEFAULT_USER = {
 };
 
 // ==========================================
-// 2. TEACHER PROFILE TEMPLATE (Clean Baseline)
+// 2. TEACHER PROFILE TEMPLATE (Full Comprehensive Baseline)
 // ==========================================
 export const DEFAULT_TEACHER = {
   id: "teacher-default",
-  name: "",
-  email: "",
-  qualification: "",
-  department: "",
-  mobile: "",
-  bio: "",
+  name: "Dr. Mahfuzur Rahman",
+  email: "teacher@edufast.com",
+  mobile: "01711111111",
+  fathersName: "Md. Abdur Rahim",
+  dob: "1988-06-15",
+  group: "Science",
+  wing: "Science",
+  subject: "Higher Mathematics",
+  institution: "BUET / Notre Dame College",
+  qualification: "Ph.D in Applied Mathematics (BUET)",
+  experience: "8+ Years",
+  designation: "Senior Lead Instructor",
+  department: "Senior Lead Instructor, Science Wing",
+  bio: "Lead Higher Mathematics & Engineering admission instructor with 8+ years of dedicated mentoring experience.",
   avatar: null,
-  rating: 0,
-  studentsCount: 0,
-  coursesCount: 0,
-  liveHours: 0
+  rating: 4.9,
+  studentsCount: 2450,
+  coursesCount: 6,
+  liveHours: 120,
+  isVerified: true
 };
 
 export const getTeacherProfile = () => {
   if (typeof window === 'undefined') return DEFAULT_TEACHER;
   try {
+    const session = localStorage.getItem('edufast_teacher_session');
+    if (session) return { ...DEFAULT_TEACHER, ...JSON.parse(session) };
     const stored = localStorage.getItem('edufast_teacher_profile');
-    if (stored) return JSON.parse(stored);
+    if (stored) return { ...DEFAULT_TEACHER, ...JSON.parse(stored) };
   } catch (e) {
     console.error('Error reading teacher profile:', e);
   }
@@ -236,10 +247,15 @@ export const getTeacherProfile = () => {
 };
 
 export const saveTeacherProfile = (profile) => {
-  if (typeof window === 'undefined') return DEFAULT_TEACHER;
-  localStorage.setItem('edufast_teacher_profile', JSON.stringify(profile));
+  if (typeof window === 'undefined') return profile;
+  const merged = { ...DEFAULT_TEACHER, ...profile };
+  try {
+    localStorage.setItem('edufast_teacher_profile', JSON.stringify(merged));
+    localStorage.setItem('edufast_teacher_session', JSON.stringify(merged));
+  } catch (e) {}
   window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'teacher_profile', action: 'save' } }));
-  return profile;
+  window.dispatchEvent(new CustomEvent('edufast-teacher-update', { detail: merged }));
+  return merged;
 };
 
 // ==========================================

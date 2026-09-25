@@ -62,12 +62,24 @@ export default function TeacherLogin({
     }
 
     if (handleTeacherRegister) {
+      const detectedWing = signupForm.subject.includes('Accounting') || signupForm.subject.includes('Finance') 
+        ? 'Commerce' 
+        : (signupForm.subject.includes('Bangla') || signupForm.subject.includes('English') ? 'Arts' : 'Science');
+
       handleTeacherRegister({
         name: signupForm.name.trim(),
         subject: signupForm.subject,
         institution: signupForm.institution.trim(),
         email: signupForm.email.trim(),
-        designation: `Senior Instructor (${signupForm.subject})`
+        mobile: '01711111111',
+        designation: `Senior Instructor (${signupForm.subject})`,
+        department: `Senior Instructor, ${detectedWing} Wing`,
+        group: detectedWing,
+        wing: detectedWing,
+        qualification: `B.Sc / M.Sc (${signupForm.institution.trim()})`,
+        experience: '5+ Years',
+        bio: `${signupForm.subject} Lead Instructor mentoring admission aspirants with 5+ years of experience.`,
+        isVerified: true
       });
     }
   };

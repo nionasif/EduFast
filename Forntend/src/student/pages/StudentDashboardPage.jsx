@@ -14,7 +14,7 @@ import Leaderboard from '../components/Leaderboard';
 import CountdownTimer from '../../common/components/CountdownTimer';
 import DailyTaskSolverModal from '../components/DailyTaskSolverModal';
 
-export default function StudentDashboardPage({ user, onNavigate }) {
+export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }) {
   const [admissions, setAdmissions] = useState(getAdmissions);
   const [courses, setCourses] = useState(getCourses);
   const [coins, setCoins] = useState(() => getStudentCoins(user));
@@ -23,6 +23,14 @@ export default function StudentDashboardPage({ user, onNavigate }) {
   const [rewardNotice, setRewardNotice] = useState(null);
   const [mockStats, setMockStats] = useState(() => getStudentMockStats(user));
   const [streakDays, setStreakDays] = useState(() => getStudentStreak(user));
+
+  const handleOpenStudentProfile = () => {
+    if (onOpenProfile) {
+      onOpenProfile();
+    } else {
+      window.dispatchEvent(new CustomEvent('open-student-profile'));
+    }
+  };
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -148,7 +156,7 @@ export default function StudentDashboardPage({ user, onNavigate }) {
   return (
     <div className="container" style={{ padding: '2rem 0 6rem 0' }}>
       
-      {/* Top Welcome Banner with Mentor Connect */}
+      {/* Top Welcome Banner with Profile & Mentor Connect */}
       <div 
         className="dashboard-welcome-banner"
         style={{ 
@@ -159,47 +167,112 @@ export default function StudentDashboardPage({ user, onNavigate }) {
           gap: '1rem',
           marginBottom: '1.5rem',
           backgroundColor: 'var(--white, #ffffff)',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '16px',
+          padding: '1.4rem 1.75rem',
+          borderRadius: '18px',
           border: '1px solid var(--gray-200, #e2e8f0)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
         }}
       >
-        <div style={{ textAlign: 'left' }}>
-          <h1 style={{ fontSize: '1.9rem', marginBottom: '0.35rem' }}>
-            Welcome back, <span style={{ color: 'var(--primary-teal, #319795)' }}>{user?.name || 'Student'}</span>!
-          </h1>
-          <p style={{ color: 'var(--gray-600)', margin: 0, fontSize: '0.9rem' }}>
-            Group: <strong>{user?.group || 'General'}</strong> • SSC GPA: <strong>{user?.ssc?.gpa ? Number(user.ssc.gpa).toFixed(2) : 'N/A'}</strong> • HSC GPA: <strong>{user?.hsc?.gpa ? Number(user.hsc.gpa).toFixed(2) : 'N/A'}</strong>
-          </p>
+        <div style={{ textAlign: 'left', flex: 1, minWidth: '260px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+            <h1 style={{ fontSize: '1.85rem', margin: 0 }}>
+              Welcome back, <span style={{ color: 'var(--primary-teal, #319795)' }}>{user?.name || 'Student'}</span>!
+            </h1>
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              backgroundColor: '#def7ec',
+              color: '#03543f',
+              padding: '2px 8px',
+              borderRadius: '999px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              ✓ Verified Student
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.86rem', color: 'var(--gray-600, #4a5568)' }}>
+            {user?.email && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#0f766e', fontWeight: 600 }}>
+                📧 {user.email}
+              </span>
+            )}
+            {user?.mobile && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                • 📱 {user.mobile}
+              </span>
+            )}
+            <span>
+              • বিভাগ: <strong>{user?.group || user?.academicGroup || 'Science'}</strong>
+            </span>
+            <span>
+              • SSC: <strong>{user?.ssc?.gpa ? Number(user.ssc.gpa).toFixed(2) : 'N/A'}</strong>
+            </span>
+            <span>
+              • HSC: <strong>{user?.hsc?.gpa ? Number(user.hsc.gpa).toFixed(2) : 'N/A'}</strong>
+            </span>
+          </div>
         </div>
 
-        {/* Dedicated Mentor Communication Button */}
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent('open-mentor-chat'))}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem',
-            background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '12px',
-            padding: '0.75rem 1.25rem',
-            fontWeight: 700,
-            fontSize: '0.88rem',
-            cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(13, 148, 136, 0.35)',
-            transition: 'transform 0.2s ease'
-          }}
-        >
-          <span style={{ fontSize: '1.2rem' }}>👨‍🏫</span>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: '0.86rem', lineHeight: '1.1' }}>মেন্টরের সাথে কথা বলুন</div>
-            <div style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 500 }}>২৪/৭ লাইভ ডাউট সলভিং</div>
-          </div>
-        </button>
+        {/* Right Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Dedicated View Full Profile Button */}
+          <button
+            type="button"
+            onClick={handleOpenStudentProfile}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              backgroundColor: '#f0fdfa',
+              color: '#0f766e',
+              border: '1.5px solid #0d9488',
+              borderRadius: '12px',
+              padding: '0.75rem 1.15rem',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 6px rgba(13, 148, 136, 0.1)'
+            }}
+            title="আপনার সম্পূর্ণ প্রোফাইল তথ্য দেখুন ও এডিট করুন"
+          >
+            <span style={{ fontSize: '1.15rem' }}>👤</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '0.86rem', lineHeight: '1.2' }}>আমার প্রোফাইল</div>
+              <div style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 600 }}>সকল তথ্য ও ফলাফল</div>
+            </div>
+          </button>
+
+          {/* Dedicated Mentor Communication Button */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-mentor-chat'))}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+              background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '0.75rem 1.15rem',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(13, 148, 136, 0.35)',
+              transition: 'transform 0.2s ease'
+            }}
+          >
+            <span style={{ fontSize: '1.15rem' }}>👨‍🏫</span>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: '0.86rem', lineHeight: '1.2' }}>২৪/৭ মেন্টর</div>
+              <div style={{ fontSize: '0.7rem', opacity: 0.85, fontWeight: 500 }}>ডাউট সলভিং</div>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Stats Panel Grid (4 Columns) */}

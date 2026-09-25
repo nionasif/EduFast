@@ -2,6 +2,146 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../config/db');
 
+function formatStudentResponse(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name || 'Student',
+    email: row.email || '',
+    mobile: row.mobile || '',
+    fathersName: row.fathersName || '',
+    mothersName: row.mothersName || '',
+    dob: row.dob || '',
+    group: row.academicGroup || 'Science',
+    academicGroup: row.academicGroup || 'Science',
+    avatar: row.avatar || null,
+    isVerified: Boolean(row.isVerified),
+    coins: Number(row.coins) || 0,
+    score: Number(row.score) || 0.0,
+    streak: Number(row.streak) || 0,
+    target: row.target || '',
+    ssc: {
+      roll: row.sscRoll || '',
+      reg: row.sscReg || '',
+      board: row.sscBoard || 'Dhaka',
+      year: row.sscYear || '2024',
+      gpa: row.sscGpa !== null && row.sscGpa !== undefined ? Number(row.sscGpa) : 0.0,
+      school: row.sscSchool || ''
+    },
+    hsc: {
+      roll: row.hscRoll || '',
+      reg: row.hscReg || '',
+      board: row.hscBoard || 'Dhaka',
+      year: row.hscYear || '2026',
+      gpa: row.hscGpa !== null && row.hscGpa !== undefined ? Number(row.hscGpa) : 0.0,
+      school: row.hscCollege || '',
+      college: row.hscCollege || ''
+    },
+    purchasedCourses: []
+  };
+}
+
+// ROUTE: Get single student profile (by email or id)
+router.get('/api/students/profile', async (req, res) => {
+  try {
+    const db = getDb();
+    const { email, id } = req.query;
+    if (!email && !id) {
+      return res.status(400).json({ success: false, error: 'Email or ID is required.' });
+    }
+    const student = email
+      ? await db.get('SELECT * FROM students WHERE LOWER(email) = LOWER(?)', [String(email).trim()])
+      : await db.get('SELECT * FROM students WHERE id = ?', [id]);
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student not found.' });
+    }
+    return res.json({
+      success: true,
+      user: formatStudentResponse(student)
+    });
+  } catch (err) {
+    console.error('Error fetching student profile:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve student profile.' });
+  }
+});
+
+// ROUTE: Update student full profile
+router.post('/api/students/update-profile', async (req, res) => {
+  try {
+    const db = getDb();
+    const {
+      id,
+      email,
+      name,
+      fathersName,
+      mothersName,
+      dob,
+      mobile,
+      group,
+      avatar,
+      ssc,
+      hsc
+    } = req.body;
+
+    if (!email && !id) {
+      return res.status(400).json({ success: false, error: 'Email or ID is required.' });
+    }
+
+    const current = email
+      ? await db.get('SELECT * FROM students WHERE LOWER(email) = LOWER(?)', [String(email).trim()])
+      : await db.get('SELECT * FROM students WHERE id = ?', [id]);
+
+    if (!current) {
+      return res.status(404).json({ success: false, error: 'Student account not found.' });
+    }
+
+    const updatedName = name !== undefined ? name : current.name;
+    const updatedFathersName = fathersName !== undefined ? fathersName : current.fathersName;
+    const updatedMothersName = mothersName !== undefined ? mothersName : current.mothersName;
+    const updatedDob = dob !== undefined ? dob : current.dob;
+    const updatedMobile = mobile !== undefined ? mobile : current.mobile;
+    const updatedGroup = group !== undefined ? group : current.academicGroup;
+    const updatedAvatar = avatar !== undefined ? avatar : current.avatar;
+
+    const updatedSscRoll = ssc?.roll !== undefined ? ssc.roll : current.sscRoll;
+    const updatedSscReg = ssc?.reg !== undefined ? ssc.reg : current.sscReg;
+    const updatedSscBoard = ssc?.board !== undefined ? ssc.board : current.sscBoard;
+    const updatedSscGpa = ssc?.gpa !== undefined ? Number(ssc.gpa) : current.sscGpa;
+    const updatedSscSchool = ssc?.school !== undefined ? ssc.school : current.sscSchool;
+    const updatedSscYear = ssc?.year !== undefined ? ssc.year : current.sscYear;
+
+    const updatedHscRoll = hsc?.roll !== undefined ? hsc.roll : current.hscRoll;
+    const updatedHscReg = hsc?.reg !== undefined ? hsc.reg : current.hscReg;
+    const updatedHscBoard = hsc?.board !== undefined ? hsc.board : current.hscBoard;
+    const updatedHscGpa = hsc?.gpa !== undefined ? Number(hsc.gpa) : current.hscGpa;
+    const updatedHscCollege = (hsc?.college !== undefined ? hsc.college : (hsc?.school !== undefined ? hsc.school : current.hscCollege));
+    const updatedHscYear = hsc?.year !== undefined ? hsc.year : current.hscYear;
+
+    await db.run(`
+      UPDATE students SET
+        name = ?, fathersName = ?, mothersName = ?, dob = ?, mobile = ?, academicGroup = ?, avatar = ?,
+        sscRoll = ?, sscReg = ?, sscBoard = ?, sscGpa = ?, sscSchool = ?, sscYear = ?,
+        hscRoll = ?, hscReg = ?, hscBoard = ?, hscGpa = ?, hscCollege = ?, hscYear = ?
+      WHERE id = ?
+    `, [
+      updatedName, updatedFathersName, updatedMothersName, updatedDob, updatedMobile, updatedGroup, updatedAvatar,
+      updatedSscRoll, updatedSscReg, updatedSscBoard, updatedSscGpa, updatedSscSchool, updatedSscYear,
+      updatedHscRoll, updatedHscReg, updatedHscBoard, updatedHscGpa, updatedHscCollege, updatedHscYear,
+      current.id
+    ]);
+
+    const refreshed = await db.get('SELECT * FROM students WHERE id = ?', [current.id]);
+    return res.json({
+      success: true,
+      message: 'Profile updated successfully!',
+      user: formatStudentResponse(refreshed)
+    });
+  } catch (err) {
+    console.error('Error updating student profile:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to update student profile.' });
+  }
+});
+
 // ROUTE: Get all saved student submissions
 router.get('/api/students', async (req, res) => {
   try {
