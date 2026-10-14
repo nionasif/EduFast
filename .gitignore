@@ -11,6 +11,19 @@ node_modules/
 # SQLite databases
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+
+# Python Virtual Environment
+.venv/
+__pycache__/
+*.pyc
+
+# Agent IDE metadata
+.agent/
+.agents/
+.gemini/
+.gsd/
 
 # Build outputs
 dist/

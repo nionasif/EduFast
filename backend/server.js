@@ -1,10 +1,20 @@
 require('dotenv').config();
+
+// Prevent process exit on unhandled errors or rejected promises
+process.on('uncaughtException', (err) => {
+  console.error('[CRASH_PREVENTED] Uncaught Exception:', err?.message || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[CRASH_PREVENTED] Unhandled Promise Rejection:', reason?.message || reason);
+});
+
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const path = require('path');
 const { initDb, getDb } = require('./config/db');
+
 
 // Route Handlers
 const authRoutes = require('./routes/authRoutes');
@@ -14,6 +24,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const questionRoutes = require('./routes/questionRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const dataRoutes = require('./routes/dataRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -45,6 +56,7 @@ app.use(adminRoutes);
 app.use(questionRoutes);
 app.use(uploadRoutes);
 app.use(dataRoutes);
+app.use(aiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

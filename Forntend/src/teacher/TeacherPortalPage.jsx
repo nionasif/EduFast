@@ -12,7 +12,6 @@ import '../admin.css';
 
 // Modular Components
 import TeacherHeader from './components/TeacherHeader';
-import TeacherLogin from './components/TeacherLogin';
 import ScheduleLiveModal from './components/ScheduleLiveModal';
 import TeacherCourseModal from './components/TeacherCourseModal';
 import TeacherRecordingModal from './components/TeacherRecordingModal';
@@ -45,11 +44,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     }
   });
 
-  const [loginForm, setLoginForm] = useState({
-    email: 'teacher@edufast.com',
-    password: 'password123'
-  });
-  const [loginError, setLoginError] = useState('');
+
 
   // -------------------------------------------------------------
   // Theme State (Dark & Light Mode)
@@ -136,47 +131,15 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   }, []);
 
   // -------------------------------------------------------------
-  // Login & Logout Handlers
+  // Logout Handler
   // -------------------------------------------------------------
-  const handleTeacherLogin = (e) => {
-    e.preventDefault();
-    setLoginError('');
-    if (!loginForm.email || !loginForm.password) {
-      setLoginError('Please enter both email and password.');
-      return;
-    }
-    if (loginForm.email.includes('@') && loginForm.password.length >= 6) {
-      const profile = getTeacherProfile();
-      const sessionData = { ...profile, email: loginForm.email };
-      localStorage.setItem('edufast_teacher_session', JSON.stringify(sessionData));
-      setTeacherUser(sessionData);
-      setIsAuthenticated(true);
-      addToast('Welcome back! Successfully logged into Teacher Studio.', 'success');
-    } else {
-      setLoginError('Invalid credentials. Password must be at least 6 characters.');
-    }
-  };
-
   const handleTeacherLogout = () => {
     localStorage.removeItem('edufast_teacher_session');
     setIsAuthenticated(false);
     addToast('You have been logged out of Teacher Studio.', 'info');
-  };
-
-  const handleTeacherRegister = (newTeacherData) => {
-    const profile = {
-      ...DEFAULT_TEACHER,
-      ...newTeacherData,
-      id: `teacher-${Date.now()}`,
-      rating: 0,
-      totalClasses: 0,
-      totalStudents: 0
-    };
-    saveTeacherProfile(profile);
-    localStorage.setItem('edufast_teacher_session', JSON.stringify(profile));
-    setTeacherUser(profile);
-    setIsAuthenticated(true);
-    addToast(`Welcome ${profile.name}! Instructor account created successfully.`, 'success');
+    if (onExitToPublic) {
+      onExitToPublic('landing');
+    }
   };
 
 
@@ -861,21 +824,16 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   };
 
   // -------------------------------------------------------------
-  // RENDER: LOGIN GATEWAY (If not authenticated)
+  // RENDER: REDIRECT (If not authenticated)
   // -------------------------------------------------------------
+  useEffect(() => {
+    if (!isAuthenticated && onExitToPublic) {
+      onExitToPublic('landing');
+    }
+  }, [isAuthenticated, onExitToPublic]);
+
   if (!isAuthenticated) {
-    return (
-      <TeacherLogin
-        loginForm={loginForm}
-        setLoginForm={setLoginForm}
-        loginError={loginError}
-        handleTeacherLogin={handleTeacherLogin}
-        handleTeacherRegister={handleTeacherRegister}
-        onExitToPublic={onExitToPublic}
-        isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
-      />
-    );
+    return null;
   }
 
   // Check if items belong to this authenticated teacher

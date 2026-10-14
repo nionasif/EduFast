@@ -36,6 +36,9 @@ export default function MentorPortalPage({ onExitToPublic }) {
   const handleSignOut = () => {
     localStorage.removeItem('edufast_mentor_session');
     setIsAuthenticated(false);
+    if (onExitToPublic) {
+      onExitToPublic('landing');
+    }
   };
 
   const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'solver', 'escalated', 'analytics'

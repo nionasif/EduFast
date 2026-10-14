@@ -54,7 +54,6 @@ import {
   MessageSquare
 } from 'lucide-react';
 
-import './App.css';
 
 // Sleek loading fallback for on-demand lazy pages
 const PageLoadingFallback = () => (
@@ -315,6 +314,23 @@ const getInitialRoute = () => {
   if (typeof window !== 'undefined') {
     const path = normalizeRoutePath(window.location.pathname);
     const hash = window.location.hash.toLowerCase();
+
+    // Check if student session exists
+    let hasSession = false;
+    try {
+      const saved = localStorage.getItem('edufast_student_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.email || (parsed.name && parsed.name.trim()))) {
+          hasSession = true;
+        }
+      }
+    } catch { }
+
+    if (hasSession && (path === '/login' || path === '/signup' || hash === '#login' || hash === '#signup')) {
+      return 'dashboard';
+    }
+
     if (hash === '#admin') return 'admin';
     if (hash === '#teacher') return 'teacher';
     if (hash === '#mentor') return 'mentor';
@@ -324,15 +340,9 @@ const getInitialRoute = () => {
     const matchedPage = ROUTE_MAP[path];
     if (matchedPage) {
       if (PROTECTED_PAGES.includes(matchedPage)) {
-        try {
-          const saved = localStorage.getItem('edufast_student_session');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed && (parsed.email || (parsed.name && parsed.name.trim()))) {
-              return matchedPage;
-            }
-          }
-        } catch { }
+        if (hasSession) {
+          return matchedPage;
+        }
         return 'landing';
       }
       return matchedPage;
@@ -510,6 +520,13 @@ function App() {
       else if (ROUTE_MAP[path]) targetPage = ROUTE_MAP[path];
 
       const prefix = getSubfolderPrefix();
+
+      if (currentUser && (targetPage === 'signup' || targetPage === 'login')) {
+        setCurrentPage('dashboard');
+        window.history.replaceState({ page: 'dashboard' }, '', `${prefix}/dashboard`);
+        return;
+      }
+
       if (PROTECTED_PAGES.includes(targetPage) && !currentUser) {
         setCurrentPage('landing');
         window.history.replaceState({ page: 'landing' }, '', `${prefix}/home`);
@@ -520,6 +537,17 @@ function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [currentUser]);
+
+  // If user is already logged in, automatically redirect away from signup or login pages
+  useEffect(() => {
+    if (currentUser && (currentPage === 'signup' || currentPage === 'login')) {
+      setCurrentPage('dashboard');
+      const prefix = getSubfolderPrefix();
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ page: 'dashboard' }, '', `${prefix}/dashboard`);
+      }
+    }
+  }, [currentUser, currentPage]);
 
   // Active Course for Udemy/10MS interactive player
   const [activeCourseForPlayer, setActiveCourseForPlayer] = useState(null);
@@ -540,6 +568,18 @@ function App() {
 
   // Protected Route logic simulation
   const navigateTo = (pageName, role = 'student') => {
+    // If user is already logged in, redirect any signup or login attempts directly to dashboard
+    if (currentUser && (pageName === 'signup' || pageName === 'login')) {
+      setCurrentPage('dashboard');
+      const prefix = getSubfolderPrefix();
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ page: 'dashboard' }, '', `${prefix}/dashboard`);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setIsMobileMenuOpen(false);
+      return;
+    }
+
     if (pageName === 'signup') {
       setSignupRole(role);
       setCurrentPage('signup');
@@ -1019,7 +1059,7 @@ function App() {
       </nav>
 
       {/* 2. Routing Views Wrapper with Professional Collapsible Sidebar */}
-      <div style={{ display: 'flex', flexGrow: 1, minHeight: 'calc(100vh - 65px)', position: 'relative' }}>
+      <div style={{ display: 'flex', flexGrow: 1, minHeight: 'calc(100vh - 64px)', position: 'relative' }}>
         {/* Student Sidebar for Authenticated Users */}
         {currentUser && !['landing', 'login', 'signup'].includes(currentPage) && (
           <aside
@@ -1027,7 +1067,7 @@ function App() {
               width: isSidebarCollapsed ? '72px' : '240px',
               backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
               borderRight: `1px solid ${isDarkMode ? '#1e293b' : '#e2e8f0'}`,
-              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+              transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
@@ -1035,8 +1075,8 @@ function App() {
               flexShrink: 0,
               zIndex: 40,
               position: 'sticky',
-              top: '65px',
-              height: 'calc(100vh - 65px)',
+              top: '64px',
+              height: 'calc(100vh - 64px)',
               overflowY: 'auto',
               boxShadow: isDarkMode ? '4px 0 16px rgba(0,0,0,0.3)' : '2px 0 10px rgba(0,0,0,0.03)'
             }}
@@ -1194,8 +1234,15 @@ function App() {
           <Suspense fallback={<PageLoadingFallback />}>
           {currentPage === 'landing' && (
             <LandingPage
+              currentUser={currentUser}
               onNavigate={navigateTo}
-              onOpenLogin={(role) => navigateTo('login', role || 'student')}
+              onOpenLogin={(role) => {
+                if (currentUser) {
+                  navigateTo('dashboard');
+                } else {
+                  navigateTo('login', role || 'student');
+                }
+              }}
             />
           )}
 
@@ -1321,7 +1368,16 @@ function App() {
       />
 
       {/* 6. Unified Global AI Admission Advisor & 24/7 Live Mentor Solver */}
-      <AIAssistant user={currentUser} onOpenLogin={() => setIsLoginModalOpen(true)} />
+      <AIAssistant
+        user={currentUser}
+        onOpenLogin={() => {
+          if (currentUser) {
+            navigateTo('dashboard');
+          } else {
+            setIsLoginModalOpen(true);
+          }
+        }}
+      />
 
     </div>
   );

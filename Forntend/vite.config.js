@@ -1,17 +1,14 @@
 import { defineConfig } from 'vite'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   // Vercel deployment should serve assets from the root path
   base: '/',
+  publicDir: 'static',
 
   plugins: [
     react(),
-    babel({
-      presets: [reactCompilerPreset()],
-    }),
     tailwindcss(),
   ],
 

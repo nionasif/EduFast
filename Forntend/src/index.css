@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -56,21 +55,20 @@
   border-color: var(--gray-300);
 }
 
-/* Smooth dark mode switch transitions */
-body, #root, nav, footer, div, section, a, p, h1, h2, h3, h4, h5, h6, button, input {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+/* Smooth dark mode switch transitions without global DOM layout thrashing */
+body, #root, nav, footer {
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body {
   background-color: var(--bg-light);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 #root {
@@ -238,7 +236,9 @@ p {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.2rem 5%;
+  padding: 0 5%;
+  height: 64px;
+  box-sizing: border-box;
   background-color: var(--white);
   border-bottom: 1px solid var(--gray-200);
   position: sticky;

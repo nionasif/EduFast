@@ -3,7 +3,7 @@ import { getAdmissions, getCourses } from '../../data/mockData';
 import CountdownTimer from '../components/CountdownTimer';
 import GPACalculator from '../../student/components/GPACalculator';
 
-export default function LandingPage({ onNavigate, onOpenLogin }) {
+export default function LandingPage({ onNavigate, onOpenLogin, currentUser }) {
   const [admissions, setAdmissions] = useState(getAdmissions);
   const [courses, setCourses] = useState(getCourses);
 
@@ -37,8 +37,11 @@ export default function LandingPage({ onNavigate, onOpenLogin }) {
             Edufast is Bangladesh's premier AI-powered learning and university admission assistant. Prepare, match, and conquer your exam targets.
           </p>
           <div className="hero-ctas">
-            <button className="btn btn-primary" onClick={() => onNavigate('signup')}>
-              Get Started for Free
+            <button
+              className="btn btn-primary"
+              onClick={() => onNavigate(currentUser ? 'dashboard' : 'signup')}
+            >
+              {currentUser ? 'Go to Dashboard' : 'Get Started for Free'}
             </button>
             <button className="btn btn-secondary" onClick={() => onNavigate('courses')}>
               Explore Courses
@@ -169,7 +172,17 @@ export default function LandingPage({ onNavigate, onOpenLogin }) {
                     </span>
                     <CountdownTimer deadline={univ.deadline} />
                   </div>
-                  <button className="btn btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }} onClick={onOpenLogin}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                    onClick={() => {
+                      if (currentUser) {
+                        onNavigate('admissions', univ.id);
+                      } else if (onOpenLogin) {
+                        onOpenLogin();
+                      }
+                    }}
+                  >
                     View Details
                   </button>
                 </div>
@@ -215,7 +228,17 @@ export default function LandingPage({ onNavigate, onOpenLogin }) {
                       <span className="price-old">৳ {course.price}</span>
                       <span className="price-new">৳ {course.discountedPrice}</span>
                     </div>
-                    <button className="btn btn-teal" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }} onClick={onOpenLogin}>
+                    <button
+                      className="btn btn-teal"
+                      style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                      onClick={() => {
+                        if (currentUser) {
+                          onNavigate('courses');
+                        } else if (onOpenLogin) {
+                          onOpenLogin();
+                        }
+                      }}
+                    >
                       Explore Course
                     </button>
                   </div>

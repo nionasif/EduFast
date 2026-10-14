@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import './unifiedAssistant.css';
 
+const BACKEND_URL = 'http://localhost:5001';
+
 export default function AIAssistant({ user, onOpenLogin }) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('ai'); // 'ai' | 'mentor'
@@ -29,6 +31,7 @@ export default function AIAssistant({ user, onOpenLogin }) {
   ]);
   const [aiInputText, setAiInputText] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
+
 
   const suggestPrompts = [
     { label: '🏆 Am I BUET eligible?', query: 'BUET eligibility' },
@@ -144,7 +147,7 @@ export default function AIAssistant({ user, onOpenLogin }) {
   // ---------------------------------------------------------------------------
   // AI Query Handler
   // ---------------------------------------------------------------------------
-  const handleSendAI = (textToSend) => {
+  const handleSendAI = async (textToSend) => {
     const query = textToSend || aiInputText;
     if (!query.trim()) return;
 
@@ -159,6 +162,46 @@ export default function AIAssistant({ user, onOpenLogin }) {
     if (!textToSend) setAiInputText('');
     setIsAiTyping(true);
 
+    // 1. Try requesting OpenAI via EduFast Backend
+    try {
+      const historyPayload = aiMessages.slice(-6).map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
+      }));
+
+      const res = await fetch(`${BACKEND_URL}/api/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: query.trim(),
+          history: historyPayload,
+          userContext: user || null
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.reply) {
+          setAiMessages(prev => [
+            ...prev,
+            {
+              id: Date.now() + 1,
+              sender: 'bot',
+              text: data.reply,
+              source: data.source || 'openai',
+              isUnconfigured: data.configured === false,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }
+          ]);
+          setIsAiTyping(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('EduFast AI Backend call failed, using local engine fallback:', err?.message || err);
+    }
+
+    // 2. Seamless Local Fallback Response Engine
     setTimeout(() => {
       const responseText = generateAIResponse(query.trim());
       setAiMessages(prev => [
@@ -171,7 +214,7 @@ export default function AIAssistant({ user, onOpenLogin }) {
         }
       ]);
       setIsAiTyping(false);
-    }, 750);
+    }, 450);
   };
 
   const generateAIResponse = (query) => {
@@ -358,14 +401,16 @@ export default function AIAssistant({ user, onOpenLogin }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="unified-assistant-close-btn"
-              aria-label="Close Assistant"
-            >
-              &times;
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="unified-assistant-close-btn"
+                aria-label="Close Assistant"
+              >
+                &times;
+              </button>
+            </div>
           </div>
 
           {/* Tab Switcher: Rendered ONLY when student is logged in */}
@@ -406,12 +451,13 @@ export default function AIAssistant({ user, onOpenLogin }) {
                   >
                     {msg.sender === 'bot' && (
                       <span className="assistant-sender-tag bot">
-                        <Bot style={{ width: 12, height: 12 }} /> EduFast AI
+                        <Bot style={{ width: 12, height: 12 }} /> EduFast AI ✨
                       </span>
                     )}
 
                     <div className={`assistant-bubble ${msg.sender === 'user' ? 'user' : 'bot'}`}>
                       {msg.text}
+
 
                       {msg.isLoginPrompt && onOpenLogin && (
                         <div style={{ marginTop: '0.75rem' }}>
@@ -646,6 +692,7 @@ export default function AIAssistant({ user, onOpenLogin }) {
               </div>
             </>
           )}
+
 
         </div>
       )}

@@ -249,6 +249,9 @@ export default function AdminPortalPage({ onExitToPublic }) {
     localStorage.removeItem('edufast_admin_session');
     setIsAuthenticated(false);
     setAdminUser(null);
+    if (onExitToPublic) {
+      onExitToPublic();
+    }
   };
 
   // Course handlers

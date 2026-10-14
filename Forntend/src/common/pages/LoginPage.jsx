@@ -19,7 +19,16 @@ export default function LoginPage({
     if (initialRole) {
       setRole(initialRole);
     }
-  }, [initialRole]);
+    try {
+      const saved = localStorage.getItem('edufast_student_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.email || (parsed.name && parsed.name.trim()))) {
+          if (onNavigate) onNavigate('dashboard');
+        }
+      }
+    } catch {}
+  }, [initialRole, onNavigate]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
