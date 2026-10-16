@@ -1356,6 +1356,7 @@ export {
   saveMockTest,
   deleteMockTest,
   getMentorCreatedTests,
+  fetchBackendMockTests,
   mockTests
 } from './mockTestsData';
 

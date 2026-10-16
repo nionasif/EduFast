@@ -4,14 +4,23 @@ import {
   recordStudentMockTestResult,
   getStudentMockSubmissions,
   getMockSubmission,
-  fetchBackendMockAttempts
+  fetchBackendMockAttempts,
+  fetchBackendMockTests
 } from '../../data/mockData';
 
 // ─── Test List / Selection View ─────────────────────────────────────────────
 function TestSelectionView({ user, onStartTest, submissions = {} }) {
   const [tests, setTests] = useState(() => getMockTests());
+  const studentGroup = (user?.group || '').trim();
+  const [activeTab, setActiveTab] = useState('All');
 
   useEffect(() => {
+    fetchBackendMockTests().then(backendTests => {
+      if (backendTests && backendTests.length > 0) {
+        setTests(getMockTests());
+      }
+    });
+
     const handleUpdate = () => {
       setTests(getMockTests());
     };
@@ -23,10 +32,12 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
     };
   }, []);
 
-  const studentGroup = (user?.group || '').trim();
-  const groupTests = tests.filter(t => {
-    if (!studentGroup) return true;
-    return t.group && t.group.toLowerCase() === studentGroup.toLowerCase();
+  const mentorTests = tests.filter(t => t.mentorName || t.mentorId || (t.id && String(t.id).startsWith('test-mentor-')));
+
+  const displayedTests = tests.filter(t => {
+    if (activeTab === 'All') return true;
+    if (activeTab === 'Mentor') return Boolean(t.mentorName || t.mentorId || (t.id && String(t.id).startsWith('test-mentor-')));
+    return t.group && t.group.toLowerCase() === activeTab.toLowerCase();
   });
 
   const groupColors = {
@@ -38,6 +49,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
   function TestCard({ test, isRecommended }) {
     const gc = groupColors[test.group] || groupColors['Arts'];
     const isAttempted = Boolean(submissions && submissions[test.id]);
+    const qCount = Array.isArray(test.questions) ? test.questions.length : 0;
 
     return (
       <div className="mock-test-card" style={{
@@ -74,8 +86,8 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{test.badge}</div>
           {test.mentorName && (
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '0.1rem 0.5rem' }}>
-              👨‍🏫 {test.mentorName}
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '0.15rem 0.55rem' }}>
+              👨‍🏫 {test.mentorName} (Mentor Special)
             </span>
           )}
           {isAttempted && (
@@ -92,7 +104,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
             <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)' }}>Minutes</div>
           </div>
           <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-charcoal)' }}>📝 {test.questions.length}</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-charcoal)' }}>📝 {qCount}</div>
             <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)' }}>Questions</div>
           </div>
           <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem' }}>
@@ -112,7 +124,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
 
         <button
           className={`btn ${isAttempted ? 'btn-secondary' : 'btn-teal'}`}
-          style={{ padding: '0.6rem 1.2rem', fontSize: '0.85rem', marginTop: '0.25rem' }}
+          style={{ padding: '0.6rem 1.2rem', fontSize: '0.85rem', marginTop: '0.25rem', cursor: 'pointer' }}
           onClick={() => onStartTest(test)}
         >
           {isAttempted ? '📋 View Result / Solutions' : isRecommended ? '⚡ Start Recommended Test' : '▶ Start Test'}
@@ -124,12 +136,12 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
   return (
     <div className="container" style={{ padding: '2rem 0' }}>
       {/* Header */}
-      <div style={{ marginBottom: '2.5rem' }}>
+      <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2.2rem', marginBottom: '0.4rem' }}>
           📝 Mock <span style={{ color: 'var(--primary-teal)' }}>Test Center</span>
         </h1>
         <p style={{ color: 'var(--gray-600)', margin: 0 }}>
-          Practice with timed MCQ tests designed to simulate real university admission exams.
+          বিশ্ববিদ্যালয় ভর্তি পরীক্ষার আদলে তৈরি লাইভ মক টেস্ট ও মেন্টরদের বিশেষ প্রশ্নপত্রে অংশ নিয়ে নিজেকে প্রস্তুত করুন।
         </p>
       </div>
 
@@ -168,27 +180,87 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         </div>
       </div>
 
-      {/* Student's Group Specific Mock Tests */}
+      {/* Category Tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
+        {[
+          { id: 'All', label: 'সকল টেস্ট (All Tests)', count: tests.length },
+          { id: 'Mentor', label: '🔥 মেন্টর স্পেশাল', count: mentorTests.length },
+          { id: 'Science', label: 'বিজ্ঞান (Science)', count: tests.filter(t => t.group?.toLowerCase() === 'science').length },
+          { id: 'Commerce', label: 'ব্যবসায় শিক্ষা (Commerce)', count: tests.filter(t => t.group?.toLowerCase() === 'commerce').length },
+          { id: 'Arts', label: 'মানবিক (Arts)', count: tests.filter(t => t.group?.toLowerCase() === 'arts').length },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: '20px',
+              fontSize: '0.85rem',
+              fontWeight: activeTab === tab.id ? 700 : 500,
+              background: activeTab === tab.id ? 'var(--primary-teal)' : 'var(--white)',
+              color: activeTab === tab.id ? '#ffffff' : 'var(--text-charcoal)',
+              border: `1.5px solid ${activeTab === tab.id ? 'var(--primary-teal)' : 'var(--gray-300)'}`,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              transition: 'all 0.2s ease',
+              boxShadow: activeTab === tab.id ? '0 2px 6px rgba(13,148,136,0.25)' : 'none'
+            }}
+          >
+            <span>{tab.label}</span>
+            <span style={{
+              fontSize: '0.7rem',
+              padding: '0.1rem 0.45rem',
+              borderRadius: '10px',
+              background: activeTab === tab.id ? 'rgba(255,255,255,0.25)' : 'var(--gray-200)',
+              color: activeTab === tab.id ? '#ffffff' : 'var(--gray-600)'
+            }}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Mentor Special Highlight Section (When 'All' tab is active) */}
+      {activeTab === 'All' && mentorTests.length > 0 && (
+        <div style={{ marginBottom: '2.5rem', background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ color: '#15803d', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '1.15rem' }}>
+              <span>👨‍🏫 মেন্টর কর্তৃক প্রস্তুতকৃত লাইভ মক টেস্ট (Mentor Tests)</span>
+              <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
+                {mentorTests.length} টি লাইভ টেস্ট
+              </span>
+            </h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+            {mentorTests.map(t => <TestCard key={t.id} test={t} isRecommended={true} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Main Filtered Mock Tests List */}
       <div style={{ marginBottom: '2.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ color: 'var(--primary-teal)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span>⭐ {studentGroup ? `${studentGroup} Group Admission Mock Tests` : 'Admission Mock Tests'}</span>
+            <span>⭐ {activeTab === 'All' ? 'সকল উপলব্ধ মক টেস্ট' : `${activeTab} Group Mock Tests`}</span>
             <span style={{ fontSize: '0.72rem', background: '#e6fffa', color: '#276749', border: '1px solid #b2f5ea', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
-              {groupTests.length} Tests Available
+              {displayedTests.length} Tests Available
             </span>
           </h3>
         </div>
 
-        {groupTests.length > 0 ? (
+        {displayedTests.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
-            {groupTests.map(t => <TestCard key={t.id} test={t} isRecommended={true} />)}
+            {displayedTests.map(t => <TestCard key={t.id} test={t} isRecommended={true} />)}
           </div>
         ) : (
           <div style={{ padding: '3rem 1.5rem', textAlign: 'center', background: 'var(--white)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--gray-200)' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📝</div>
             <h4 style={{ color: 'var(--text-charcoal)', marginBottom: '0.25rem' }}>কোনো মক টেস্ট পাওয়া যায়নি</h4>
             <p style={{ color: 'var(--gray-500)', fontSize: '0.88rem', margin: 0 }}>
-              {studentGroup} গ্রুপের জন্য নতুন টেস্ট মেন্টররা যুক্ত করার সাথে সাথে এখানে প্রদর্শিত হবে।
+              মেন্টররা এই ক্যাটাগরিতে নতুন টেস্ট যুক্ত করার সাথে সাথে এখানে প্রদর্শিত হবে।
             </p>
           </div>
         )}
@@ -198,6 +270,23 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
 }
 
 function ActiveTestView({ test, user, onFinish }) {
+  if (!test || !Array.isArray(test.questions) || test.questions.length === 0) {
+    return (
+      <div className="container" style={{ padding: '4rem 1rem', textAlign: 'center' }}>
+        <div style={{ maxWidth: '480px', margin: '0 auto', background: 'var(--white)', padding: '2rem', borderRadius: '12px', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
+          <h3 style={{ color: 'var(--text-charcoal)', marginBottom: '0.5rem' }}>এই মক টেস্টে কোনো প্রশ্ন পাওয়া যায়নি</h3>
+          <p style={{ color: 'var(--gray-500)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+            মেন্টর এখনো এই টেস্টটিতে কোনো প্রশ্ন যুক্ত করেননি অথবা প্রশ্ন লোড হতে সমস্যা হয়েছে।
+          </p>
+          <button className="btn btn-teal" onClick={() => onFinish('list')}>
+            ← টেস্ট তালিকায় ফিরে যান
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const totalSeconds = test.duration * 60;
   const [timeLeft, setTimeLeft] = useState(totalSeconds);
   const [currentQ, setCurrentQ] = useState(0);
@@ -236,7 +325,16 @@ function ActiveTestView({ test, user, onFinish }) {
   const isWarning = timeLeft <= 120; // last 2 minutes
   const isCritical = timeLeft <= 30;
 
-  const q = test.questions[currentQ];
+  const rawQ = test.questions[currentQ] || {};
+  const rawOpts = rawQ.options || [rawQ.optionA, rawQ.optionB, rawQ.optionC, rawQ.optionD];
+  const qOptions = Array.isArray(rawOpts) && rawOpts.length > 0 ? rawOpts : ['অপশন ১', 'অপশন ২', 'অপশন ৩', 'অপশন ৪'];
+  const q = {
+    id: rawQ.id || `q-${currentQ}`,
+    question: rawQ.question || rawQ.title || 'প্রশ্ন বিবরণ পাওয়া যায়নি',
+    options: qOptions,
+    correct: typeof rawQ.correct === 'number' ? rawQ.correct : 0,
+    explanation: rawQ.explanation || 'কোনো ব্যাখ্যা দেওয়া হয়নি।'
+  };
   const answered = Object.keys(answers).length;
   const totalQ = test.questions.length;
   const flaggedCount = Object.values(flagged).filter(Boolean).length;
@@ -1049,10 +1147,21 @@ function ResultView({
   const [activeTab, setActiveTab] = useState(initialTab || 'result'); // 'result' | 'solutions'
   const [showExplanation, setShowExplanation] = useState(null);
 
-  const perQMark = test.totalMarks / test.questions.length;
+  const questionsList = (Array.isArray(test?.questions) ? test.questions : []).map((rawQ, idx) => ({
+    id: rawQ.id || `q-${idx}`,
+    question: rawQ.question || rawQ.title || `Question ${idx + 1}`,
+    options: Array.isArray(rawQ.options) && rawQ.options.length > 0
+      ? rawQ.options
+      : [rawQ.optionA, rawQ.optionB, rawQ.optionC, rawQ.optionD].filter(Boolean),
+    correct: typeof rawQ.correct === 'number' ? rawQ.correct : 0,
+    explanation: rawQ.explanation || 'কোনো ব্যাখ্যা দেওয়া হয়নি।'
+  }));
+
+  const totalQuestionsCount = Math.max(1, questionsList.length);
+  const perQMark = test.totalMarks / totalQuestionsCount;
   let correct = 0, wrong = 0, unattempted = 0;
 
-  test.questions.forEach(q => {
+  questionsList.forEach(q => {
     if (answers[q.id] === undefined) {
       unattempted++;
     } else if (answers[q.id] === q.correct) {
@@ -1258,12 +1367,12 @@ function ResultView({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <h3 style={{ margin: 0, color: 'var(--text-charcoal)' }}>📋 Question-wise Review & Solutions</h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>
-              Total {test.questions.length} Questions
+              Total {questionsList.length} Questions
             </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
-            {test.questions.map((q, idx) => {
+            {questionsList.map((q, idx) => {
               const userAns = answers[q.id];
               const isCorrect = userAns === q.correct;
               const isSkipped = userAns === undefined;

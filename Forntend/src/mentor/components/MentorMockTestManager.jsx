@@ -3,7 +3,8 @@ import './MentorMockTestManager.css';
 import { 
   getMockTests, 
   saveMockTest, 
-  deleteMockTest 
+  deleteMockTest,
+  fetchBackendMockTests
 } from '../../data/mockData';
 
 const BACKEND_URL = 'http://localhost:5001';
@@ -70,6 +71,12 @@ export default function MentorMockTestManager({ mentorProfile }) {
 
   // Sync tests with cross-tab / window updates
   useEffect(() => {
+    fetchBackendMockTests().then(backendTests => {
+      if (backendTests && backendTests.length > 0) {
+        setTests(getMockTests());
+      }
+    });
+
     const handleUpdate = () => {
       setTests(getMockTests());
     };

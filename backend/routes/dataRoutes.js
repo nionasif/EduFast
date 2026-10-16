@@ -335,6 +335,12 @@ router.post('/api/data/mock-tests', (req, res) => {
     }
 
     writeDataFile('mockTests.json', tests);
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('mock_tests:update', { action: 'save', test: updatedTest, tests });
+      }
+    } catch (e) {}
     return res.json({ success: true, data: updatedTest, tests });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -346,6 +352,12 @@ router.delete('/api/data/mock-tests/:id', (req, res) => {
     const tests = readDataFile('mockTests.json') || [];
     const filtered = tests.filter(t => String(t.id) !== String(req.params.id));
     writeDataFile('mockTests.json', filtered);
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('mock_tests:update', { action: 'delete', id: req.params.id, tests: filtered });
+      }
+    } catch (e) {}
     return res.json({ success: true, message: 'Mock test deleted successfully', tests: filtered });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
