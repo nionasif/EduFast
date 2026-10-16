@@ -192,9 +192,11 @@ export const LanguageProvider = ({ children }) => {
         tag === 'script' ||
         tag === 'style' ||
         tag === 'code' ||
+        tag === 'font' ||
         parent.isContentEditable ||
         parent.closest('input') ||
         parent.closest('textarea') ||
+        parent.closest('font') ||
         parent.classList.contains('preserve-user-input')
       ) {
         return;
