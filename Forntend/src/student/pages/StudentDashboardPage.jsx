@@ -13,6 +13,7 @@ import {
 import Leaderboard from '../components/Leaderboard';
 import CountdownTimer from '../../common/components/CountdownTimer';
 import DailyTaskSolverModal from '../components/DailyTaskSolverModal';
+import { normalizeGroup } from './MockTestPage';
 
 export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }) {
   const [admissions, setAdmissions] = useState(getAdmissions);
@@ -127,9 +128,9 @@ export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }
     .slice(0, 3);
 
   // Recommended mock tests strictly for user's group
-  const userGroupClean = (user?.group || '').trim().toLowerCase();
+  const studentGroup = normalizeGroup(user?.group || user?.academicGroup);
   const recommendedTests = availableTests
-    .filter(t => !userGroupClean || (t.group && t.group.toLowerCase() === userGroupClean))
+    .filter(t => normalizeGroup(t.group) === studentGroup)
     .slice(0, 3);
 
   // Calculate dynamic admission eligibility matching based on student's real GPA

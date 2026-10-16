@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   getMockTests,
   recordStudentMockTestResult,
@@ -8,11 +8,23 @@ import {
   fetchBackendMockTests
 } from '../../data/mockData';
 
+// Helper to strictly normalize group names (Science, Commerce, Arts)
+export const normalizeGroup = (grp) => {
+  if (!grp) return 'Science';
+  const g = String(grp).trim().toLowerCase();
+  if (g.includes('sci') || g.includes('বিজ্ঞান')) return 'Science';
+  if (g.includes('comm') || g.includes('ব্যবসায়') || g.includes('ব্যবসায়') || g.includes('business')) return 'Commerce';
+  if (g.includes('art') || g.includes('hum') || g.includes('মানবিক')) return 'Arts';
+  return 'Science';
+};
+
 // ─── Test List / Selection View ─────────────────────────────────────────────
 function TestSelectionView({ user, onStartTest, submissions = {} }) {
   const [tests, setTests] = useState(() => getMockTests());
-  const studentGroup = (user?.group || '').trim();
-  const [activeTab, setActiveTab] = useState('All');
+  
+  // Student's exact group strictly identified
+  const studentGroup = normalizeGroup(user?.group || user?.academicGroup);
+  const [activeTab, setActiveTab] = useState('All'); // 'All' | 'Mentor' | 'Standard'
 
   useEffect(() => {
     fetchBackendMockTests().then(backendTests => {
@@ -32,19 +44,38 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
     };
   }, []);
 
-  const mentorTests = tests.filter(t => t.mentorName || t.mentorId || (t.id && String(t.id).startsWith('test-mentor-')));
+  // STRICT GROUP ISOLATION: Tests matching ONLY the student's group are EVER visible!
+  const myGroupTests = useMemo(() => {
+    return tests.filter(t => normalizeGroup(t.group) === studentGroup);
+  }, [tests, studentGroup]);
 
-  const displayedTests = tests.filter(t => {
-    if (activeTab === 'All') return true;
-    if (activeTab === 'Mentor') return Boolean(t.mentorName || t.mentorId || (t.id && String(t.id).startsWith('test-mentor-')));
-    return t.group && t.group.toLowerCase() === activeTab.toLowerCase();
-  });
+  // Mentor tests strictly created for this student's group
+  const mentorTestsForMyGroup = useMemo(() => {
+    return myGroupTests.filter(t => Boolean(t.mentorName || t.mentorId || (t.id && String(t.id).startsWith('test-mentor-'))));
+  }, [myGroupTests]);
+
+  // Standard/Model tests for this student's group
+  const standardTestsForMyGroup = useMemo(() => {
+    return myGroupTests.filter(t => !t.mentorName && !t.mentorId && (!t.id || !String(t.id).startsWith('test-mentor-')));
+  }, [myGroupTests]);
+
+  const displayedTests = useMemo(() => {
+    if (activeTab === 'Mentor') return mentorTestsForMyGroup;
+    if (activeTab === 'Standard') return standardTestsForMyGroup;
+    return myGroupTests;
+  }, [activeTab, myGroupTests, mentorTestsForMyGroup, standardTestsForMyGroup]);
 
   const groupColors = {
     Science: { bg: '#ebf8ff', color: '#2b6cb0', border: '#bee3f8' },
     Commerce: { bg: '#fefcbf', color: '#744210', border: '#faf089' },
     Arts: { bg: '#fff5f5', color: '#742a2a', border: '#fed7d7' },
   };
+
+  const groupLabelBn = studentGroup === 'Science' 
+    ? 'বিজ্ঞান শাখা (Science)' 
+    : studentGroup === 'Commerce' 
+      ? 'ব্যবসায় শিক্ষা শাখা (Commerce)' 
+      : 'মানবিক শাখা (Arts)';
 
   function TestCard({ test, isRecommended }) {
     const gc = groupColors[test.group] || groupColors['Arts'];
@@ -136,67 +167,60 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
   return (
     <div className="container" style={{ padding: '2rem 0' }}>
       {/* Header */}
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontSize: '2.2rem', marginBottom: '0.4rem' }}>
           📝 Mock <span style={{ color: 'var(--primary-teal)' }}>Test Center</span>
         </h1>
         <p style={{ color: 'var(--gray-600)', margin: 0 }}>
-          বিশ্ববিদ্যালয় ভর্তি পরীক্ষার আদলে তৈরি লাইভ মক টেস্ট ও মেন্টরদের বিশেষ প্রশ্নপত্রে অংশ নিয়ে নিজেকে প্রস্তুত করুন।
+          বিশ্ববিদ্যালয় ভর্তি পরীক্ষার আদলে তৈরি লাইভ মক টেস্ট ও আপনার বিভাগের মেন্টরদের বিশেষ প্রশ্নপত্রে অংশ নিন।
         </p>
       </div>
 
-      {/* Info banner */}
+      {/* Strict Group Notice Banner */}
       <div style={{
-        background: 'linear-gradient(135deg, #e6fffa 0%, #ebf8ff 100%)',
-        border: '1px solid #b2f5ea',
+        background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
+        color: '#ffffff',
         borderRadius: 'var(--border-radius-md)',
-        padding: '1rem 1.5rem',
+        padding: '1.25rem 1.5rem',
         marginBottom: '2rem',
         display: 'flex',
-        gap: '2rem',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         flexWrap: 'wrap',
-        alignItems: 'center'
+        gap: '1rem',
+        boxShadow: '0 4px 15px rgba(13, 148, 136, 0.2)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.3rem' }}>⏱</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ fontSize: '2rem' }}>🎯</div>
           <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-teal)' }}>Timed Tests</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--gray-600)' }}>Auto-submit on timeout</div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+              আপনার নির্ধারিত বিভাগ / Academic Wing
+            </div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800 }}>
+              {groupLabelBn}
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.3rem' }}>➖</span>
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e53e3e' }}>Negative Marking</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--gray-600)' }}>-0.25 per wrong answer</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.3rem' }}>📊</span>
-          <div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-charcoal)' }}>Detailed Results</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--gray-600)' }}>With explanations for each Q</div>
-          </div>
+        <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: '20px', padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600 }}>
+          🔒 গ্রুপ সুরক্ষা সক্রিয়: শুধুমাত্র আপনার বিভাগের প্রশ্নপত্র প্রদর্শিত হচ্ছে
         </div>
       </div>
 
-      {/* Category Tabs */}
+      {/* Category Tabs (Filtered Strictly Within Student's Group) */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
         {[
-          { id: 'All', label: 'সকল টেস্ট (All Tests)', count: tests.length },
-          { id: 'Mentor', label: '🔥 মেন্টর স্পেশাল', count: mentorTests.length },
-          { id: 'Science', label: 'বিজ্ঞান (Science)', count: tests.filter(t => t.group?.toLowerCase() === 'science').length },
-          { id: 'Commerce', label: 'ব্যবসায় শিক্ষা (Commerce)', count: tests.filter(t => t.group?.toLowerCase() === 'commerce').length },
-          { id: 'Arts', label: 'মানবিক (Arts)', count: tests.filter(t => t.group?.toLowerCase() === 'arts').length },
+          { id: 'All', label: 'সকল টেস্ট', count: myGroupTests.length },
+          { id: 'Mentor', label: '🔥 মেন্টর স্পেশাল প্রশ্নপত্র', count: mentorTestsForMyGroup.length },
+          { id: 'Standard', label: '📋 মডেল টেস্ট', count: standardTestsForMyGroup.length },
         ].map(tab => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding: '0.5rem 1rem',
+              padding: '0.55rem 1.15rem',
               borderRadius: '20px',
-              fontSize: '0.85rem',
+              fontSize: '0.88rem',
               fontWeight: activeTab === tab.id ? 700 : 500,
               background: activeTab === tab.id ? 'var(--primary-teal)' : 'var(--white)',
               color: activeTab === tab.id ? '#ffffff' : 'var(--text-charcoal)',
@@ -211,7 +235,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
           >
             <span>{tab.label}</span>
             <span style={{
-              fontSize: '0.7rem',
+              fontSize: '0.72rem',
               padding: '0.1rem 0.45rem',
               borderRadius: '10px',
               background: activeTab === tab.id ? 'rgba(255,255,255,0.25)' : 'var(--gray-200)',
@@ -223,19 +247,19 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         ))}
       </div>
 
-      {/* Mentor Special Highlight Section (When 'All' tab is active) */}
-      {activeTab === 'All' && mentorTests.length > 0 && (
+      {/* Mentor Special Highlight Section (When 'All' tab is active and mentor tests exist for this group) */}
+      {activeTab === 'All' && mentorTestsForMyGroup.length > 0 && (
         <div style={{ marginBottom: '2.5rem', background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <h3 style={{ color: '#15803d', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '1.15rem' }}>
-              <span>👨‍🏫 মেন্টর কর্তৃক প্রস্তুতকৃত লাইভ মক টেস্ট (Mentor Tests)</span>
+              <span>👨‍🏫 আপনার বিভাগের মেন্টর কর্তৃক প্রস্তুতকৃত লাইভ প্রশ্নপত্র (Mentor Tests)</span>
               <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
-                {mentorTests.length} টি লাইভ টেস্ট
+                {mentorTestsForMyGroup.length} টি লাইভ টেস্ট
               </span>
             </h3>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
-            {mentorTests.map(t => <TestCard key={t.id} test={t} isRecommended={true} />)}
+            {mentorTestsForMyGroup.map(t => <TestCard key={t.id} test={t} isRecommended={true} />)}
           </div>
         </div>
       )}
@@ -244,7 +268,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
       <div style={{ marginBottom: '2.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ color: 'var(--primary-teal)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span>⭐ {activeTab === 'All' ? 'সকল উপলব্ধ মক টেস্ট' : `${activeTab} Group Mock Tests`}</span>
+            <span>⭐ {activeTab === 'Mentor' ? 'মেন্টর স্পেশাল প্রশ্নপত্র' : activeTab === 'Standard' ? 'সাধারণ মডেল টেস্ট' : `${groupLabelBn} মক টেস্ট`}</span>
             <span style={{ fontSize: '0.72rem', background: '#e6fffa', color: '#276749', border: '1px solid #b2f5ea', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
               {displayedTests.length} Tests Available
             </span>
@@ -260,7 +284,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📝</div>
             <h4 style={{ color: 'var(--text-charcoal)', marginBottom: '0.25rem' }}>কোনো মক টেস্ট পাওয়া যায়নি</h4>
             <p style={{ color: 'var(--gray-500)', fontSize: '0.88rem', margin: 0 }}>
-              মেন্টররা এই ক্যাটাগরিতে নতুন টেস্ট যুক্ত করার সাথে সাথে এখানে প্রদর্শিত হবে।
+              আপনার বিভাগের জন্য মেন্টররা নতুন টেস্ট যুক্ত করার সাথে সাথে এখানে প্রদর্শিত হবে।
             </p>
           </div>
         )}
@@ -1481,6 +1505,14 @@ export default function MockTestPage({ user, onNavigate }) {
   }, [user]);
 
   const handleStartTest = (test) => {
+    // 🔒 STRICT GROUP CHECK: Ensure student can never start a test belonging to another group
+    const studentGroup = normalizeGroup(user?.group || user?.academicGroup);
+    const testGroup = normalizeGroup(test.group);
+    if (studentGroup !== testGroup) {
+      alert(`এই মক টেস্টটি ${test.group || testGroup} বিভাগের শিক্ষার্থীদের জন্য নির্ধারিত। আপনি শুধুমাত্র ${studentGroup} বিভাগের টেস্ট দিতে পারবেন।`);
+      return;
+    }
+
     const existing = getMockSubmission(user, test.id) || (submissions && submissions[test.id]);
     if (existing) {
       // BLOCK RETAKE - Show "You have already attempted this mock test."
