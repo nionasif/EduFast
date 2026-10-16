@@ -1,0 +1,22 @@
+{
+  "name": "edufast-platform",
+  "version": "1.0.0",
+  "description": "EduFast - Bangladesh's Premier AI EdTech Platform",
+  "private": true,
+  "scripts": {
+    "start": "node run.js",
+    "dev": "node run.js",
+    "backend": "cd backend && npm start",
+    "frontend": "cd Forntend && npm run dev",
+    "build": "cd Forntend && npm run build"
+  },
+  "keywords": [
+    "edufast",
+    "edtech",
+    "react",
+    "nodejs",
+    "socketio"
+  ],
+  "author": "",
+  "license": "ISC"
+}

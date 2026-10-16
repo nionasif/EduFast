@@ -14,6 +14,7 @@ import subprocess
 import webbrowser
 import time
 import socket
+import urllib.request
 from pathlib import Path
 
 # Ensure UTF-8 output encoding across Windows consoles
@@ -42,17 +43,50 @@ shutting_down = False
 _lock_socket = None
 
 
+def free_ports(ports):
+    """Frees specified ports if an old crashed process is still occupying them."""
+    if sys.platform != "win32":
+        return
+    killed_any = False
+    for port in ports:
+        try:
+            output = subprocess.check_output(
+                f'netstat -ano | findstr ":{port}"',
+                shell=True,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            for line in output.splitlines():
+                if "LISTENING" in line or "ESTABLISHED" in line:
+                    parts = line.strip().split()
+                    pid = parts[-1]
+                    if pid and pid.isdigit() and int(pid) != 0 and int(pid) != os.getpid():
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", pid],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                        killed_any = True
+        except Exception:
+            pass
+    if killed_any:
+        time.sleep(0.5)
+
+
 def acquire_single_instance_lock():
-    """Ensure only one instance of run.py can run at a time to prevent port fighting."""
+    """Ensure previous duplicate instances are cleanly closed and single instance acquired."""
     global _lock_socket
+    free_ports([50999, 5001, 5173])
     _lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         _lock_socket.bind(("127.0.0.1", 50999))
     except socket.error:
-        print(f"\n{RED}{BOLD}[EDUFAST WARNING] Another instance of run.py is already active!{RESET}")
-        print(f"{YELLOW}A duplicate process was prevented to avoid port 5001/5173 conflicts.{RESET}")
-        print(f"{YELLOW}If you want to restart, please close the other running terminal window first.{RESET}\n")
-        sys.exit(0)
+        free_ports([50999])
+        time.sleep(0.5)
+        try:
+            _lock_socket.bind(("127.0.0.1", 50999))
+        except Exception:
+            pass
 
 
 def log_backend(message: str):
@@ -103,27 +137,6 @@ def check_prerequisites():
     free_ports([5001, 5173])
 
 
-def free_ports(ports):
-    """Frees specified ports if an old crashed process is still occupying them."""
-    if sys.platform != "win32":
-        return
-    killed_any = False
-    for port in ports:
-        try:
-            output = subprocess.check_output(f'netstat -ano | findstr ":{port}"', shell=True, text=True, stderr=subprocess.DEVNULL)
-            for line in output.splitlines():
-                if "LISTENING" in line:
-                    parts = line.strip().split()
-                    pid = parts[-1]
-                    if pid and pid != "0" and int(pid) != os.getpid():
-                        subprocess.run(["taskkill", "/F", "/T", "/PID", pid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        killed_any = True
-        except Exception:
-            pass
-    if killed_any:
-        time.sleep(1.0)
-
-
 def stream_logs(pipe, log_func):
     """Read logs from a process pipe line-by-line."""
     try:
@@ -136,7 +149,10 @@ def stream_logs(pipe, log_func):
     except (ValueError, OSError):
         pass
     finally:
-        pipe.close()
+        try:
+            pipe.close()
+        except Exception:
+            pass
 
 
 def stop_all(*args):
@@ -162,6 +178,7 @@ def stop_all(*args):
             except Exception:
                 pass
 
+    free_ports([5001, 5173, 50999])
     log_system("All services stopped. Goodbye!")
     sys.exit(0)
 
@@ -204,7 +221,7 @@ def main():
     def start_frontend():
         free_ports([5173])
         vite_bin = FRONTEND_DIR / "node_modules" / "vite" / "bin" / "vite.js"
-        cmd = [node_cmd, str(vite_bin)] if vite_bin.exists() else [npm_cmd, "run", "dev"]
+        cmd = [node_cmd, str(vite_bin), "--host", "127.0.0.1", "--port", "5173"] if vite_bin.exists() else [npm_cmd, "run", "dev"]
         proc = subprocess.Popen(
             cmd,
             cwd=FRONTEND_DIR,
@@ -222,11 +239,21 @@ def main():
     backend_proc = start_backend()
     frontend_proc = start_frontend()
 
-    # Open Browser automatically after brief initialization
+    # Open Browser automatically when Frontend is ready
     def open_browser():
-        time.sleep(3.0)
+        opened = False
+        for _ in range(30):
+            if shutting_down:
+                return
+            try:
+                urllib.request.urlopen("http://127.0.0.1:5173", timeout=1)
+                opened = True
+                break
+            except Exception:
+                time.sleep(0.5)
+
         if not shutting_down:
-            log_system("Opening browser at http://localhost:5173 ...")
+            log_system("Frontend is ready! Opening browser at http://localhost:5173 ...")
             webbrowser.open("http://localhost:5173")
 
     threading.Thread(target=open_browser, daemon=True).start()

@@ -1,5 +1,41 @@
 [
   {
+    "id": "univ-1792096089869",
+    "name": "DIIT",
+    "logo": "😎",
+    "description": "HI THERE ARE BOOKING OF DIIT",
+    "examDate": "December 20, 2026",
+    "deadlineDate": "2026-09-30",
+    "applicationFee": 10000000,
+    "units": [
+      {
+        "name": "CSE",
+        "group": "Science",
+        "minGpa": "10",
+        "minIndividualGpa": 3.5,
+        "subjects": "Physics, Chemistry, Math",
+        "details": "Science unit with high competition."
+      },
+      {
+        "name": "BBA",
+        "group": "Commerce",
+        "minGpa": "9",
+        "minIndividualGpa": 3,
+        "subjects": "General Subjects",
+        "details": ""
+      },
+      {
+        "name": "THM",
+        "group": "Arts",
+        "minGpa": "10",
+        "minIndividualGpa": 3,
+        "subjects": "General Subjects",
+        "details": ""
+      }
+    ],
+    "updatedAt": "2026-10-15T20:29:13.376Z"
+  },
+  {
     "id": "univ-du",
     "name": "Dhaka University (DU)",
     "logo": "🏛️",
