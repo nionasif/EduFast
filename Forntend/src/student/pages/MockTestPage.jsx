@@ -18,6 +18,14 @@ export const normalizeGroup = (grp) => {
   return 'Science';
 };
 
+export const getBanglaGroup = (grp) => {
+  const norm = normalizeGroup(grp);
+  if (norm === 'Science') return 'বিজ্ঞান';
+  if (norm === 'Commerce') return 'ব্যবসায় শিক্ষা';
+  if (norm === 'Arts') return 'মানবিক';
+  return grp || 'বিজ্ঞান';
+};
+
 // ─── Test List / Selection View ─────────────────────────────────────────────
 function TestSelectionView({ user, onStartTest, submissions = {} }) {
   const [tests, setTests] = useState(() => getMockTests());
@@ -108,8 +116,8 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
             <h4 style={{ fontSize: '1.05rem', marginBottom: '0.2rem', color: 'var(--text-charcoal)' }}>{test.title}</h4>
             <p style={{ fontSize: '0.78rem', color: 'var(--gray-500)', margin: 0 }}>{test.subject}</p>
           </div>
-          <span style={{ fontSize: '0.7rem', background: gc.bg, color: gc.color, border: `1px solid ${gc.border}`, borderRadius: '20px', padding: '0.2rem 0.6rem', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
-            {test.group}
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, background: gc.bg, color: gc.color, border: `1px solid ${gc.border}`, borderRadius: '20px', padding: '0.2rem 0.65rem', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
+            {getBanglaGroup(test.group)} বিভাগ
           </span>
         </div>
 
@@ -117,48 +125,48 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{test.badge}</div>
           {test.mentorName && (
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '0.15rem 0.55rem' }}>
-              👨‍🏫 {test.mentorName} (Mentor Special)
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '0.15rem 0.55rem' }}>
+              👨‍🏫 {test.mentorName} (মেন্টর স্পেশাল)
             </span>
           )}
           {isAttempted && (
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '12px', padding: '0.1rem 0.5rem' }}>
-              ✓ Attempted (সম্পন্ন)
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', borderRadius: '12px', padding: '0.15rem 0.55rem' }}>
+              ✓ পরীক্ষা সম্পন্ন হয়েছে
             </span>
           )}
         </div>
 
         {/* Stats row */}
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-teal)' }}>⏱ {test.duration}</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)' }}>Minutes</div>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem', flex: 1, minWidth: '60px' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary-teal)' }}>⏱ {test.duration}</div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--gray-500)' }}>মিনিট</div>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-charcoal)' }}>📝 {qCount}</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)' }}>Questions</div>
+          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem', flex: 1, minWidth: '60px' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-charcoal)' }}>📝 {qCount}</div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--gray-500)' }}>প্রশ্ন সংখ্যা</div>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--cta-orange)' }}>🏆 {test.totalMarks}</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)' }}>Total Marks</div>
+          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem', flex: 1, minWidth: '60px' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--cta-orange)' }}>🏆 {test.totalMarks}</div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--gray-500)' }}>মোট নম্বর</div>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem' }}>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#e53e3e' }}>{test.negativeMarking}</div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--gray-500)' }}>Negative</div>
+          <div style={{ textAlign: 'center', background: 'var(--bg-light)', borderRadius: 'var(--border-radius-sm)', padding: '0.4rem 0.75rem', flex: 1, minWidth: '60px' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#e53e3e' }}>{test.negativeMarking}</div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--gray-500)' }}>নেগেটিভ মার্ক</div>
           </div>
         </div>
 
         {/* Exam target */}
-        <p style={{ fontSize: '0.78rem', color: 'var(--gray-600)', margin: 0 }}>
-          🎯 Targets: <strong>{test.examTarget}</strong>
+        <p style={{ fontSize: '0.8rem', color: 'var(--gray-600)', margin: 0 }}>
+          🎯 লক্ষ্য/প্রস্তুতি: <strong>{test.examTarget}</strong>
         </p>
 
         <button
           className={`btn ${isAttempted ? 'btn-secondary' : 'btn-teal'}`}
-          style={{ padding: '0.6rem 1.2rem', fontSize: '0.85rem', marginTop: '0.25rem', cursor: 'pointer' }}
+          style={{ padding: '0.65rem 1.2rem', fontSize: '0.88rem', marginTop: '0.25rem', cursor: 'pointer', fontWeight: 600 }}
           onClick={() => onStartTest(test)}
         >
-          {isAttempted ? '📋 View Result / Solutions' : isRecommended ? '⚡ Start Recommended Test' : '▶ Start Test'}
+          {isAttempted ? '📋 ফলাফল ও সমাধান দেখুন' : isRecommended ? '⚡ টেস্ট শুরু করুন' : '▶ টেস্ট শুরু করুন'}
         </button>
       </div>
     );
@@ -169,7 +177,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
       {/* Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontSize: '2.2rem', marginBottom: '0.4rem' }}>
-          📝 Mock <span style={{ color: 'var(--primary-teal)' }}>Test Center</span>
+          📝 মক টেস্ট <span style={{ color: 'var(--primary-teal)' }}>সেন্টার</span>
         </h1>
         <p style={{ color: 'var(--gray-600)', margin: 0 }}>
           বিশ্ববিদ্যালয় ভর্তি পরীক্ষার আদলে তৈরি লাইভ মক টেস্ট ও আপনার বিভাগের মেন্টরদের বিশেষ প্রশ্নপত্রে অংশ নিন।
@@ -225,7 +233,7 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
           <h3 style={{ color: 'var(--primary-teal)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <span>⭐ {activeTab === 'Mentor' ? 'মেন্টর স্পেশাল প্রশ্নপত্র' : activeTab === 'Standard' ? 'সাধারণ মডেল টেস্ট' : 'মক টেস্ট প্রশ্নপত্র'}</span>
             <span style={{ fontSize: '0.72rem', background: '#e6fffa', color: '#276749', border: '1px solid #b2f5ea', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
-              {displayedTests.length} Tests Available
+              {displayedTests.length} টি টেস্ট উপলব্ধ
             </span>
           </h3>
         </div>
@@ -1021,7 +1029,7 @@ function AlreadyAttemptedView({ test, submission, onViewResult, onViewSolutions,
           color: 'var(--text-charcoal)',
           marginBottom: '0.5rem'
         }}>
-          You have already attempted this mock test.
+          আপনি ইতিপূর্বে এই মক টেস্টটি সম্পন্ন করেছেন
         </h2>
 
         <p style={{
@@ -1031,7 +1039,7 @@ function AlreadyAttemptedView({ test, submission, onViewResult, onViewSolutions,
           lineHeight: 1.5
         }}>
           <strong>{test.title}</strong><br />
-          Each mock test can be attempted only once. You can review your previous score and check the correct solutions with explanations.
+          প্রতিটি মক টেস্ট কেবল একবারই দেওয়া যায়। আপনি আপনার পূর্ববর্তী স্কোর এবং বিস্তারিত ব্যাখ্যাসহ সমাধান দেখতে পারেন।
         </p>
 
         {submission && (
@@ -1048,23 +1056,23 @@ function AlreadyAttemptedView({ test, submission, onViewResult, onViewSolutions,
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-teal)' }}>
                 {submission.score !== undefined ? Number(submission.score).toFixed(1) : '0'} / {submission.totalMarks || test.totalMarks}
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>Score</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>অর্জিত স্কোর</div>
             </div>
             <div style={{ borderLeft: '1px solid var(--gray-300)' }} />
             <div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--cta-orange)' }}>
                 {submission.percentage !== undefined ? submission.percentage : '0'}%
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>Accuracy</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>নির্ভুলতা</div>
             </div>
             {submission.timeUsed !== undefined && submission.timeUsed > 0 && (
               <>
                 <div style={{ borderLeft: '1px solid var(--gray-300)' }} />
                 <div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-charcoal)' }}>
-                    {Math.floor(submission.timeUsed / 60)}m {submission.timeUsed % 60}s
+                    {Math.floor(submission.timeUsed / 60)}মি {submission.timeUsed % 60}সে
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>Time Used</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>ব্যয়িত সময়</div>
                 </div>
               </>
             )}
@@ -1078,7 +1086,7 @@ function AlreadyAttemptedView({ test, submission, onViewResult, onViewSolutions,
             style={{ padding: '0.75rem 1.6rem', fontSize: '0.92rem', fontWeight: 700 }}
             onClick={onViewResult}
           >
-            📊 View Result
+            📊 ফলাফল দেখুন
           </button>
           <button
             type="button"
@@ -1086,7 +1094,7 @@ function AlreadyAttemptedView({ test, submission, onViewResult, onViewSolutions,
             style={{ padding: '0.75rem 1.6rem', fontSize: '0.92rem', fontWeight: 700 }}
             onClick={onViewSolutions}
           >
-            💡 View Solutions
+            💡 সমাধান ও ব্যাখ্যা
           </button>
         </div>
 

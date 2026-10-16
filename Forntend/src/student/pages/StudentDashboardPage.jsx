@@ -13,7 +13,7 @@ import {
 import Leaderboard from '../components/Leaderboard';
 import CountdownTimer from '../../common/components/CountdownTimer';
 import DailyTaskSolverModal from '../components/DailyTaskSolverModal';
-import { normalizeGroup } from './MockTestPage';
+import { normalizeGroup, getBanglaGroup } from './MockTestPage';
 
 export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }) {
   const [admissions, setAdmissions] = useState(getAdmissions);
@@ -206,7 +206,7 @@ export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }
               </span>
             )}
             <span>
-              • বিভাগ: <strong>{user?.group || user?.academicGroup || 'Science'}</strong>
+              • বিভাগ: <strong>{getBanglaGroup(user?.group || user?.academicGroup)}</strong>
             </span>
             <span>
               • SSC: <strong>{user?.ssc?.gpa ? Number(user.ssc.gpa).toFixed(2) : 'N/A'}</strong>
@@ -637,7 +637,7 @@ export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }
               }}
               onClick={() => onNavigate('mocktest')}
             >
-              ▶ Go to Test Center
+              ▶ মক টেস্ট সেন্টারে যান
             </button>
           </div>
 
@@ -645,7 +645,7 @@ export default function StudentDashboardPage({ user, onNavigate, onOpenProfile }
           {recommendedTests.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', minWidth: '260px', maxWidth: '320px' }}>
               <div style={{ fontSize: '0.72rem', fontWeight: 600, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                ⭐ Recommended for {user?.group || 'You'}
+                ⭐ আপনার বিভাগের জন্য সেরা টেস্ট ({getBanglaGroup(user?.group || user?.academicGroup)})
               </div>
               {recommendedTests.map((test) => (
                 <div
