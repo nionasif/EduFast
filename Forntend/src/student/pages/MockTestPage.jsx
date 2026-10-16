@@ -176,35 +176,6 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         </p>
       </div>
 
-      {/* Strict Group Notice Banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
-        color: '#ffffff',
-        borderRadius: 'var(--border-radius-md)',
-        padding: '1.25rem 1.5rem',
-        marginBottom: '2rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        boxShadow: '0 4px 15px rgba(13, 148, 136, 0.2)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ fontSize: '2rem' }}>🎯</div>
-          <div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-              আপনার নির্ধারিত বিভাগ / Academic Wing
-            </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-              {groupLabelBn}
-            </div>
-          </div>
-        </div>
-        <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: '20px', padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600 }}>
-          🔒 গ্রুপ সুরক্ষা সক্রিয়: শুধুমাত্র আপনার বিভাগের প্রশ্নপত্র প্রদর্শিত হচ্ছে
-        </div>
-      </div>
 
       {/* Category Tabs (Filtered Strictly Within Student's Group) */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
@@ -247,28 +218,12 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         ))}
       </div>
 
-      {/* Mentor Special Highlight Section (When 'All' tab is active and mentor tests exist for this group) */}
-      {activeTab === 'All' && mentorTestsForMyGroup.length > 0 && (
-        <div style={{ marginBottom: '2.5rem', background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 'var(--border-radius-md)', padding: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h3 style={{ color: '#15803d', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '1.15rem' }}>
-              <span>👨‍🏫 আপনার বিভাগের মেন্টর কর্তৃক প্রস্তুতকৃত লাইভ প্রশ্নপত্র (Mentor Tests)</span>
-              <span style={{ fontSize: '0.72rem', background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
-                {mentorTestsForMyGroup.length} টি লাইভ টেস্ট
-              </span>
-            </h3>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
-            {mentorTestsForMyGroup.map(t => <TestCard key={t.id} test={t} isRecommended={true} />)}
-          </div>
-        </div>
-      )}
 
       {/* Main Filtered Mock Tests List */}
       <div style={{ marginBottom: '2.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <h3 style={{ color: 'var(--primary-teal)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span>⭐ {activeTab === 'Mentor' ? 'মেন্টর স্পেশাল প্রশ্নপত্র' : activeTab === 'Standard' ? 'সাধারণ মডেল টেস্ট' : `${groupLabelBn} মক টেস্ট`}</span>
+            <span>⭐ {activeTab === 'Mentor' ? 'মেন্টর স্পেশাল প্রশ্নপত্র' : activeTab === 'Standard' ? 'সাধারণ মডেল টেস্ট' : 'মক টেস্ট প্রশ্নপত্র'}</span>
             <span style={{ fontSize: '0.72rem', background: '#e6fffa', color: '#276749', border: '1px solid #b2f5ea', borderRadius: '20px', padding: '0.2rem 0.65rem', fontWeight: 700 }}>
               {displayedTests.length} Tests Available
             </span>
