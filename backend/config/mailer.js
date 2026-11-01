@@ -4,8 +4,8 @@ const nodemailer = require('nodemailer');
  * Creates and returns a Nodemailer transporter using Gmail SMTP credentials.
  */
 function createMailTransporter() {
-  const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_APP_PASSWORD;
+  const emailUser = (process.env.EMAIL_USER && process.env.EMAIL_USER.trim()) || 'edu.fast.000@gmail.com';
+  const emailPass = (process.env.EMAIL_APP_PASSWORD && process.env.EMAIL_APP_PASSWORD.trim()) || 'kkht thjk tkyj khrt';
 
   if (!emailUser || !emailPass || emailPass === 'YOUR_GMAIL_APP_PASSWORD' || emailPass.includes('YOUR_')) {
     return null;
