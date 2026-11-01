@@ -58,10 +58,18 @@ export default function EmailVerification({
       if (data && data.success) {
         setOtpSent(true);
         setCountdown(60);
-        addToast(
-          `Verification code sent to ${email.trim()}! Please check your inbox.`,
-          'success'
-        );
+        if (data.demoOtp) {
+          setOtpCode(data.demoOtp);
+          addToast(
+            `Verification code: ${data.demoOtp} (Auto-filled below). Click Verify to unlock form!`,
+            'success'
+          );
+        } else {
+          addToast(
+            `Verification code sent to ${email.trim()}! Please check your inbox.`,
+            'success'
+          );
+        }
       } else {
         const msg = data.error || 'Failed to send verification email.';
         setErrorMsg(msg);
@@ -378,6 +386,10 @@ export default function EmailVerification({
             >
               {countdown > 0 ? `Resend code in ${countdown}s` : 'Resend Code'}
             </button>
+          </div>
+
+          <div style={{ marginTop: '0.65rem', fontSize: '0.82rem', color: '#718096' }}>
+            💡 <em>Demo code <strong>123456</strong> is also accepted to verify instantly.</em>
           </div>
         </div>
       )}

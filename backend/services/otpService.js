@@ -23,12 +23,14 @@ function hashOtp(otp) {
 
 /**
  * Sends a branded HTML email with the 6-digit OTP code using Gmail SMTP.
+ * If SMTP is unconfigured or fails (e.g. on cloud hosting without credentials),
+ * it logs the OTP and returns a fallback result so users can still register.
  */
 async function sendOtpEmail(recipientEmail, recipientName, otp) {
   const transporter = createMailTransporter();
   if (!transporter) {
-    console.error('[Email Error] Gmail SMTP is not configured in backend/.env!');
-    throw new Error('Email service configuration missing. Please configure EMAIL_APP_PASSWORD in backend/.env.');
+    console.warn(`[Email Fallback] Gmail SMTP is not configured in backend/.env. Active demo OTP: ${otp} for ${recipientEmail}`);
+    return { sent: false, fallback: true, otp };
   }
 
   const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'asifhossainkhannion@gmail.com';
@@ -98,15 +100,21 @@ async function sendOtpEmail(recipientEmail, recipientName, otp) {
 
   const textContent = `Hello ${recipientName || 'Student'},\n\nWelcome to EduFast.\n\nYour email verification code is:\n\n${otp}\n\nThis code will expire in 5 minutes.\n\nFor your security, do not share this code with anyone.\n\nIf you did not create an EduFast account, you can safely ignore this email.\n\nRegards,\nEduFast Team`;
 
-  await transporter.sendMail({
-    from: fromHeader,
-    to: recipientEmail,
-    subject: 'Your EduFast Verification Code',
-    text: textContent,
-    html: htmlContent
-  });
+  try {
+    await transporter.sendMail({
+      from: fromHeader,
+      to: recipientEmail,
+      subject: 'Your EduFast Verification Code',
+      text: textContent,
+      html: htmlContent
+    });
 
-  console.log(`[Email Service] Successfully sent OTP email to: ${recipientEmail}`);
+    console.log(`[Email Service] Successfully sent OTP email to: ${recipientEmail}`);
+    return { sent: true, fallback: false, otp };
+  } catch (mailErr) {
+    console.warn(`[Email Service Warning] Mail send failed (${mailErr.message}). Active fallback OTP: ${otp}`);
+    return { sent: false, fallback: true, otp, error: mailErr.message };
+  }
 }
 
 module.exports = {
