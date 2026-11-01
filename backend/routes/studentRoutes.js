@@ -17,7 +17,7 @@ function formatStudentResponse(row) {
     academicGroup: row.academicGroup || 'Science',
     avatar: row.avatar || null,
     isVerified: Boolean(row.isVerified),
-    coins: Number(row.coins) || 0,
+    coins: (row.coins !== null && row.coins !== undefined && Number(row.coins) > 0) ? Number(row.coins) : 100,
     score: Number(row.score) || 0.0,
     streak: Number(row.streak) || 0,
     target: row.target || '',
@@ -52,11 +52,31 @@ router.get(['/api/student/dashboard-stats', '/api/students/dashboard-stats'], op
     if (email) {
       student = await db.get('SELECT * FROM students WHERE LOWER(email) = LOWER(?)', [String(email).trim()]);
     }
+    
+    // If student is not found or not yet authenticated, return clean default stats (100 welcome coins, 0 streak)
     if (!student) {
-      student = await db.get('SELECT * FROM students ORDER BY id ASC LIMIT 1');
+      return res.json({
+        success: true,
+        data: {
+          student: null,
+          coins: 100, // Exactly 100 Welcome Coins
+          score: 0,
+          streak: 0,
+          target: '',
+          enrolledCoursesCount: 0,
+          enrolledCourses: [],
+          mockStats: {
+            totalTests: 0,
+            avgAccuracy: 0,
+            avgScore: 0,
+            highestScore: 0,
+            latestAttempt: null
+          }
+        }
+      });
     }
 
-    const studentEmail = (student?.email || 'student@edufast.com').toLowerCase();
+    const studentEmail = (student.email || '').toLowerCase();
     const formattedStudent = formatStudentResponse(student);
 
     // 1. Enrolled courses (only existing active courses)

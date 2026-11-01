@@ -45,7 +45,9 @@ export default function StudentDashboardPage({ user, onNavigate, onOpenProfile, 
 
   const fetchDashboardData = async () => {
     try {
-      const statsRes = await api.get('/student/dashboard-stats');
+      const statsRes = await api.get('/student/dashboard-stats', {
+        params: { email: user?.email }
+      });
       const stats = statsRes.data?.data || statsRes.data || statsRes.stats;
       if (stats) {
         if (stats.coins !== undefined) setCoins(stats.coins);
@@ -735,7 +737,7 @@ export default function StudentDashboardPage({ user, onNavigate, onOpenProfile, 
           <div>
             <span style={{ fontSize: '0.75rem', color: '#6366f1', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>24/7 Study Room</span>
             <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-charcoal)', display: 'block', lineHeight: 1.2 }}>Join Live Peers</span>
-            <span style={{ fontSize: '0.7rem', color: '#10b981', display: 'block' }}>● 184 Students Active</span>
+            <span style={{ fontSize: '0.7rem', color: '#10b981', display: 'block' }}>● 24/7 লাইভ স্টাডি রুম উন্মুক্ত</span>
           </div>
         </div>
       </div>

@@ -410,9 +410,9 @@ async function initDb() {
     if (!columnNames.includes('coins')) {
       await db.exec('ALTER TABLE students ADD COLUMN coins INTEGER DEFAULT 100;');
     }
-    // Grant 100 Welcome Coins to new student accounts with 0 or null coins
+    // Grant 100 Welcome Coins to new student accounts with 0, null, or old 250 coins
     try {
-      await db.run('UPDATE students SET coins = 100 WHERE coins IS NULL OR coins = 0;');
+      await db.run('UPDATE students SET coins = 100 WHERE coins IS NULL OR coins = 0 OR coins = 250;');
     } catch {}
     if (!columnNames.includes('score')) {
       await db.exec('ALTER TABLE students ADD COLUMN score REAL DEFAULT 0.0;');

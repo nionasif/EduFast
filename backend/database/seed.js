@@ -84,7 +84,7 @@ async function seedDatabase(customDb) {
         '01823456789', 'student@edufast.com', 'Science',
         '109823', '2013897456', 'Dhaka', 5.00, 'Dhaka Residential Model College', '2024',
         '402834', '2013897456', 'Dhaka', 5.00, 'Notre Dame College', '2026',
-        250, 1250.0, 7, 'DU Ka & BUET Engineering', hashedPass('password123')
+        100, 0.0, 0, 'DU Ka & BUET Engineering', hashedPass('password123')
       ]
     );
 
