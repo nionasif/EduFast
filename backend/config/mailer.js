@@ -1,4 +1,10 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Force IPv4 lookup first to prevent ENETUNREACH on cloud environments (Render, Linux containers)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 /**
  * Creates and returns a Nodemailer transporter using Gmail SMTP credentials.
@@ -15,6 +21,7 @@ function createMailTransporter() {
     host: 'smtp.gmail.com',
     port: 465,
     secure: true, // true for port 465
+    family: 4, // Force IPv4 to prevent IPv6 ENETUNREACH
     auth: {
       user: emailUser,
       pass: emailPass.replace(/\s+/g, '') // remove any spaces in Google App Password
