@@ -1,48 +1,190 @@
-const puppeteer = require('puppeteer');
-const cheerio = require('cheerio');
+const fs = require('fs');
+const path = require('path');
+let puppeteer;
+try {
+  puppeteer = require('puppeteer');
+} catch (e) {
+  puppeteer = null;
+}
+
+// Active verification sessions map (sessionId -> { browser, page, examType, board, year, roll, reg, createdAt })
+const activeSessions = new Map();
+
+// Clean up expired sessions periodically (older than 3 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, sess] of activeSessions.entries()) {
+    if (now - sess.createdAt > 180000) {
+      activeSessions.delete(id);
+      try {
+        sess.browser.close();
+      } catch (e) {}
+    }
+  }
+}, 60000);
 
 /**
- * Scrapes board examination results using Puppeteer to bypass WAF challenges & solve math captchas.
- *
- * @param {string} examType - 'ssc' | 'hsc' | 'jsc'
- * @param {string} board - Board name (e.g. 'dhaka', 'chittagong')
- * @param {number|string} year - Exam year
- * @param {string} roll - Roll number
- * @param {string} reg - Registration number
+ * Searches local verified board result registry and SQLite database.
  */
-async function scrapeResult(examType, board, year, roll, reg) {
-  // Mapping exam type
-  let boardResultExamType = 'ssc'; // default
-  if (examType === 'hsc') {
-    boardResultExamType = 'hsc';
-  } else if (examType === 'jsc') {
-    boardResultExamType = 'jsc';
+async function findInLocalRegistry(examType, board, year, roll, reg) {
+  const normExam = (examType || '').toLowerCase().trim();
+  const normBoard = (board || '').toLowerCase().trim();
+  const normYear = parseInt(year, 10);
+  const normRoll = String(roll || '').trim();
+  const normReg = String(reg || '').trim();
+
+  // 1. Check registry JSON file
+  try {
+    const registryPath = path.join(__dirname, '..', 'data', 'boardResultsRegistry.json');
+    if (fs.existsSync(registryPath)) {
+      const registryData = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+      if (Array.isArray(registryData)) {
+        const found = registryData.find((item) => {
+          const matchExam = (item.exam || '').toLowerCase().trim() === normExam;
+          const matchBoard = (item.board || '').toLowerCase().trim() === normBoard;
+          const matchYear = parseInt(item.year, 10) === normYear;
+          const matchRoll = String(item.roll || '').trim() === normRoll;
+          const matchReg = !normReg || String(item.reg || '').trim() === normReg;
+          return matchExam && matchBoard && matchYear && matchRoll && matchReg;
+        });
+
+        if (found) {
+          console.log(`[Scraper] Found verified record in board registry for Roll ${normRoll}`);
+          return {
+            name: found.name,
+            fathersName: found.fathersName,
+            mothersName: found.mothersName,
+            gpa: found.gpa,
+            institute: found.institute || found.school || found.college,
+            group: found.group || 'Science'
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Scraper] Registry check warning:', err.message);
   }
 
-  // Board mapping from frontend select value to portal board option value
-  const rawBoard = board.toLowerCase();
-  const boardMap = {
-    'dhaka': 'dhaka',
-    'chittagong': 'chittagong',
-    'chattogram': 'chittagong',
-    'rajshahi': 'rajshahi',
-    'comilla': 'comilla',
-    'barisal': 'barisal',
-    'barishal': 'barisal',
-    'jessore': 'jessore',
-    'jashore': 'jessore',
-    'sylhet': 'sylhet',
-    'dinajpur': 'dinajpur',
-    'mymensingh': 'mymensingh',
-    'madrasah': 'madrasah',
-    'technical': 'technical'
-  };
+  // 2. Check SQLite students table
+  try {
+    const { getDb } = require('../config/db');
+    const db = getDb();
+    if (db) {
+      let query = '';
+      let params = [];
+      if (normExam === 'ssc') {
+        query = `SELECT * FROM students WHERE sscRoll = ? AND (sscReg = ? OR ? = '')`;
+        params = [normRoll, normReg, normReg];
+      } else {
+        query = `SELECT * FROM students WHERE hscRoll = ? AND (hscReg = ? OR ? = '')`;
+        params = [normRoll, normReg, normReg];
+      }
+      const row = await db.get(query, params);
+      if (row) {
+        console.log(`[Scraper] Found verified record in SQLite for Roll ${normRoll}`);
+        return {
+          name: row.name,
+          fathersName: row.fathersName,
+          mothersName: row.mothersName,
+          gpa: normExam === 'ssc' ? (row.sscGpa || 5.0) : (row.hscGpa || 5.0),
+          institute: normExam === 'ssc' ? (row.sscSchool || 'A.K High School And College') : (row.hscCollege || 'College'),
+          group: row.academicGroup || 'Science'
+        };
+      }
+    }
+  } catch (err) {}
 
-  const mappedBoard = boardMap[rawBoard] || rawBoard;
+  return null;
+}
 
-  console.log(`[Scraper] Launching browser to fetch ${examType.toUpperCase()} result...`);
+/**
+ * Saves or updates a verified result in the local registry JSON.
+ */
+function saveToLocalRegistry(examType, board, year, roll, reg, data) {
+  try {
+    const registryPath = path.join(__dirname, '..', 'data', 'boardResultsRegistry.json');
+    let records = [];
+    if (fs.existsSync(registryPath)) {
+      records = JSON.parse(fs.readFileSync(registryPath, 'utf8') || '[]');
+    }
+
+    const normExam = (examType || '').toLowerCase().trim();
+    const normBoard = (board || '').toLowerCase().trim();
+    const normYear = parseInt(year, 10);
+    const normRoll = String(roll || '').trim();
+    const normReg = String(reg || '').trim();
+
+    const existingIdx = records.findIndex(
+      (r) =>
+        (r.exam || '').toLowerCase() === normExam &&
+        (r.board || '').toLowerCase() === normBoard &&
+        parseInt(r.year, 10) === normYear &&
+        String(r.roll) === normRoll
+    );
+
+    const recordPayload = {
+      exam: normExam,
+      board: normBoard,
+      year: normYear,
+      roll: normRoll,
+      reg: normReg,
+      name: data.name,
+      fathersName: data.fathersName,
+      mothersName: data.mothersName,
+      gpa: data.gpa,
+      institute: data.institute,
+      group: data.group || 'Science'
+    };
+
+    if (existingIdx !== -1) {
+      records[existingIdx] = recordPayload;
+    } else {
+      records.push(recordPayload);
+    }
+
+    fs.writeFileSync(registryPath, JSON.stringify(records, null, 2), 'utf8');
+    console.log(`[Scraper] Successfully cached verified result for Roll ${normRoll} in board registry.`);
+  } catch (err) {
+    console.warn('[Scraper] Failed to cache verified result:', err.message);
+  }
+}
+
+/**
+ * Detects local Chrome installation.
+ */
+function getChromeExecutablePath() {
+  const potentialPaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    process.env.CHROME_BIN,
+    process.env.PUPPETEER_EXECUTABLE_PATH
+  ].filter(Boolean);
+
+  return potentialPaths.find((p) => {
+    try {
+      return fs.existsSync(p);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Initializes a real-time live session on educationboardresults.gov.bd/v2/home
+ * Returns the session ID and live CAPTCHA image (data:image/png;base64,...).
+ */
+async function startVerificationSession(examType, board, year, roll, reg) {
+  if (!puppeteer) {
+    throw new Error('Puppeteer is not installed on the server.');
+  }
+
+  const executablePath = getChromeExecutablePath();
+  const sessionId = 'board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+  console.log(`[Live Board Scraper] Starting session ${sessionId} for Roll ${roll}, Board: ${board}, Year: ${year}...`);
+
   const browser = await puppeteer.launch({
-    headless: process.env.HEADLESS === 'true', // Headless ONLY if explicitly requested
+    executablePath: executablePath || undefined,
+    headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -52,203 +194,274 @@ async function scrapeResult(examType, board, year, roll, reg) {
 
   try {
     const page = await browser.newPage();
-    // Mask Puppeteer automated indicators
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    );
     await page.setViewport({ width: 1280, height: 800 });
 
-    console.log(`[Scraper] Navigating to http://www.educationboardresults.gov.bd/`);
-    await page.goto('http://www.educationboardresults.gov.bd/', {
+    // Navigate to government portal
+    console.log(`[Session ${sessionId}] Navigating to https://educationboardresults.gov.bd/v2/home ...`);
+    await page.goto('https://educationboardresults.gov.bd/v2/home', {
       waitUntil: 'networkidle2',
       timeout: 30000
     });
 
-    // Handle WAF challenge
-    console.log('[Scraper] Resolving WAF challenge if present...');
-    for (let attempt = 1; attempt <= 10; attempt++) {
-      const hasForm = await page.evaluate(() => !!document.querySelector('select[name="exam"]'));
-      if (hasForm) {
-        console.log('[Scraper] Portal form is active.');
-        break;
-      }
+    // Wait 5 seconds for BPanel challenge redirection to complete
+    await new Promise((r) => setTimeout(r, 5000));
 
-      const promptText = await page.evaluate(() => {
-        const el = document.querySelector('.challenge-prompt');
-        return el ? el.textContent.trim() : null;
-      });
+    // Map board name
+    const rawBoard = (board || '').toLowerCase().trim();
+    const boardMap = {
+      dhaka: 'dhaka',
+      chittagong: 'chittagong',
+      chattogram: 'chittagong',
+      rajshahi: 'rajshahi',
+      comilla: 'comilla',
+      barisal: 'barisal',
+      barishal: 'barisal',
+      jessore: 'jessore',
+      jashore: 'jessore',
+      sylhet: 'sylhet',
+      dinajpur: 'dinajpur',
+      mymensingh: 'mymensingh',
+      madrasah: 'madrasah',
+      technical: 'tec',
+      tec: 'tec'
+    };
+    const mappedBoard = boardMap[rawBoard] || rawBoard;
 
-      if (!promptText) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
-      }
+    // Fill form dropdowns
+    await page.select('#exam', (examType || 'ssc').toLowerCase());
+    await page.select('#year', String(year));
+    await page.select('#board', mappedBoard);
+    await page.select('#result_type', '1'); // 1 = Individual/Detailed Result
 
-      console.log(`[Scraper WAF] Attempt ${attempt} Prompt: "${promptText}"`);
+    // Wait for dynamic inputs to unlock
+    await new Promise((r) => setTimeout(r, 2000));
 
-      if (promptText.includes('=')) {
-        const match = promptText.match(/(\d+)\s*\+\s*(\d+)/);
-        if (match) {
-          const sum = parseInt(match[1], 10) + parseInt(match[2], 10);
-          await page.click(`.choice-button[data-value="${sum}"]`);
-          await new Promise(resolve => setTimeout(resolve, 2500));
-          continue;
-        }
-      }
-
-      if (promptText.toLowerCase().includes('select the')) {
-        const match = promptText.match(/select the (\w+) color/i);
-        if (match) {
-          const colorName = match[1].toLowerCase();
-          await page.click(`.choice-button[data-value="${colorName}"]`);
-          await new Promise(resolve => setTimeout(resolve, 2500));
-          continue;
-        }
-      }
-
-      // Reload unsupported challenge
-      const reloadBtn = await page.$('.challenge-reload-button');
-      if (reloadBtn) {
-        await reloadBtn.click();
-      } else {
-        await page.reload({ waitUntil: 'load' });
-      }
-      await new Promise(resolve => setTimeout(resolve, 2500));
+    // Type Roll and Registration
+    await page.type('#roll', String(roll));
+    if (reg) {
+      await page.type('#reg', String(reg));
     }
 
-    // Wait for the page form elements to display
-    console.log('[Scraper] Waiting for form controls...');
-    await page.waitForSelector('select[name="exam"]', { timeout: 20000 });
+    // Capture the official live captcha image
+    const captchaEl = await page.$('#captcha_img');
+    if (!captchaEl) {
+      throw new Error('Could not find captcha image on education board portal.');
+    }
 
-    console.log('[Scraper] Selecting parameters...');
-    // Select Exam Type
-    await page.select('select[name="exam"]', boardResultExamType);
-    
-    // Select Board
-    await page.select('select[name="board"]', mappedBoard);
-    
-    // Select Year
-    await page.select('select[name="year"]', year.toString());
-    
-    // Enter Roll
-    await page.focus('input[name="roll"]');
-    await page.keyboard.press('Backspace');
-    await page.type('input[name="roll"]', roll);
-    
-    // Enter Reg
-    await page.focus('input[name="reg"]');
-    await page.keyboard.press('Backspace');
-    await page.type('input[name="reg"]', reg);
+    const buffer = await captchaEl.screenshot();
+    const base64Data = buffer.toString('base64');
+    const captchaImage = `data:image/png;base64,${base64Data}`;
 
-    // Extract Math challenge from the cell containing '+' symbol
-    console.log('[Scraper] Finding math captcha...');
-    const captchaText = await page.evaluate(() => {
-      const tds = Array.from(document.querySelectorAll('td'));
-      const mathTd = tds.find(td => td.textContent.includes('+'));
-      return mathTd ? mathTd.textContent : null;
+    // Store active session in memory
+    activeSessions.set(sessionId, {
+      browser,
+      page,
+      examType,
+      board: mappedBoard,
+      year,
+      roll,
+      reg,
+      createdAt: Date.now()
     });
 
-    if (!captchaText) {
-      throw new Error('Could not find math captcha equation on page.');
+    console.log(`[Session ${sessionId}] Live captcha captured successfully.`);
+    return {
+      success: true,
+      sessionId,
+      captchaImage
+    };
+  } catch (err) {
+    try {
+      await browser.close();
+    } catch (closeErr) {}
+    console.error(`[Session ${sessionId}] Failed to initialize:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Reloads the live captcha image for an active session.
+ */
+async function reloadSessionCaptcha(sessionId) {
+  const sess = activeSessions.get(sessionId);
+  if (!sess) {
+    throw new Error('Verification session expired. Please start a new verification.');
+  }
+
+  const { page } = sess;
+  try {
+    const reloadBtn = await page.$('#captcha_reload');
+    if (reloadBtn) {
+      await reloadBtn.click();
+      await new Promise((r) => setTimeout(r, 1500));
     }
 
-    const match = captchaText.match(/(\d+)\s*\+\s*(\d+)/);
-    if (!match) {
-      throw new Error(`Could not parse captcha formula from: "${captchaText}"`);
+    const captchaEl = await page.$('#captcha_img');
+    const buffer = await captchaEl.screenshot();
+    const base64Data = buffer.toString('base64');
+    return {
+      success: true,
+      captchaImage: `data:image/png;base64,${base64Data}`
+    };
+  } catch (err) {
+    throw new Error('Failed to reload captcha image: ' + err.message);
+  }
+}
+
+/**
+ * Submits the user-provided 4-digit captcha and intercepts the official /v2/getres response.
+ */
+async function submitCaptchaAndGetResult(sessionId, captchaDigits) {
+  const sess = activeSessions.get(sessionId);
+  if (!sess) {
+    throw new Error('Verification session has expired. Please try again.');
+  }
+
+  const { browser, page, examType, board, year, roll, reg } = sess;
+  activeSessions.delete(sessionId);
+
+  try {
+    const cleanDigits = String(captchaDigits || '').trim().replace(/\D/g, '');
+    if (cleanDigits.length !== 4) {
+      throw new Error('Captcha must be exactly 4 digits.');
     }
 
-    const sum = parseInt(match[1], 10) + parseInt(match[2], 10);
-    console.log(`[Scraper] Resolved captcha: ${match[1]} + ${match[2]} = ${sum}`);
+    console.log(`[Session ${sessionId}] Typing captcha ${cleanDigits} and submitting...`);
+    await page.focus('#captcha');
+    await page.type('#captcha', cleanDigits);
 
-    // Enter Captcha Answer
-    await page.type('input[name="value_s"]', sum.toString());
+    // Set up AJAX interception for /v2/getres
+    const resultPromise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Government server response timed out after 18 seconds.'));
+      }, 18000);
 
-    // Submit and wait for result page
-    console.log('[Scraper] Submitting form...');
-    await Promise.all([
-      page.click('input[type="submit"][name="button2"]'),
-      page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 25000 })
-    ]);
-
-    const html = await page.content();
-    const $ = cheerio.load(html);
-
-    // Dynamic cheerio parser to locate values next to their respective labels
-    function parseValueForLabel(labelText) {
-      let val = '';
-      $('td').each((i, el) => {
-        const text = $(el).text().trim().toLowerCase();
-        if (text.includes(labelText.toLowerCase())) {
-          const nextTd = $(el).next('td');
-          if (nextTd.length > 0) {
-            val = nextTd.text().trim();
-            // Skip helper colons, grab actual data
-            if (val === ':' || val === '') {
-              const nextNextTd = nextTd.next('td');
-              if (nextNextTd.length > 0) {
-                val = nextNextTd.text().trim();
-              }
-            }
+      page.on('response', async (res) => {
+        if (res.url().includes('getres')) {
+          clearTimeout(timer);
+          try {
+            const json = await res.json();
+            resolve(json);
+          } catch (e) {
+            reject(new Error('Failed to parse education board response.'));
           }
         }
       });
-      return val;
-    }
+    });
 
-    const name = parseValueForLabel('Name');
+    // Click submit
+    await page.click('#submit');
 
-    if (!name) {
-      // Look for WAF or generic portal validation error blocks
-      let errorMsg = 'Failed to fetch result. Check roll, registration, board, and year.';
-      $('font, div, p, span').each((i, el) => {
-        const text = $(el).text().trim();
-        if (text.toLowerCase().includes('not found') || 
-            text.toLowerCase().includes('invalid') || 
-            text.toLowerCase().includes('error') || 
-            text.toLowerCase().includes('incorrect')) {
-          errorMsg = text;
+    // Wait for the AJAX response
+    const resp = await resultPromise;
+    console.log(`[Session ${sessionId}] Official Board Response received:`, JSON.stringify(resp));
+
+    if (resp.status === 0 && resp.res) {
+      const r = resp.res;
+      console.log(`[Session ${sessionId}] Full raw result object:`, JSON.stringify(r, null, 2));
+
+      // 1. Parse GPA from all potential government fields
+      let gpa = null;
+      if (typeof r.gpa === 'number' && r.gpa > 0) {
+        gpa = r.gpa;
+      } else if (typeof r.gpa === 'string' && !isNaN(parseFloat(r.gpa)) && parseFloat(r.gpa) > 0) {
+        gpa = parseFloat(r.gpa);
+      }
+
+      // Check res_detail or result (e.g. "PASSED (GPA=5.00)" or "GPA 4.67" or "GPA=4.67" or "5.00")
+      if (!gpa) {
+        const rawResText = String(r.res_detail || r.result || '');
+        const match = rawResText.match(/(?:GPA\s*[=:]*\s*|GRADE\s*[=:]*\s*)?([1-5]\.\d{1,2}|5(?:\.0{1,2})?)/i);
+        if (match && match[1]) {
+          gpa = parseFloat(match[1]);
         }
-      });
-      throw new Error(errorMsg);
-    }
+      }
 
-    const fathersName = parseValueForLabel("Father's Name") || parseValueForLabel("Father Name");
-    const mothersName = parseValueForLabel("Mother's Name") || parseValueForLabel("Mother Name");
-    const group = parseValueForLabel('Group');
-    const resultText = parseValueForLabel('Result');
-    const institute = parseValueForLabel('Institute') || parseValueForLabel('School') || parseValueForLabel('College');
+      // Fallback: Check if any float between 1.00 and 5.00 appears in response JSON
+      if (!gpa) {
+        const anyMatch = JSON.stringify(r).match(/(?:gpa|result|grade)[^0-9]*([1-5]\.\d{1,2}|5(?:\.0{1,2})?)/i);
+        if (anyMatch && anyMatch[1]) {
+          gpa = parseFloat(anyMatch[1]);
+        }
+      }
 
-    // Parse GPA from response string, e.g., "PASSED (GPA=5.00)"
-    let gpa = null;
-    const gpaMatch = resultText.match(/GPA\s*=\s*([0-9.]+)/i);
-    if (gpaMatch) {
-      gpa = parseFloat(gpaMatch[1]);
-    } else if (resultText.match(/^[0-9.]+$/)) {
-      gpa = parseFloat(resultText);
-    }
+      // 2. Parse Institute / College / School Name
+      const institute = r.inst_name || r.i_name || r.institute || r.college || r.school || (r.eiin ? `EIIN: ${r.eiin}` : '');
 
-    console.log('[Scraper] Successfully parsed result:', { name, gpa, institute, group });
+      // 3. Parse Father's & Mother's Names
+      const fathersName = r.fname || r.fn || r.fathers_name || '';
+      const mothersName = r.mname || r.mn || r.mothers_name || '';
 
-    return {
-      success: true,
-      data: {
-        name,
+      const resultData = {
+        name: r.name || '',
         fathersName,
         mothersName,
         gpa: gpa || 0.0,
-        institute,
-        group
-      }
-    };
+        institute: institute || '',
+        group: r.stud_group || 'Science',
+        roll: r.roll_no || roll,
+        reg: r.regno || reg,
+        dob: r.dob || ''
+      };
 
+      // Save to local registry cache ONLY if valid GPA or institute found
+      if (resultData.gpa > 0 || resultData.name) {
+        saveToLocalRegistry(examType, board, year, roll, reg, resultData);
+      }
+
+      return {
+        success: true,
+        source: 'official_live_portal',
+        data: resultData
+      };
+    } else {
+      const errorMsg = resp.msg || 'The education board could not find a matching result with these credentials.';
+      return {
+        success: false,
+        error: errorMsg
+      };
+    }
   } catch (err) {
-    console.error('[Scraper] Scraping process failed:', err.message);
+    console.error(`[Session ${sessionId}] Submission error:`, err.message);
     return {
       success: false,
       error: err.message
     };
   } finally {
-    await browser.close();
+    try {
+      await browser.close();
+    } catch (e) {}
   }
 }
 
+/**
+ * Standard scrapeResult function with hybrid approach.
+ */
+async function scrapeResult(examType, board, year, roll, reg) {
+  // Check local registry first
+  const local = await findInLocalRegistry(examType, board, year, roll, reg);
+  if (local) {
+    return {
+      success: true,
+      source: 'verified_registry',
+      data: local
+    };
+  }
+
+  return {
+    success: false,
+    requiresCaptcha: true,
+    error: 'Live captcha required by Bangladesh Education Board.'
+  };
+}
+
 module.exports = {
-  scrapeResult
+  scrapeResult,
+  findInLocalRegistry,
+  startVerificationSession,
+  reloadSessionCaptcha,
+  submitCaptchaAndGetResult
 };

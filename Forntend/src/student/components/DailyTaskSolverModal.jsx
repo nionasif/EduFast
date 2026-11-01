@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getTaskChallengeContent } from '../../data/dailyTaskBank';
+import { useLanguage } from '../../context/LanguageContext';
 import './DailyTaskSolverModal.css';
 
 export default function DailyTaskSolverModal({
@@ -12,6 +13,7 @@ export default function DailyTaskSolverModal({
 }) {
   if (!isOpen || !task) return null;
 
+  const { language } = useLanguage();
   const currentGroup = userGroup || user?.group || task?.group || 'Science';
   const challenge = getTaskChallengeContent(task, currentGroup);
   const [activeTab, setActiveTab] = useState('quiz'); // 'quiz' | 'formulas'
@@ -125,7 +127,7 @@ export default function DailyTaskSolverModal({
             className={`daily-task-tab-btn ${activeTab === 'formulas' ? 'active' : ''}`}
             onClick={() => setActiveTab('formulas')}
           >
-            💡 AI রিভিশন নোটস ও নিয়মাবলী
+            💡 {language === 'bn' ? 'রিভিশন নোটস ও নিয়মাবলী' : 'Revision Notes & Rules'}
           </button>
         </div>
 
@@ -396,7 +398,7 @@ export default function DailyTaskSolverModal({
                       className="submit-quiz-btn"
                       onClick={onClose}
                     >
-                      ড্যাশবোর্ডে ফিরে যান
+                      {language === 'bn' ? 'ড্যাশবোর্ডে ফিরে যান' : 'Return to Dashboard'}
                     </button>
                   </>
                 )}

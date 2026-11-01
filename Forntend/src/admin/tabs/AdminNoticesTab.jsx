@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { addNotification } from '../../data/mockData';
+import api from '../../services/api';
 
 export default function AdminNoticesTab({
   newNotice,
@@ -7,32 +8,85 @@ export default function AdminNoticesTab({
   notices,
   setNotices
 }) {
-  const handleSubmitNotice = (e) => {
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Sync notices from backend on mount
+  useEffect(() => {
+    const loadNotices = async () => {
+      try {
+        const res = await api.get('/notices');
+        const list = Array.isArray(res?.data) 
+          ? res.data 
+          : Array.isArray(res?.data?.data) 
+            ? res.data.data 
+            : Array.isArray(res) 
+              ? res 
+              : [];
+        setNotices(list);
+        localStorage.setItem('edufast_admin_notices', JSON.stringify(list));
+      } catch (err) {
+        console.warn('Admin notices sync notice:', err.message);
+      }
+    };
+    loadNotices();
+  }, [setNotices]);
+
+  const handleSubmitNotice = async (e) => {
     e.preventDefault();
     if (!newNotice.title || !newNotice.content) return;
-    const item = {
-      id: Date.now(),
-      title: newNotice.title,
-      priority: newNotice.priority,
-      date: new Date().toISOString().slice(0, 10),
-      content: newNotice.content
-    };
-    const updated = [item, ...notices];
-    setNotices(updated);
-    localStorage.setItem('edufast_admin_notices', JSON.stringify(updated));
-    // Broadcast notification to students
+    setIsPublishing(true);
+
     try {
-      addNotification({
-        title: `📢 অফিশিয়াল নোটিশ: ${newNotice.title}`,
-        text: newNotice.content,
-        category: 'notice',
-        link: 'dashboard'
-      });
-    } catch {}
-    setNewNotice({ title: '', priority: 'General', content: '' });
+      const payload = {
+        title: newNotice.title.trim(),
+        priority: newNotice.priority || 'General',
+        content: newNotice.content.trim(),
+        date: new Date().toISOString().slice(0, 10)
+      };
+
+      const res = await api.post('/notices', payload);
+      const savedItem = (res && res.data) ? res.data : { ...payload, id: Date.now() };
+
+      const updated = [savedItem, ...notices.filter(n => n.id !== savedItem.id)];
+      setNotices(updated);
+      localStorage.setItem('edufast_admin_notices', JSON.stringify(updated));
+
+      // Broadcast local notification for students
+      try {
+        addNotification({
+          title: `📢 অফিশিয়াল নোটিশ: ${savedItem.title}`,
+          text: savedItem.content,
+          category: 'notice',
+          link: 'dashboard'
+        });
+      } catch {}
+
+      setNewNotice({ title: '', priority: 'General', content: '' });
+    } catch (err) {
+      console.error('Failed to publish notice to backend:', err);
+      // Fallback local save
+      const item = {
+        id: Date.now(),
+        title: newNotice.title,
+        priority: newNotice.priority,
+        date: new Date().toISOString().slice(0, 10),
+        content: newNotice.content
+      };
+      const updated = [item, ...notices];
+      setNotices(updated);
+      localStorage.setItem('edufast_admin_notices', JSON.stringify(updated));
+      setNewNotice({ title: '', priority: 'General', content: '' });
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
-  const handleDeleteNotice = (id) => {
+  const handleDeleteNotice = async (id) => {
+    try {
+      await api.delete(`/notices/${id}`);
+    } catch (err) {
+      console.warn('Backend delete notice notice:', err.message);
+    }
     const updated = notices.filter(item => item.id !== id);
     setNotices(updated);
     localStorage.setItem('edufast_admin_notices', JSON.stringify(updated));

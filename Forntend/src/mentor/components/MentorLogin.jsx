@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import api from '../../services/api';
 import { 
   ShieldCheck, 
   Key, 
   Mail, 
   User, 
+  Phone,
   GraduationCap, 
   BookOpen, 
   Sparkles, 
@@ -33,6 +35,7 @@ export default function MentorLogin({
   // Sign-Up State
   const [signUpForm, setSignUpForm] = useState({
     name: '',
+    mobile: '',
     institution: '',
     subject: 'Physics',
     email: '',
@@ -43,7 +46,7 @@ export default function MentorLogin({
   const [signUpSuccessMsg, setSignUpSuccessMsg] = useState('');
 
   // 1. Handle Login
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setLoginError('');
     setIsSubmitting(true);
@@ -51,51 +54,58 @@ export default function MentorLogin({
     const { identifier, password } = loginForm;
     const cleanId = identifier.trim().toLowerCase();
 
-    // Check credentials against registered mentors in localStorage
-    let authenticatedMentor = null;
-
     try {
-      const storedMentors = JSON.parse(localStorage.getItem('edufast_registered_mentors') || '[]');
-      const found = storedMentors.find(m => 
-        (m.email.toLowerCase() === cleanId || (m.mentorId && m.mentorId.toLowerCase() === cleanId)) && 
-        m.password === password
-      );
-      if (found) {
-        authenticatedMentor = found;
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      const res = await api.post('/auth/login', {
+        email: cleanId,
+        password,
+        role: 'mentor'
+      });
 
-    if (!authenticatedMentor) {
-      try {
-        const savedProfile = JSON.parse(localStorage.getItem('edufast_mentor_profile') || 'null');
-        if (savedProfile && savedProfile.email && savedProfile.email.toLowerCase() === cleanId) {
-          authenticatedMentor = savedProfile;
-        }
-      } catch {}
-    }
+      const data = res.data || res;
+      if (data && (data.token || data.user || data.success)) {
+        const authenticatedMentor = {
+          name: data.user?.name || 'Academic Mentor',
+          email: data.user?.email || cleanId,
+          mentorId: data.user?.id ? `MENTOR-${data.user.id}` : `MENTOR-${Date.now().toString().slice(-4)}`,
+          designation: data.user?.designation || 'Academic Teaching Assistant & Doubt Solver',
+          institution: data.user?.institution || 'Top University',
+          subject: data.user?.subject || 'Science',
+          rating: 4.9,
+          solvedCount: 0,
+          coinsEarned: 0,
+          token: data.token
+        };
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      if (authenticatedMentor) {
         localStorage.setItem('edufast_mentor_session', JSON.stringify(authenticatedMentor));
+        if (data.token) {
+          localStorage.setItem('edufast_token', data.token);
+        }
         if (onLoginSuccess) {
           onLoginSuccess(authenticatedMentor);
         }
       } else {
-        setLoginError('Invalid Mentor ID or Password. If you do not have an account, please register below.');
+        setLoginError(data?.error || data?.message || 'Invalid Mentor ID or Password.');
       }
-    }, 350);
+    } catch (err) {
+      console.error('Mentor login error:', err);
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Invalid Mentor credentials.';
+      setLoginError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // 2. Handle Sign-Up
-  const handleSignUpSubmit = (e) => {
+  const handleSignUpSubmit = async (e) => {
     e.preventDefault();
     setSignUpError('');
 
     if (!signUpForm.name.trim()) {
       setSignUpError('Please enter your full name.');
+      return;
+    }
+    if (!signUpForm.mobile.trim() || signUpForm.mobile.trim().length < 11) {
+      setSignUpError('Please enter a valid 11-digit mobile number.');
       return;
     }
     if (!signUpForm.institution.trim()) {
@@ -117,48 +127,52 @@ export default function MentorLogin({
 
     setIsSubmitting(true);
 
-    const newMentor = {
-      name: signUpForm.name.trim(),
-      email: signUpForm.email.trim(),
-      mentorId: `MENTOR-${Math.floor(1000 + Math.random() * 9000)}`,
-      designation: "Academic Teaching Assistant & Doubt Solver",
-      institution: signUpForm.institution.trim(),
-      subject: signUpForm.subject,
-      password: signUpForm.password,
-      rating: 0,
-      solvedCount: 0,
-      coinsEarned: 0,
-      registeredAt: new Date().toISOString()
-    };
-
-    // Save to registered mentors list
     try {
-      const stored = JSON.parse(localStorage.getItem('edufast_registered_mentors') || '[]');
-      stored.push(newMentor);
-      localStorage.setItem('edufast_registered_mentors', JSON.stringify(stored));
-    } catch (err) {
-      console.error(err);
-    }
+      const res = await api.post('/auth/register', {
+        name: signUpForm.name.trim(),
+        mobile: signUpForm.mobile.trim(),
+        email: signUpForm.email.trim().toLowerCase(),
+        password: signUpForm.password,
+        role: 'mentor',
+        institution: signUpForm.institution.trim(),
+        subject: signUpForm.subject
+      });
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+      const data = res.data || res;
+      const returnedUser = data?.user || {};
+      const newMentor = {
+        name: returnedUser.name || signUpForm.name.trim(),
+        email: returnedUser.email || signUpForm.email.trim().toLowerCase(),
+        mobile: returnedUser.mobile || signUpForm.mobile.trim(),
+        mentorId: returnedUser.id || `MENTOR-${Math.floor(1000 + Math.random() * 9000)}`,
+        designation: "Academic Teaching Assistant & Doubt Solver",
+        institution: returnedUser.institution || signUpForm.institution.trim(),
+        subject: returnedUser.subject || signUpForm.subject,
+        rating: returnedUser.rating || 5.0,
+        solvedCount: returnedUser.doubtsResolved || 0,
+        coinsEarned: 0,
+        token: data?.token,
+        role: 'mentor',
+        registeredAt: new Date().toISOString()
+      };
+
       localStorage.setItem('edufast_mentor_session', JSON.stringify(newMentor));
+      if (data?.token) {
+        localStorage.setItem('edufast_token', data.token);
+      }
       setSignUpSuccessMsg('Account created successfully! Connecting you to duty shift...');
       setTimeout(() => {
         if (onLoginSuccess) {
           onLoginSuccess(newMentor);
         }
       }, 700);
-    }, 500);
-  };
-
-  // Quick Demo Auto-fill
-  const fillDemoMentor = () => {
-    setLoginForm({
-      identifier: 'mentor@edufast.com',
-      password: 'mentor123'
-    });
-    setLoginError('');
+    } catch (err) {
+      console.error('Mentor registration error:', err);
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create mentor account.';
+      setSignUpError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -476,6 +490,36 @@ export default function MentorLogin({
                   value={signUpForm.name}
                   onChange={(e) => setSignUpForm({ ...signUpForm, name: e.target.value })}
                   placeholder="e.g. Dr. Sadia / Engr. Tanvir Ahmed"
+                  required
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    height: '42px',
+                    padding: '0 0.85rem 0 2.4rem',
+                    backgroundColor: 'rgba(2, 6, 23, 0.7)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '10px',
+                    color: '#ffffff',
+                    fontSize: '0.88rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.35rem' }}>
+                Mobile Number (মোবাইল নম্বর)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
+                  <Phone style={{ width: '15px', height: '15px' }} />
+                </span>
+                <input
+                  type="tel"
+                  value={signUpForm.mobile}
+                  onChange={(e) => setSignUpForm({ ...signUpForm, mobile: e.target.value.replace(/\D/g, '').slice(0, 11) })}
+                  placeholder="e.g. 01712345678"
                   required
                   style={{
                     width: '100%',

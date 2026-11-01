@@ -8,8 +8,6 @@ export default function AdminSidebar({
   totalStudentsCount,
   coursesCount,
   universitiesCount,
-  liveClassesCount,
-  questionBankCount,
   noticesCount,
   adminUser,
   handleLogout
@@ -18,12 +16,12 @@ export default function AdminSidebar({
     { id: 'overview', icon: '📊', label: 'Overview' },
     { id: 'students', icon: '👥', label: 'Student Registry', badge: totalStudentsCount },
     { id: 'courses', icon: '📚', label: 'Manage Courses', badge: coursesCount, badgeBg: '#0d9488' },
-    { id: 'universities', icon: '🏛️', label: 'Manage Varsities', badge: universitiesCount, badgeBg: '#2563eb' },
-    { id: 'live-classes', icon: '🔴', label: 'Live Masterclasses', badge: liveClassesCount, badgeBg: '#e11d48' },
-    { id: 'question-bank', icon: '📑', label: 'Question Bank', badge: questionBankCount, badgeBg: '#059669' },
+    { id: 'universities', icon: '🏛️', label: 'Manage Universities', badge: universitiesCount, badgeBg: '#2563eb' },
+    { id: 'higher-study', icon: '🌍', label: 'Study Abroad', badge: 'INTL', badgeBg: '#0284c7' },
     { id: 'db-studio', icon: '🗄️', label: 'Database Studio', badge: 'SQL', badgeBg: '#10b981' },
     { id: 'analytics', icon: '📈', label: 'Academic Analytics' },
     { id: 'notices', icon: '📢', label: 'Notices & Circulars', badge: noticesCount },
+    { id: 'promotions', icon: '🌟', label: 'Ad Promotions', badge: 'PRO', badgeBg: '#eab308' },
     { id: 'settings', icon: '⚙️', label: 'Admin Settings' }
   ];
 

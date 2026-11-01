@@ -378,15 +378,17 @@ export default function GPACalculator() {
         if (unit.group !== group) return;
         totalGroupUnits++;
 
-        const isCombinedOk = combinedGpa >= (unit.minGpa || 0);
-        const isIndividualOk = sscGpa >= (unit.minIndividualGpa || 0) && hscGpa >= (unit.minIndividualGpa || 0);
+        const requiredMinGpa = Number(unit.minGpa || 0);
+        const requiredMinSingle = Number(unit.minIndividualGpa || 0);
+        const isCombinedOk = combinedGpa >= requiredMinGpa;
+        const isIndividualOk = sscGpa >= requiredMinSingle && hscGpa >= requiredMinSingle;
         const isEligible = isCombinedOk && isIndividualOk;
 
         let missingReason = '';
         if (!isCombinedOk) {
-          missingReason = `ন্যূনতম মোট জিপিএ ${(unit.minGpa || 0).toFixed(2)} প্রয়োজন (আপনার ${combinedGpa.toFixed(2)})`;
+          missingReason = `ন্যূনতম মোট জিপিএ ${requiredMinGpa.toFixed(2)} প্রয়োজন (আপনার ${combinedGpa.toFixed(2)})`;
         } else if (!isIndividualOk) {
-          missingReason = `এসএসসি ও এইচএসসি প্রতিটিতে ন্যূনতম ${(unit.minIndividualGpa || 0).toFixed(2)} প্রয়োজন`;
+          missingReason = `এসএসসি ও এইচএসসি প্রতিটিতে ন্যূনতম ${requiredMinSingle.toFixed(2)} প্রয়োজন`;
         }
 
         const item = {
@@ -813,7 +815,7 @@ export default function GPACalculator() {
                 {/* Requirements */}
                 <div style={{ fontSize: '0.74rem', color: 'var(--gray-600, #4a5568)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <div>
-                    <strong>ন্যূনতম জিপিএ:</strong> {item.minGpa.toFixed(2)} (এসএসসি/এইচএসসি প্রতিটি: {item.minIndividualGpa.toFixed(2)})
+                    <strong>ন্যূনতম জিপিএ:</strong> {Number(item.minGpa || 0).toFixed(2)} (এসএসসি/এইচএসসি প্রতিটি: {Number(item.minIndividualGpa || 0).toFixed(2)})
                   </div>
                   <div>
                     <strong>আবশ্যিক বিষয়:</strong> {item.subjects}

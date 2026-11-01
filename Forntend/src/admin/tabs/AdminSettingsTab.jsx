@@ -64,7 +64,8 @@ export default function AdminSettingsTab({
           <h3 className="admin-card-title"><span>⚙️</span> Backend Health & Reset</h3>
         </div>
         <div style={{ color: backendLive ? '#34d399' : '#fbbf24', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-          {backendLive ? '🟢 SQLite3 Database Active on http://localhost:5001' : '🟡 Local Dynamic Storage Active'}
+          {backendLive ? `🟢 SQLite3 Database Active (${import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'})` : '🟡 Local Dynamic Storage Active'}
+
         </div>
         <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginBottom: '1.25rem' }}>
           Total Courses: {courses.length} | Total Varsities: {admissions.length} | Total Applicants: {totalCount}

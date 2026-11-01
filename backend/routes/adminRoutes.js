@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../config/db');
+const { generateToken, verifyToken, requireRole } = require('../middleware/authMiddleware');
+const { readDataFile, writeDataFile } = require('../services/dataStorageService');
 
 // In-memory / configurable admin credentials
 let adminCredentials = {
@@ -27,17 +29,20 @@ router.post('/api/admin/login', (req, res) => {
   const isValidPass = (password === adminCredentials.password);
 
   if (isValidUser && isValidPass) {
-    const token = 'edufast-admin-' + Buffer.from(Date.now() + ':' + adminCredentials.username).toString('base64');
+    const adminObj = {
+      id: 1,
+      username: adminCredentials.username,
+      email: adminCredentials.email,
+      name: adminCredentials.name,
+      role: 'admin'
+    };
+    const token = generateToken(adminObj);
     return res.json({
       success: true,
       message: 'Admin authentication successful',
       token,
-      admin: {
-        username: adminCredentials.username,
-        email: adminCredentials.email,
-        name: adminCredentials.name,
-        role: adminCredentials.role
-      }
+      admin: adminObj,
+      user: adminObj
     });
   }
 
@@ -230,6 +235,21 @@ router.post('/api/admin/courses', async (req, res) => {
       [courseId, title, instructor, rating || 4.9, reviewsCount || 100, duration, price, discountedPrice, group, badge, image || '📚', description]
     );
     const newCourse = await db.get('SELECT * FROM courses WHERE id = ?', [courseId]);
+
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('course:new', newCourse);
+        io.emit('notification', {
+          title: `🎓 নতুন কোর্স: "${newCourse.title}"`,
+          message: `শিক্ষক ${newCourse.instructor || 'EduFast'} নতুন কোর্স যুক্ত করেছেন। বিস্তারিত দেখে এখনই এনরোল করুন!`,
+          type: 'course',
+          category: 'course',
+          link: 'courses'
+        });
+      }
+    } catch (e) {}
+
     return res.json({ success: true, data: newCourse });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -257,6 +277,25 @@ router.delete('/api/admin/courses/:id', async (req, res) => {
     const db = getDb();
     await db.run('DELETE FROM courses WHERE id = ?', [req.params.id]);
     await db.run('DELETE FROM course_curriculum WHERE courseId = ?', [req.params.id]);
+    await db.run('DELETE FROM enrollments WHERE courseId = ?', [req.params.id]);
+    await db.run('DELETE FROM lesson_progress WHERE courseId = ?', [req.params.id]);
+
+    // Sync deletion to courses.json
+    try {
+      const courses = readDataFile('courses.json') || [];
+      const filtered = courses.filter(c => String(c.id) !== String(req.params.id));
+      writeDataFile('courses.json', filtered);
+    } catch (fErr) {
+      console.warn('File delete sync warning:', fErr.message);
+    }
+
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('course:deleted', { id: req.params.id });
+      }
+    } catch (e) {}
+
     return res.json({ success: true, message: 'Course and curriculum deleted successfully' });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -268,7 +307,7 @@ router.put('/api/admin/courses/:id/approval', async (req, res) => {
   try {
     const db = getDb();
     const { isApproved } = req.body;
-    const approvalVal = (isApproved === true || isApproved === 1) ? 1 : 0;
+    const approvalVal = (isApproved === true || isApproved === 1 || isApproved === '1') ? 1 : 0;
     const statusVal = approvalVal === 1 ? 'Approved' : 'Pending';
 
     await db.run(
@@ -277,6 +316,71 @@ router.put('/api/admin/courses/:id/approval', async (req, res) => {
     );
 
     const updated = await db.get('SELECT * FROM courses WHERE id = ?', [req.params.id]);
+
+    // Sync approval change to courses.json
+    try {
+      const courses = readDataFile('courses.json') || [];
+      const idx = courses.findIndex(c => String(c.id) === String(req.params.id));
+      if (idx >= 0) {
+        courses[idx] = {
+          ...courses[idx],
+          isApproved: approvalVal === 1,
+          status: statusVal,
+          approvedAt: approvalVal === 1 ? new Date().toISOString() : null
+        };
+        writeDataFile('courses.json', courses);
+      }
+    } catch (fErr) {
+      console.warn('Approval file sync warning:', fErr.message);
+    }
+
+    // Broadcast Real-time socket events to Teacher, Admin, and Student portals
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const payload = {
+          courseId: req.params.id,
+          isApproved: approvalVal === 1,
+          status: statusVal,
+          course: updated
+        };
+        io.emit('course:status_updated', payload);
+        io.emit('course:approval_changed', payload);
+        io.emit('course:update', { ...(updated || {}), isApproved: approvalVal === 1, status: statusVal });
+
+        if (approvalVal === 1) {
+          // Notify teacher specifically
+          io.emit('notification', {
+            title: '🎉 কোর্স অনুমোদিত হয়েছে!',
+            message: `আপনার কোর্স "${updated?.title || 'Course'}" এডমিন কর্তৃক সফলভাবে অনুমোদিত হয়েছে এবং এখন লাইভ!`,
+            type: 'course_approved',
+            category: 'course',
+            targetRole: 'teacher',
+            link: 'courses'
+          });
+
+          // Notify students that course is now published
+          io.emit('notification', {
+            title: `🎓 নতুন কোর্স প্রকাশিত: "${updated?.title}"`,
+            message: `শিক্ষক ${updated?.instructor || 'EduFast'} এর নতুন কোর্স এখন ওয়েবসাইটে উন্মুক্ত! এখনই এনরোল করুন।`,
+            type: 'course',
+            category: 'course',
+            link: 'courses'
+          });
+        } else {
+          io.emit('notification', {
+            title: '⏸️ কোর্স প্রকাশনা স্থগিত',
+            message: `কোর্স "${updated?.title || 'Course'}" এর প্রকাশনা স্থগিত বা পর্যালোচনায় ফিরিয়ে নেওয়া হয়েছে।`,
+            type: 'course_pending',
+            category: 'course',
+            targetRole: 'teacher'
+          });
+        }
+      }
+    } catch (sErr) {
+      console.warn('Socket notification emission warning:', sErr.message);
+    }
+
     return res.json({
       success: true,
       message: approvalVal === 1 ? 'কোর্সটি সফলভাবে ওয়েবসাইটে প্রকাশের জন্য অনুমোদন দেওয়া হয়েছে!' : 'কোর্সটির প্রকাশনা স্থগিত/প্রত্যাহার করা হয়েছে।',
@@ -353,13 +457,23 @@ router.delete('/api/admin/universities/:id', async (req, res) => {
 
 const ALLOWED_TABLES = [
   'users_auth',
+  'students',
   'student_profiles',
-  'question_bank',
+  'teachers',
+  'mentors',
   'courses',
-  'enrollments',
-  'mentor_doubts',
+  'course_curriculum',
   'universities',
-  'students'
+  'mock_tests',
+  'mock_test_attempts',
+  'question_bank',
+  'live_classes',
+  'mentor_doubts',
+  'enrollments',
+  'daily_tasks',
+  'study_lounge_messages',
+  'lesson_progress',
+  'notices'
 ];
 
 // 1. List all available tables with row count and schema columns
@@ -370,19 +484,29 @@ router.get('/api/admin/db/tables', async (req, res) => {
 
     for (const tableName of ALLOWED_TABLES) {
       try {
-        const countRow = await db.get(`SELECT COUNT(*) as count FROM ${tableName}`);
-        const columns = await db.all(`PRAGMA table_info(${tableName})`);
+        const countRow = await db.get(`SELECT COUNT(*) as count FROM "${tableName}"`);
+        const columns = await db.all(`PRAGMA table_info("${tableName}")`);
         
         let label = tableName;
         let icon = '📁';
         if (tableName === 'users_auth') { label = 'Users & Login Auth'; icon = '🔐'; }
-        if (tableName === 'student_profiles') { label = 'Student Profiles'; icon = '👨‍🎓'; }
-        if (tableName === 'question_bank') { label = 'Question Bank (MCQ)'; icon = '📑'; }
-        if (tableName === 'courses') { label = 'Courses Catalog'; icon = '📚'; }
-        if (tableName === 'enrollments') { label = 'Course Enrollments'; icon = '🎟️'; }
-        if (tableName === 'mentor_doubts') { label = 'Mentor Doubts Queue'; icon = '💬'; }
-        if (tableName === 'universities') { label = 'Varsity Circulars'; icon = '🏛️'; }
-        if (tableName === 'students') { label = 'Legacy Students DB'; icon = '👥'; }
+        else if (tableName === 'students') { label = 'Students Master DB'; icon = '🎓'; }
+        else if (tableName === 'student_profiles') { label = 'Student Academic Profiles'; icon = '👨‍🎓'; }
+        else if (tableName === 'teachers') { label = 'Instructors & Teachers'; icon = '👨‍🏫'; }
+        else if (tableName === 'mentors') { label = 'Academic Mentors & TAs'; icon = '🧑‍🏫'; }
+        else if (tableName === 'courses') { label = 'Courses Catalog'; icon = '📚'; }
+        else if (tableName === 'course_curriculum') { label = 'Course Curriculum & Lessons'; icon = '🎬'; }
+        else if (tableName === 'universities') { label = 'Varsity Circulars & Units'; icon = '🏛️'; }
+        else if (tableName === 'mock_tests') { label = 'Mock Tests & Exam Catalog'; icon = '📝'; }
+        else if (tableName === 'mock_test_attempts') { label = 'Mock Test Submissions'; icon = '📊'; }
+        else if (tableName === 'question_bank') { label = 'Question Bank (MCQ)'; icon = '📑'; }
+        else if (tableName === 'live_classes') { label = 'Live Virtual Classes'; icon = '🔴'; }
+        else if (tableName === 'mentor_doubts') { label = 'Live Doubt Queue'; icon = '💬'; }
+        else if (tableName === 'enrollments') { label = 'Course Enrollments'; icon = '🎟️'; }
+        else if (tableName === 'daily_tasks') { label = 'Daily Study Tasks'; icon = '📅'; }
+        else if (tableName === 'study_lounge_messages') { label = 'Virtual Study Lounge Chat'; icon = '💭'; }
+        else if (tableName === 'lesson_progress') { label = 'Student Lesson Progress'; icon = '📈'; }
+        else if (tableName === 'notices') { label = 'Broadcast Notices & Circulars'; icon = '📢'; }
 
         tables.push({
           name: tableName,
@@ -408,7 +532,7 @@ router.get('/api/admin/db/tables', async (req, res) => {
   }
 });
 
-// 2. Fetch records from a table with optional search
+// 2. Fetch records from a table with optional search (supports exact ID search & priority ranking)
 router.get('/api/admin/db/table/:tableName', async (req, res) => {
   const { tableName } = req.params;
   const { search, limit = 100 } = req.query;
@@ -419,39 +543,59 @@ router.get('/api/admin/db/table/:tableName', async (req, res) => {
 
   try {
     const db = getDb();
-    const columns = await db.all(`PRAGMA table_info(${tableName})`);
+    const columns = await db.all(`PRAGMA table_info("${tableName}")`);
     
-    let query = `SELECT * FROM ${tableName}`;
+    let query = `SELECT * FROM "${tableName}"`;
     const params = [];
+    const cleanSearch = (search || '').trim();
 
-    if (search && search.trim()) {
-      const textColumns = columns
-        .filter(c => ['TEXT', 'VARCHAR', 'CHAR', ''].includes((c.type || '').toUpperCase()))
-        .map(c => c.name);
+    if (cleanSearch) {
+      const searchClauses = [];
+      const idCol = columns.find(c => c.name === 'id');
+      const isNumeric = /^\d+$/.test(cleanSearch);
 
-      if (textColumns.length > 0) {
-        const clauses = textColumns.map(col => `${col} LIKE ?`).join(' OR ');
-        query += ` WHERE ${clauses}`;
-        for (let i = 0; i < textColumns.length; i++) {
-          params.push(`%${search.trim()}%`);
+      // A. ID Specific matching
+      if (idCol) {
+        if (isNumeric) {
+          searchClauses.push(`"id" = ?`);
+          params.push(Number(cleanSearch));
         }
+        searchClauses.push(`CAST("id" AS TEXT) LIKE ?`);
+        params.push(`%${cleanSearch}%`);
+      }
+
+      // B. All other columns matching
+      columns.forEach(col => {
+        if (col.name !== 'id') {
+          searchClauses.push(`CAST("${col.name}" AS TEXT) LIKE ?`);
+          params.push(`%${cleanSearch}%`);
+        }
+      });
+
+      if (searchClauses.length > 0) {
+        query += ` WHERE (${searchClauses.join(' OR ')})`;
       }
     }
 
-    // Try ordering by id or createdAt descending
+    // Ordering:
+    // If a search query is active and matches an ID, rank that EXACT ID first (front & center!)
     const hasId = columns.some(c => c.name === 'id');
     const hasCreated = columns.some(c => c.name === 'createdAt');
-    if (hasId) {
-      query += ` ORDER BY id DESC`;
+
+    if (cleanSearch && hasId) {
+      query += ` ORDER BY CASE WHEN CAST("id" AS TEXT) = ? THEN 0 WHEN CAST("id" AS TEXT) LIKE ? THEN 1 ELSE 2 END, "id" DESC`;
+      params.push(cleanSearch, `%${cleanSearch}%`);
+    } else if (hasId) {
+      query += ` ORDER BY "id" DESC`;
     } else if (hasCreated) {
-      query += ` ORDER BY createdAt DESC`;
+      query += ` ORDER BY "createdAt" DESC`;
     }
 
     query += ` LIMIT ?`;
     params.push(Math.min(parseInt(limit) || 100, 500));
 
     const rows = await db.all(query, params);
-    const totalRow = await db.get(`SELECT COUNT(*) as count FROM ${tableName}`);
+    const totalRow = await db.get(`SELECT COUNT(*) as count FROM "${tableName}"`);
 
     return res.json({
       success: true,
@@ -550,6 +694,41 @@ router.delete('/api/admin/db/table/:tableName/:id', async (req, res) => {
     return res.json({ success: true, message: 'Record deleted successfully' });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 6. Execute custom SQL query (SELECT, INSERT, UPDATE, DELETE)
+router.post('/api/admin/db/query', async (req, res) => {
+  const { sql, params = [] } = req.body;
+  if (!sql || !sql.trim()) {
+    return res.status(400).json({ success: false, error: 'SQL query string is required.' });
+  }
+
+  const cleanSql = sql.trim();
+  const isSelect = cleanSql.toLowerCase().startsWith('select') || cleanSql.toLowerCase().startsWith('pragma');
+
+  try {
+    const db = getDb();
+    if (isSelect) {
+      const rows = await db.all(cleanSql, params);
+      return res.json({
+        success: true,
+        type: 'select',
+        rowCount: rows.length,
+        data: rows
+      });
+    } else {
+      const result = await db.run(cleanSql, params);
+      return res.json({
+        success: true,
+        type: 'mutation',
+        message: 'Query executed successfully.',
+        changes: result.changes,
+        lastID: result.lastID
+      });
+    }
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
   }
 });
 

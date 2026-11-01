@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: edufast-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/database:/app/database
+      - ./backend/uploads:/app/uploads
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - JWT_SECRET=edufast_super_secure_jwt_secret_key_2026
+      - CLIENT_URL=http://localhost
+    networks:
+      - edufast-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: edufast-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - edufast-network
+
+  db-studio:
+    image: coleifer/sqlite-web:latest
+    container_name: edufast-db-studio
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/database/students.db:/data/students.db
+    command: sqlite-web -H 0.0.0.0 -p 8080 -x /data/students.db
+    depends_on:
+      - backend
+    networks:
+      - edufast-network
+
+networks:
+  edufast-network:
+    name: edufast-network
+    driver: bridge

@@ -84,7 +84,7 @@ router.get('/api/data/courses', (req, res) => {
   return res.json({ success: true, data: courses });
 });
 
-router.post('/api/data/courses', (req, res) => {
+router.post('/api/data/courses', async (req, res) => {
   try {
     const course = req.body;
     if (!course || !course.title) {
@@ -93,9 +93,14 @@ router.post('/api/data/courses', (req, res) => {
 
     const courses = readDataFile('courses.json') || [];
     const courseId = course.id || 'course-' + Date.now();
+    const isAppr = (course.isApproved === true || course.isApproved === 1 || course.isApproved === '1');
+    const courseStatus = isAppr ? 'Approved' : (course.status || 'Pending');
+
     const updatedCourse = {
       ...course,
       id: courseId,
+      isApproved: isAppr,
+      status: courseStatus,
       updatedAt: new Date().toISOString()
     };
 
@@ -107,17 +112,113 @@ router.post('/api/data/courses', (req, res) => {
     }
 
     writeDataFile('courses.json', courses);
+
+    // Sync to SQLite courses table
+    try {
+      const db = getDb();
+      if (db) {
+        await db.run(
+          `INSERT INTO courses 
+           (id, title, instructor, duration, price, discountedPrice, academicGroup, badge, image, description, isApproved, status, teacherEmail)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             title=excluded.title,
+             instructor=excluded.instructor,
+             duration=excluded.duration,
+             price=excluded.price,
+             discountedPrice=excluded.discountedPrice,
+             academicGroup=excluded.academicGroup,
+             badge=excluded.badge,
+             image=excluded.image,
+             description=excluded.description,
+             isApproved=excluded.isApproved,
+             status=excluded.status,
+             teacherEmail=coalesce(excluded.teacherEmail, courses.teacherEmail)`,
+          [
+            courseId,
+            updatedCourse.title,
+            updatedCourse.instructor || 'EduFast Instructor',
+            updatedCourse.duration || '40 Hours',
+            Number(updatedCourse.price) || 0,
+            Number(updatedCourse.discountedPrice) || 0,
+            updatedCourse.group || updatedCourse.academicGroup || 'Science',
+            updatedCourse.badge || 'Masterclass',
+            updatedCourse.image || '📚',
+            updatedCourse.description || '',
+            isAppr ? 1 : 0,
+            courseStatus,
+            updatedCourse.teacherEmail || null
+          ]
+        );
+      }
+    } catch (dbErr) {
+      console.warn('[dataRoutes] Course SQLite sync notice:', dbErr.message);
+    }
+
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('course:update', updatedCourse);
+        if (idx < 0) {
+          io.emit('course:new', updatedCourse);
+          if (!isAppr) {
+            io.emit('admin:course_pending', {
+              course: updatedCourse,
+              message: `শিক্ষক ${updatedCourse.instructor || 'EduFast'} একটি নতুন কোর্স অনুমোদনের জন্য জমা দিয়েছেন: "${updatedCourse.title}"`
+            });
+            io.emit('notification', {
+              title: `⏳ নতুন কোর্স অনুমোদনের অপেক্ষায়`,
+              message: `শিক্ষক ${updatedCourse.instructor || ''} "${updatedCourse.title}" কোর্সটি অনুমোদনের জন্য জমা দিয়েছেন। পর্যালোচনা করুন।`,
+              type: 'admin_approval',
+              category: 'course',
+              targetRole: 'admin',
+              link: 'courses'
+            });
+          } else {
+            io.emit('notification', {
+              title: `🎓 নতুন কোর্স: "${updatedCourse.title}"`,
+              message: `শিক্ষক ${updatedCourse.instructor || 'EduFast'} নতুন কোর্স শুরু করেছেন। এখনই বিস্তারিত দেখে এনরোল করুন!`,
+              type: 'course',
+              category: 'course',
+              link: 'courses'
+            });
+          }
+        }
+      }
+    } catch (e) {}
+
     return res.json({ success: true, data: updatedCourse, courses });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-router.delete('/api/data/courses/:id', (req, res) => {
+router.delete('/api/data/courses/:id', async (req, res) => {
   try {
     const courses = readDataFile('courses.json') || [];
     const filtered = courses.filter(c => String(c.id) !== String(req.params.id));
     writeDataFile('courses.json', filtered);
+
+    // Sync delete in SQLite
+    try {
+      const db = getDb();
+      if (db) {
+        await db.run('DELETE FROM courses WHERE id = ?', [req.params.id]);
+        await db.run('DELETE FROM course_curriculum WHERE courseId = ?', [req.params.id]);
+        await db.run('DELETE FROM enrollments WHERE courseId = ?', [req.params.id]);
+        await db.run('DELETE FROM lesson_progress WHERE courseId = ?', [req.params.id]);
+      }
+    } catch (dbErr) {
+      console.warn('[dataRoutes] Delete SQLite notice:', dbErr.message);
+    }
+
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('course:deleted', { id: req.params.id });
+      }
+    } catch (e) {}
+
     return res.json({ success: true, message: 'Course deleted successfully', courses: filtered });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -339,6 +440,16 @@ router.post('/api/data/mock-tests', (req, res) => {
       const io = req.app.get('io');
       if (io) {
         io.emit('mock_tests:update', { action: 'save', test: updatedTest, tests });
+        if (idx < 0) {
+          io.emit('mock_test:new', updatedTest);
+          io.emit('notification', {
+            title: `🎯 নতুন মক টেস্ট: "${updatedTest.title}"`,
+            message: `নতুন ${updatedTest.subject || 'এডমিশন'} মডেল টেস্ট শুরু হয়েছে (${updatedTest.totalQuestions || 25}টি প্রশ্ন)। এখনই পরীক্ষায় অংশ নিন!`,
+            type: 'mock_test',
+            category: 'mock_test',
+            link: 'mocktest'
+          });
+        }
       }
     } catch (e) {}
     return res.json({ success: true, data: updatedTest, tests });
@@ -452,6 +563,15 @@ router.post('/api/data/recordings', (req, res) => {
     }
 
     writeDataFile('recordings.json', recordings);
+
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('recording:new', updatedRec);
+        io.emit('recording:update', updatedRec);
+      }
+    } catch (e) {}
+
     return res.json({ success: true, data: updatedRec, recordings });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

@@ -184,6 +184,70 @@ function TestSelectionView({ user, onStartTest, submissions = {} }) {
         </p>
       </div>
 
+      {/* 👑 Premium Subscription / Free Tier Progress Banner */}
+      <div style={{
+        background: user?.isPremium ? 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)' : '#f8fafc',
+        border: user?.isPremium ? 'none' : '1px solid #e2e8f0',
+        borderRadius: '16px',
+        padding: '1rem 1.25rem',
+        marginBottom: '1.75rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+        boxShadow: user?.isPremium ? '0 4px 15px rgba(13,148,136,0.2)' : '0 2px 4px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '1.5rem' }}>{user?.isPremium ? '👑' : '🎁'}</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.92rem', color: user?.isPremium ? '#ffffff' : '#1e293b' }}>
+              {user?.isPremium
+                ? 'EduFast Pro Admission Pass সক্রিয়'
+                : `ফ্রি স্টার্টার প্ল্যান (${Object.keys(submissions || {}).length}/৩টি ফ্রি টেস্ট সম্পন্ন)`}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: user?.isPremium ? '#ccfbf1' : '#64748b' }}>
+              {user?.isPremium
+                ? 'সকল প্রিমিয়াম মক টেস্ট, বিস্তারিত ব্যাখ্যা ও ২৪/৭ মেন্টর সাপোর্ট আনলকড রয়েছে।'
+                : 'ফ্রি প্ল্যানে ৩টি ফুল-লেংথ টেস্ট দিতে পারবেন। আনলিমিটেড টেস্ট ও সল্যুশনের জন্য প্রো আনলক করুন।'}
+            </div>
+          </div>
+        </div>
+
+        {!user?.isPremium && (
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('open-payment-modal', {
+                detail: {
+                  item: {
+                    id: 'pro_monthly',
+                    name: 'Pro Admission Pass (আনলিমিটেড মক টেস্ট)',
+                    price: 499,
+                    type: 'subscription'
+                  }
+                }
+              }));
+            }}
+            style={{
+              background: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+              color: '#ffffff',
+              border: 'none',
+              padding: '0.55rem 1.15rem',
+              borderRadius: '10px',
+              fontSize: '0.82rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 12px rgba(13,148,136,0.25)'
+            }}
+          >
+            <span>👑 প্রো আনলক করুন (৳৪৯৯)</span>
+          </button>
+        )}
+      </div>
 
       {/* Category Tabs (Filtered Strictly Within Student's Group) */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
@@ -281,11 +345,45 @@ function ActiveTestView({ test, user, onFinish }) {
   const [flagged, setFlagged] = useState({}); // { qId: boolean }
   const [submitted, setSubmitted] = useState(false);
   const [navFilter, setNavFilter] = useState('all'); // 'all' | 'unanswered' | 'flagged' | 'answered'
+  const [showExitWarning, setShowExitWarning] = useState(false);
   const timerRef = useRef(null);
 
   const handleSubmit = useCallback(() => {
     clearInterval(timerRef.current);
+    if (typeof window !== 'undefined') {
+      window.__EDUFAST_ACTIVE_EXAM__ = false;
+    }
     setSubmitted(true);
+  }, []);
+
+  // 🔒 Anti-Back Navigation and Window Unload Lock
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.__EDUFAST_ACTIVE_EXAM__ = true;
+
+    // Push initial history state to trap browser back button
+    window.history.pushState({ inMockTest: true }, '', window.location.href);
+
+    const handlePopState = () => {
+      // Re-push history entry immediately so URL doesn't navigate away
+      window.history.pushState({ inMockTest: true }, '', window.location.href);
+      setShowExitWarning(true);
+    };
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '⚠️ পরীক্ষা চলমান অবস্থায় পেজ বন্ধ বা রিলোড করা যাবে না!';
+      return e.returnValue;
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.__EDUFAST_ACTIVE_EXAM__ = false;
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   // Countdown
@@ -379,8 +477,24 @@ function ActiveTestView({ test, user, onFinish }) {
         zIndex: 100,
       }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-charcoal)' }}>{test.title}</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)' }}>{answered}/{totalQ} answered</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-charcoal)' }}>{test.title}</span>
+            <span style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              backgroundColor: '#fef2f2',
+              color: '#dc2626',
+              border: '1px solid #fecaca',
+              borderRadius: '999px',
+              padding: '2px 8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px'
+            }}>
+              🔒 পরীক্ষা লক সক্রিয়
+            </span>
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)', marginTop: '2px' }}>{answered}/{totalQ} answered</div>
         </div>
 
         {/* Timer */}
@@ -482,14 +596,19 @@ function ActiveTestView({ test, user, onFinish }) {
           </div>
 
           {/* Navigation */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <div className="test-nav-actions" style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
               className="btn btn-secondary"
-              style={{ padding: '0.6rem 1.25rem', opacity: 0.5, cursor: 'not-allowed' }}
-              disabled={true}
-              title="একবার পরবর্তী প্রশ্নে চলে গেলে পূর্ববর্তী প্রশ্নে ফিরে আসা যাবে না"
+              style={{
+                padding: '0.6rem 1.25rem',
+                opacity: currentQ === 0 ? 0.5 : 1,
+                cursor: currentQ === 0 ? 'not-allowed' : 'pointer'
+              }}
+              disabled={currentQ === 0}
+              onClick={() => setCurrentQ(q => Math.max(0, q - 1))}
+              title={currentQ === 0 ? 'এটি প্রথম প্রশ্ন' : 'পূর্ববর্তী প্রশ্নে ফিরে যান'}
             >
-              🔒 Previous
+              ← Previous
             </button>
             
             {/* Flag button */}
@@ -506,8 +625,9 @@ function ActiveTestView({ test, user, onFinish }) {
                 className="btn btn-teal"
                 style={{ padding: '0.6rem 1.25rem' }}
                 onClick={() => setCurrentQ(q => q + 1)}
+                title={answers[q.id] === undefined ? 'এই প্রশ্নটি স্কিপ করে পরের প্রশ্নে যান (পরে ফিরে এসে উত্তর দেওয়া যাবে)' : 'পরের প্রশ্নে যান'}
               >
-                Next →
+                {answers[q.id] !== undefined ? 'Next →' : 'Skip / Next →'}
               </button>
             ) : (
               <button
@@ -624,20 +744,13 @@ function ActiveTestView({ test, user, onFinish }) {
                   stateClass = 'is-answered';
                 }
 
-                const isLockedPast = idx < currentQ || (isAns && !isCurr);
-
                 return (
                   <button
                     key={tq.id || idx}
                     type="button"
-                    onClick={() => {
-                      if (isLockedPast) return;
-                      setCurrentQ(idx);
-                    }}
-                    disabled={isLockedPast}
+                    onClick={() => setCurrentQ(idx)}
                     className={`q-nav-btn ${stateClass}`}
-                    style={isLockedPast ? { opacity: 0.65, cursor: 'not-allowed' } : {}}
-                    title={isLockedPast ? `প্রশ্ন ${idx + 1}: পূর্ববর্তী প্রশ্নে ফিরে যাওয়া যাবে না (লকড)` : `প্রশ্ন ${idx + 1}: ${isAns ? 'উত্তর দেওয়া হয়েছে' : 'বাকি'} ${isFlagged ? '(ফ্ল্যাগ করা)' : ''}`}
+                    title={`প্রশ্ন ${idx + 1}: ${isAns ? 'উত্তর দেওয়া হয়েছে' : 'উত্তর বাকি (ক্লিক করে উত্তর দিন)'} ${isFlagged ? '(ফ্ল্যাগ করা)' : ''}`}
                   >
                     <span className="q-num">{idx + 1}</span>
                     {isFlagged && <span className="flag-dot" title="ফ্ল্যাগড">🚩</span>}
@@ -680,6 +793,99 @@ function ActiveTestView({ test, user, onFinish }) {
           </div>
         </div>
       </div>
+
+      {/* ⚠️ Anti-Back Navigation Restriction Modal */}
+      {showExitWarning && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1.25rem',
+          backdropFilter: 'blur(5px)',
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '18px',
+            maxWidth: '460px',
+            width: '100%',
+            padding: '2.25rem 2rem',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+            border: '2px solid #ef4444'
+          }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              backgroundColor: '#fee2e2',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem auto',
+              fontSize: '2rem'
+            }}>
+              🛑
+            </div>
+
+            <h3 style={{ color: '#b91c1c', fontSize: '1.3rem', fontWeight: 800, margin: '0 0 0.5rem 0' }}>
+              পরীক্ষা চলাকালীন ব্যাকে যাওয়া নিষেধ!
+            </h3>
+
+            <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: '1.6', margin: '0 0 1.75rem 0' }}>
+              আপনি বর্তমানে একটি সক্রিয় মক টেস্টে অংশগ্রহণ করছেন। পরীক্ষা শেষ না করে পেজ ত্যাগ করলে বা ব্যাকে গেলে আপনার বর্তমান উত্তরগুলো বাতিল হতে পারে। আপনি কি পরীক্ষায় ফিরে যেতে চান নাকি এখনই সাবমিট করতে চান?
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexDirection: 'column' }}>
+              <button
+                type="button"
+                onClick={() => setShowExitWarning(false)}
+                style={{
+                  width: '100%',
+                  padding: '0.85rem 1rem',
+                  backgroundColor: 'var(--primary-teal, #319795)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(49, 151, 149, 0.3)'
+                }}
+              >
+                ✍️ পরীক্ষায় ফিরে যান (Continue Exam)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitWarning(false);
+                  handleSubmit();
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem',
+                  backgroundColor: 'transparent',
+                  color: '#ef4444',
+                  border: '1px solid #fecaca',
+                  borderRadius: '10px',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  cursor: 'pointer'
+                }}
+              >
+                🚪 পরীক্ষা সাবমিট করে ফলাফল দেখুন (Submit & Finish)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
@@ -1187,11 +1393,10 @@ function ResultView({
   const grade = getGrade();
 
   // SVG circular gauge properties
-  const radius = 60;
-  const stroke = 10;
-  const normalizedRadius = radius - stroke * 2;
+  const stroke = 8;
+  const normalizedRadius = 60;
   const circumference = normalizedRadius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const strokeDashoffset = circumference - (Math.min(100, Math.max(0, Number(percentage) || 0)) / 100) * circumference;
 
   return (
     <div className="container" style={{ padding: '2rem 0', maxWidth: '900px' }}>
@@ -1269,10 +1474,18 @@ function ResultView({
             <div style={{ position: 'absolute', top: '-30px', right: '-30px', fontSize: '8rem', opacity: 0.07 }}>📝</div>
             
             {/* SVG Radial Accuracy Progress Bar */}
-            <div style={{ position: 'relative', width: '150px', height: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg height="150" width="150" style={{ transform: 'rotate(-90deg)' }}>
+            <div style={{
+              position: 'relative',
+              width: '150px',
+              height: '150px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <svg height="150" width="150" style={{ transform: 'rotate(-90deg)', display: 'block' }}>
                 <circle
-                  stroke="rgba(255, 255, 255, 0.15)"
+                  stroke="rgba(255, 255, 255, 0.2)"
                   fill="transparent"
                   strokeWidth={stroke}
                   r={normalizedRadius}
@@ -1284,16 +1497,45 @@ function ResultView({
                   fill="transparent"
                   strokeWidth={stroke}
                   strokeDasharray={circumference + ' ' + circumference}
-                  style={{ strokeDashoffset, transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+                  style={{ strokeDashoffset, transition: 'stroke-dashoffset 0.8s ease-in-out' }}
                   strokeLinecap="round"
                   r={normalizedRadius}
                   cx="75"
                   cy="75"
                 />
               </svg>
-              <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span style={{ fontSize: '2.2rem', fontWeight: 800 }}>{percentage}%</span>
-                <span style={{ fontSize: '0.62rem', textTransform: 'uppercase', opacity: 0.85, letterSpacing: '0.05em' }}>Accuracy</span>
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                pointerEvents: 'none',
+                padding: '0 6px',
+                boxSizing: 'border-box'
+              }}>
+                <span style={{
+                  fontSize: percentage.length > 4 ? '1.55rem' : '1.75rem',
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                  letterSpacing: '-0.02em',
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {percentage}%
+                </span>
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  color: 'rgba(255, 255, 255, 0.85)',
+                  letterSpacing: '0.08em',
+                  marginTop: '3px'
+                }}>
+                  Accuracy
+                </span>
               </div>
             </div>
 
@@ -1482,6 +1724,25 @@ export default function MockTestPage({ user, onNavigate }) {
       setBlockedAttemptTest({ test, submission: existing });
       setActiveTest(null);
       setViewingAttempt(null);
+      return;
+    }
+
+    // 👑 Paywall Enforcement (3 free tests limit for Free tier as per Proposal Objective 4 & Business Prospect 1)
+    const attemptedCount = Object.keys(submissions || {}).length;
+    const isPro = user?.isPremium || user?.subscriptionPlan === 'pro_monthly' || user?.subscriptionPlan === 'pro_varsity';
+
+    if (!isPro && attemptedCount >= 3 && !existing) {
+      window.dispatchEvent(new CustomEvent('open-payment-modal', {
+        detail: {
+          item: {
+            id: 'pro_monthly',
+            name: 'Pro Admission Pass (আনলিমিটেড মক টেস্ট)',
+            price: 499,
+            type: 'subscription'
+          }
+        }
+      }));
+      alert('আপনার ফ্রি প্ল্যানের ৩টি মক টেস্ট ইতিমধ্যে সম্পন্ন হয়েছে। পরবর্তী টেস্টগুলো দিতে বিকাশ বা নগদের মাধ্যমে Pro Admission Pass আনলক করুন।');
       return;
     }
     setBlockedAttemptTest(null);

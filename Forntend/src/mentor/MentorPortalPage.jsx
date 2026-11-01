@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './mentor.css';
+import api from '../services/api';
+import { socket } from '../socket';
 import { 
   getDoubtsQueue, 
   claimDoubt, 
@@ -12,6 +14,7 @@ import {
 import MentorLogin from './components/MentorLogin';
 import QuestionBankManager from '../common/components/QuestionBankManager';
 import MentorMockTestManager from './components/MentorMockTestManager';
+import BroadcastNoticeBanner from '../common/components/BroadcastNoticeBanner';
 
 export default function MentorPortalPage({ onExitToPublic }) {
   // Authentication State
@@ -56,16 +59,111 @@ export default function MentorPortalPage({ onExitToPublic }) {
   const [isShiftOnline, setIsShiftOnline] = useState(true);
   const [shiftTimeSec, setShiftTimeSec] = useState(0);
 
+  // Real-time live rating change notification state
+  const [lastRatedEvent, setLastRatedEvent] = useState(null);
 
-  // Listen to cross-tab / local doubt updates
+  // Load doubts from server and listen for real-time updates
+  const fetchLiveDoubts = async () => {
+    try {
+      const res = await api.get('/doubts');
+      const data = res.data?.data || res.data;
+      if (Array.isArray(data) && data.length > 0) {
+        setDoubts(data);
+      } else {
+        const local = getDoubtsQueue();
+        if (local && local.length > 0) setDoubts(local);
+      }
+    } catch (err) {
+      console.warn('Backend doubts load notice:', err.message);
+      const local = getDoubtsQueue();
+      if (local && local.length > 0) setDoubts(local);
+    }
+  };
+
   useEffect(() => {
+    fetchLiveDoubts();
+
     const handleDataUpdate = (e) => {
       if (e.detail?.type === 'doubts_queue') {
-        setDoubts(getDoubtsQueue());
+        fetchLiveDoubts();
+        if (e.detail.action === 'rate' && e.detail.doubt) {
+          setDoubts(prev => prev.map(d => d.id === e.detail.doubtId ? { ...d, rating: e.detail.rating } : d));
+          setLastRatedEvent({
+            stars: e.detail.rating,
+            doubtId: e.detail.doubtId,
+            time: Date.now()
+          });
+        }
       }
     };
     window.addEventListener('edufast-data-update', handleDataUpdate);
-    return () => window.removeEventListener('edufast-data-update', handleDataUpdate);
+
+    const handleStorageChange = (e) => {
+      if (e.key === 'edufast_doubts_queue') {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setDoubts(parsed);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Socket.IO real-time doubt & rating notifications
+    try {
+      socket.on('doubt:new', (newDoubt) => {
+        setDoubts(prev => [newDoubt, ...prev.filter(d => d.id !== newDoubt.id)]);
+      });
+      socket.on('doubt:updated', (updated) => {
+        setDoubts(prev => prev.map(d => d.id === updated.id ? { ...d, ...updated } : d));
+      });
+      socket.on('doubt:claimed', (claimedDoubt) => {
+        setDoubts(prev => prev.map(d => d.id === claimedDoubt.id ? { ...d, ...claimedDoubt } : d));
+      });
+      socket.on('doubt:released', (releasedDoubt) => {
+        setDoubts(prev => prev.map(d => d.id === releasedDoubt.id ? { ...d, ...releasedDoubt } : d));
+      });
+      socket.on('doubt:resolved', (resolvedDoubt) => {
+        setDoubts(prev => prev.map(d => d.id === resolvedDoubt.id ? { ...d, ...resolvedDoubt } : d));
+      });
+      socket.on('doubt:escalated', (escalatedDoubt) => {
+        setDoubts(prev => prev.map(d => d.id === escalatedDoubt.id ? { ...d, ...escalatedDoubt } : d));
+      });
+      socket.on('doubt:rated', (data) => {
+        if (data?.doubtId && data?.rating) {
+          setDoubts(prev => prev.map(d => d.id === data.doubtId ? { ...d, rating: data.rating } : d));
+          setLastRatedEvent({
+            stars: data.rating,
+            doubtId: data.doubtId,
+            mentorRating: data.mentorRating,
+            time: Date.now()
+          });
+        }
+      });
+      socket.on('mentor:rating_updated', (data) => {
+        if (data?.newRating) {
+          setMentorProfile(prev => {
+            const next = { ...prev, rating: data.newRating };
+            localStorage.setItem('edufast_mentor_session', JSON.stringify(next));
+            return next;
+          });
+        }
+      });
+    } catch {}
+
+    return () => {
+      window.removeEventListener('edufast-data-update', handleDataUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+      try {
+        socket.off('doubt:new');
+        socket.off('doubt:updated');
+        socket.off('doubt:claimed');
+        socket.off('doubt:released');
+        socket.off('doubt:resolved');
+        socket.off('doubt:escalated');
+        socket.off('doubt:rated');
+        socket.off('mentor:rating_updated');
+      } catch {}
+    };
   }, []);
 
   // Shift timer ticker
@@ -108,32 +206,89 @@ export default function MentorPortalPage({ onExitToPublic }) {
     if (d.status !== 'resolved') return false;
     const myName = (mentorProfile?.name || '').trim().toLowerCase();
     const myEmail = (mentorProfile?.email || '').trim().toLowerCase();
-    const claimedMatch = d.claimedBy && d.claimedBy.trim().toLowerCase() === myName;
-    const solvedMatch = d.solution?.solvedBy && d.solution.solvedBy.trim().toLowerCase() === myName;
-    const emailMatch = (d.claimedEmail && d.claimedEmail.toLowerCase() === myEmail) || (d.solution?.solvedByEmail && d.solution.solvedByEmail.toLowerCase() === myEmail);
-    return claimedMatch || solvedMatch || emailMatch;
+    const cleanClaimed = (d.claimedBy || '').trim().toLowerCase();
+    const cleanSolved = (d.solution?.solvedBy || '').trim().toLowerCase();
+    
+    const claimedMatch = cleanClaimed && (
+      cleanClaimed === myName ||
+      (myName && cleanClaimed.includes(myName)) ||
+      (myName && myName.includes(cleanClaimed))
+    );
+    const solvedMatch = cleanSolved && (
+      cleanSolved === myName ||
+      (myName && cleanSolved.includes(myName)) ||
+      (myName && myName.includes(cleanSolved))
+    );
+    const emailMatch = (d.claimedEmail && d.claimedEmail.toLowerCase() === myEmail) || 
+                       (d.solution?.solvedByEmail && d.solution.solvedByEmail.toLowerCase() === myEmail);
+    return Boolean(claimedMatch || solvedMatch || emailMatch);
   };
 
   const myResolvedDoubts = doubts.filter(isMyResolved);
   const myRatedDoubts = myResolvedDoubts.filter(d => typeof d.rating === 'number' && d.rating > 0);
+  const totalReviewStars = myRatedDoubts.reduce((sum, d) => sum + Number(d.rating), 0);
   const myAvgRating = myRatedDoubts.length > 0 
-    ? (myRatedDoubts.reduce((sum, d) => sum + d.rating, 0) / myRatedDoubts.length).toFixed(1)
-    : (mentorProfile?.rating > 0 ? mentorProfile.rating : 0);
+    ? (totalReviewStars / myRatedDoubts.length).toFixed(1)
+    : (mentorProfile?.rating > 0 ? Number(mentorProfile.rating).toFixed(1) : '5.0');
 
   const visibleQueue = doubts.filter(d => {
-    if (d.status === 'resolved') return false;
+    // Only pending (unclaimed) doubts are shown in the public Live Queue
+    if (d.status !== 'pending') return false;
     if (activeSubjectFilter === 'All') return true;
-    return d.subject.toLowerCase() === activeSubjectFilter.toLowerCase();
+    return (d.subject || '').toLowerCase() === activeSubjectFilter.toLowerCase();
   });
 
-  // Handle Claim
-  const handleClaim = (doubt) => {
-    claimDoubt(doubt.id, mentorProfile.name);
-    setDoubts(getDoubtsQueue());
-    setSelectedDoubt({ ...doubt, status: 'claimed', claimedBy: mentorProfile.name, claimedEmail: mentorProfile.email });
-    setActiveTab('solver');
+  // Handle Claim Doubt (Exclusive Lock)
+  const handleClaim = async (doubt) => {
+    try {
+      const res = await api.post(`/doubts/${doubt.id}/claim`, {
+        mentorName: mentorProfile.name,
+        mentorEmail: mentorProfile.email
+      });
+      const data = res.data || res;
+      if (data && data.success) {
+        const claimedObj = data.doubt || {
+          ...doubt,
+          status: 'claimed',
+          claimedBy: mentorProfile.name,
+          claimedEmail: mentorProfile.email
+        };
+        claimDoubt(doubt.id, mentorProfile.name);
+        setDoubts(prev => prev.map(d => d.id === doubt.id ? claimedObj : d));
+        setSelectedDoubt(claimedObj);
+        setActiveTab('solver');
+        setSolutionText('');
+        setHasVoiceNote(false);
+      }
+    } catch (err) {
+      console.warn('Claim doubt API error:', err);
+      const errMsg = err.response?.data?.error || 'এই প্রশ্নটি ইতোমধ্যে অন্য একজন মেন্টর ক্লেইম করেছেন!';
+      alert(errMsg);
+      fetchLiveDoubts();
+    }
+  };
+
+  // Handle Release Doubt back to Live Queue
+  const handleReleaseDoubt = async () => {
+    if (!selectedDoubt) return;
+    const confirmRelease = window.confirm("আপনি কি এই প্রশ্নটি সলভ না করে আবার Live Queue-তে ফেরত পাঠাতে চান?");
+    if (!confirmRelease) return;
+
+    try {
+      await api.post(`/doubts/${selectedDoubt.id}/release`, {
+        mentorName: mentorProfile.name,
+        mentorEmail: mentorProfile.email
+      });
+    } catch (err) {
+      console.warn('Release doubt API notice:', err.message);
+    }
+
+    setDoubts(prev => prev.map(d => d.id === selectedDoubt.id ? { ...d, status: 'pending', claimedBy: null, claimedEmail: null } : d));
+    setSelectedDoubt(null);
     setSolutionText('');
     setHasVoiceNote(false);
+    setActiveTab('queue');
+    fetchLiveDoubts();
   };
 
   // Insert Math Symbol to solution
@@ -142,7 +297,7 @@ export default function MentorPortalPage({ onExitToPublic }) {
   };
 
   // Handle Send Solution
-  const handleSendSolution = (e) => {
+  const handleSendSolution = async (e) => {
     e.preventDefault();
     if (!selectedDoubt) return;
     if (!solutionText.trim() && !hasVoiceNote) {
@@ -158,6 +313,17 @@ export default function MentorPortalPage({ onExitToPublic }) {
       solvedByInstitute: mentorProfile.institution
     });
 
+    try {
+      await api.post(`/doubts/${selectedDoubt.id}/reply`, {
+        solutionText: solutionText.trim(),
+        hasVoiceNote: hasVoiceNote,
+        mentorName: mentorProfile.name,
+        mentorEmail: mentorProfile.email
+      });
+    } catch (err) {
+      console.warn('Resolve doubt API notice:', err.message);
+    }
+
     // Increment mentor's authentic personal solved count & award 20 EduCoins
     const updatedSolvedCount = (mentorProfile?.solvedCount || 0) + 1;
     const updatedCoinsEarned = (mentorProfile?.coinsEarned || 0) + 20;
@@ -170,7 +336,7 @@ export default function MentorPortalPage({ onExitToPublic }) {
     localStorage.setItem('edufast_mentor_session', JSON.stringify(updatedProfile));
     saveMentorProfile(updatedProfile);
 
-    setDoubts(getDoubtsQueue());
+    fetchLiveDoubts();
     setSelectedDoubt(null);
     setSolutionText('');
     setHasVoiceNote(false);
@@ -178,15 +344,28 @@ export default function MentorPortalPage({ onExitToPublic }) {
   };
 
   // Handle Escalate to Master Teacher
-  const handleEscalate = () => {
+  const handleEscalate = async () => {
     if (!selectedDoubt) return;
     const reason = prompt("Enter escalation reason for Senior Master Instructor:", "Syllabus anomaly / Multi-concept BUET written question requiring master review");
-    if (reason) {
-      escalateDoubt(selectedDoubt.id, reason);
-      setDoubts(getDoubtsQueue());
-      setSelectedDoubt(null);
-      setActiveTab('escalated');
+    if (!reason) return;
+
+    try {
+      await api.post(`/doubts/${selectedDoubt.id}/escalate`, {
+        reason,
+        mentorName: mentorProfile.name,
+        mentorEmail: mentorProfile.email
+      });
+    } catch (err) {
+      console.warn('Escalate doubt API notice:', err.message);
     }
+
+    escalateDoubt(selectedDoubt.id, reason);
+    setDoubts(prev => prev.map(d => d.id === selectedDoubt.id ? { ...d, status: 'escalated', escalationReason: reason } : d));
+    setSelectedDoubt(null);
+    setSolutionText('');
+    setHasVoiceNote(false);
+    setActiveTab('escalated');
+    fetchLiveDoubts();
   };
 
   if (!isAuthenticated) {
@@ -200,10 +379,17 @@ export default function MentorPortalPage({ onExitToPublic }) {
 
   return (
     <div className="mentor-portal-wrapper">
+      {/* 0. Top Broadcast Notice Banner */}
+      <BroadcastNoticeBanner />
       
       {/* 1. TOPBAR */}
       <header className="mentor-topbar">
-        <div className="mentor-brand" onClick={onExitToPublic}>
+        <div 
+          className="mentor-brand" 
+          onClick={onExitToPublic}
+          style={{ cursor: 'pointer' }}
+          title="হোম পেজে যান (Go to Home Page)"
+        >
           <div className="mentor-logo-badge">⚡</div>
           <div className="mentor-title-group">
             <h1>
@@ -352,16 +538,89 @@ export default function MentorPortalPage({ onExitToPublic }) {
             </div>
           </div>
 
-          <div className="mentor-stat-card">
+          <div 
+            className="mentor-stat-card"
+            style={{
+              border: lastRatedEvent ? '1px solid rgba(16, 185, 129, 0.6)' : undefined,
+              boxShadow: lastRatedEvent ? '0 0 15px rgba(16, 185, 129, 0.2)' : undefined,
+              transition: 'all 0.4s ease'
+            }}
+          >
             <div className="stat-icon-wrapper" style={{ background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' }}>
               ⭐
             </div>
             <div>
-              <div className="stat-val">{myAvgRating > 0 ? `${myAvgRating} / 5.0` : 'New (০ রিভিউ)'}</div>
-              <div className="stat-lbl">Student Satisfaction</div>
+              <div className="stat-val" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ 
+                  color: Number(myAvgRating) >= 4.5 ? '#34d399' : Number(myAvgRating) >= 3.5 ? '#f59e0b' : '#f87171' 
+                }}>
+                  {myAvgRating} / 5.0
+                </span>
+                {myRatedDoubts.length > 0 && (
+                  <span style={{
+                    fontSize: '0.7rem',
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '12px',
+                    fontWeight: 700,
+                    backgroundColor: Number(myAvgRating) >= 4.5 ? 'rgba(52, 211, 153, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                    color: Number(myAvgRating) >= 4.5 ? '#34d399' : '#f59e0b'
+                  }}>
+                    {Number(myAvgRating) >= 4.5 ? '★ Excellent' : '★ Good'}
+                  </span>
+                )}
+              </div>
+              <div className="stat-lbl" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span>Student Satisfaction</span>
+                <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>
+                  ({myRatedDoubts.length}টি রিভিউ)
+                </span>
+              </div>
             </div>
           </div>
         </section>
+
+        {/* LIVE RATING CHANGE ALERT BANNER */}
+        {lastRatedEvent && (
+          <div style={{
+            background: 'linear-gradient(90deg, rgba(16, 185, 129, 0.15), rgba(6, 78, 59, 0.35))',
+            border: '1px solid #10b981',
+            borderRadius: '12px',
+            padding: '0.85rem 1.25rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.15)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+              <span style={{ fontSize: '1.5rem' }}>⭐</span>
+              <div>
+                <div style={{ fontWeight: 800, color: '#34d399', fontSize: '0.92rem' }}>
+                  লাইভ রেটিং আপডেট! একজন শিক্ষার্থী আপনার সমাধানে {lastRatedEvent.stars}★ রেটিং দিয়েছেন।
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+                  আপনার বর্তমান লাইভ স্যাটিসফ্যাকশন স্কোর: <strong style={{ color: '#fbbf24', fontSize: '0.85rem' }}>{myAvgRating} / 5.0</strong> ({myRatedDoubts.length}টি শিক্ষার্থী মূল্যায়নের ভিত্তিতে লাইভ আপডেটেড)
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setLastRatedEvent(null)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                color: '#f8fafc',
+                cursor: 'pointer',
+                borderRadius: '6px',
+                padding: '0.3rem 0.6rem',
+                fontSize: '0.75rem',
+                fontWeight: 600
+              }}
+            >
+              বন্ধ করুন ✕
+            </button>
+          </div>
+        )}
 
         {/* TAB 1: LIVE DOUBT QUEUE */}
         {activeTab === 'queue' && (
@@ -538,18 +797,25 @@ export default function MentorPortalPage({ onExitToPublic }) {
                     </button>
                     
                     <button
-                      onClick={() => setSelectedDoubt(null)}
+                      onClick={handleReleaseDoubt}
                       style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        color: '#94a3b8',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#f87171',
                         padding: '0.6rem 1rem',
                         borderRadius: '8px',
                         fontSize: '0.82rem',
-                        cursor: 'pointer'
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        transition: 'all 0.2s ease'
                       }}
+                      title="Release this question back to Live Queue for other mentors"
                     >
-                      Release
+                      ↩️ Release to Queue
                     </button>
                   </div>
                 </div>
@@ -735,13 +1001,42 @@ export default function MentorPortalPage({ onExitToPublic }) {
 
             {/* Recent Student Feedback */}
             <div className="solver-pane">
-              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: '#f8fafc' }}>
-                💬 Live Student Feedback & Reviews
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>💬 Live Student Feedback & Reviews</span>
+                <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>
+                  গড় রেটিং: {myAvgRating} ⭐ ({myRatedDoubts.length}টি রিভিউ)
+                </span>
               </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px' }}>
-                  No student reviews received yet. Solutions rated by students will appear here in real-time.
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: '420px', overflowY: 'auto' }}>
+                {myRatedDoubts.length > 0 ? (
+                  myRatedDoubts.map(d => (
+                    <div key={d.id} style={{
+                      padding: '0.85rem 1rem',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255, 255, 255, 0.08)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#f8fafc' }}>
+                          {d.studentName || 'শিক্ষার্থী'} • <span style={{ color: '#38bdf8' }}>{d.subject}</span>
+                        </div>
+                        <div style={{ color: '#f59e0b', fontSize: '0.88rem', fontWeight: 700 }}>
+                          {'★'.repeat(d.rating)}{'☆'.repeat(5 - d.rating)} <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>({d.rating}.0)</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic', marginBottom: '0.4rem' }}>
+                        "{d.question?.slice(0, 75)}..."
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#34d399' }}>
+                        ✅ আপনার সমাধান: "{(d.solutionText || d.solution?.text || '').slice(0, 60)}..."
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px' }}>
+                    এখনো কোনো শিক্ষার্থী রিভিউ পাওয়া যায়নি। সমাধানগুলো রেট করা হলে এখানে লাইভ প্রদর্শিত হবে।
+                  </div>
+                )}
               </div>
             </div>
 

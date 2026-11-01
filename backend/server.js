@@ -25,10 +25,21 @@ const questionRoutes = require('./routes/questionRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const dataRoutes = require('./routes/dataRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const courseRoutes = require('./routes/courseRoutes');
+const testRoutes = require('./routes/testRoutes');
+const universityRoutes = require('./routes/universityRoutes');
+const liveRoutes = require('./routes/liveRoutes');
+const teacherRoutes = require('./routes/teacherRoutes');
+const mentorRoutes = require('./routes/mentorRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const higherStudyRoutes = require('./routes/higherStudyRoutes');
+const mlPredictorRoutes = require('./routes/mlPredictorRoutes');
+const promotionRoutes = require('./routes/promotionRoutes');
+const noticeRoutes = require('./routes/noticeRoutes');
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 // Global Middlewares
 app.use(cors({ origin: '*' }));
@@ -57,6 +68,17 @@ app.use(questionRoutes);
 app.use(uploadRoutes);
 app.use(dataRoutes);
 app.use(aiRoutes);
+app.use(courseRoutes);
+app.use(testRoutes);
+app.use(universityRoutes);
+app.use(liveRoutes);
+app.use(teacherRoutes);
+app.use(mentorRoutes);
+app.use(paymentRoutes);
+app.use(higherStudyRoutes);
+app.use(mlPredictorRoutes);
+app.use(promotionRoutes);
+app.use(noticeRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -74,11 +96,61 @@ app.get('/api/live/active', (req, res) => {
 const activeUsers = new Map();
 let activeLiveClass = null;
 let activePoll = null;
+let activeMediaStatus = { isCamOn: true, isMicOn: true, isScreenSharing: false };
+
+// Real-Time Live Classroom Active Viewers Tracking
+const liveClassViewers = new Map(); // socket.id -> { sessionId, studentName, studentId, joinedAt }
+
+const broadcastLiveClassViewers = (sessionId) => {
+  const allViewers = Array.from(liveClassViewers.values());
+  const viewersInSession = sessionId
+    ? allViewers.filter(v => String(v.sessionId) === String(sessionId))
+    : allViewers;
+  const count = viewersInSession.length;
+  io.emit('class:viewer_count', {
+    sessionId: sessionId || activeLiveClass?.id,
+    count,
+    viewers: viewersInSession.map(v => ({ studentName: v.studentName, studentId: v.studentId }))
+  });
+};
+
+// -------------------------------------------------------------
+// REAL-TIME VIRTUAL STUDY LOUNGE ENGINE
+// -------------------------------------------------------------
+const studyLoungeUsers = new Map(); // socket.id -> { roomId, user }
+
+const broadcastStudyLoungeState = () => {
+  const counts = { Physics: 0, Chemistry: 0, Math: 0, Biology: 0 };
+  const roomPeers = { Physics: [], Chemistry: [], Math: [], Biology: [] };
+
+  studyLoungeUsers.forEach(({ roomId, user }) => {
+    if (counts[roomId] !== undefined) {
+      counts[roomId]++;
+      roomPeers[roomId].push({
+        id: user?.id || user?.email || 'guest',
+        name: user?.name || 'EduFast Student',
+        college: user?.college || user?.institution || 'College Student',
+        avatar: user?.avatar || '👨‍🎓',
+        streak: user?.streak || 7,
+        status: user?.status || `Solving in ${roomId}`
+      });
+    }
+  });
+
+  io.emit('study_lounge:update', {
+    counts,
+    totalActive: studyLoungeUsers.size,
+    roomPeers
+  });
+};
 
 io.on('connection', (socket) => {
   // If there is an active live class, immediately inform the newly connected socket
   if (activeLiveClass) {
     socket.emit('class:status_change', activeLiveClass);
+    if (activeMediaStatus) {
+      socket.emit('class:media_status', activeMediaStatus);
+    }
     if (activePoll) {
       socket.emit('poll:new', activePoll);
     }
@@ -117,8 +189,11 @@ io.on('connection', (socket) => {
     }
   };
 
-  // Provide currently active live class on demand
+  // Provide currently active live class and hardware media status on demand
   socket.on('class:get_active', (callback) => {
+    if (activeMediaStatus) {
+      socket.emit('class:media_status', activeMediaStatus);
+    }
     if (typeof callback === 'function') {
       callback(activeLiveClass);
     } else {
@@ -134,6 +209,8 @@ io.on('connection', (socket) => {
       startedAt: new Date().toISOString()
     };
     persistLiveClassStatus(activeLiveClass, 'LIVE');
+    liveClassViewers.clear();
+    broadcastLiveClassViewers(activeLiveClass.id);
     // Instantly broadcast to ALL connected students and mentors
     io.emit('class:status_change', activeLiveClass);
   });
@@ -156,9 +233,8 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Auto-save recording if provided
-    let savedRecording = null;
-    if (data?.recording) {
+    // If teacher provided a pending recording placeholder for this ended live class
+    if (data?.session) {
       try {
         const fs = require('fs');
         const path = require('path');
@@ -167,24 +243,29 @@ io.on('connection', (socket) => {
         if (fs.existsSync(recFile)) {
           recs = JSON.parse(fs.readFileSync(recFile, 'utf8') || '[]');
         }
-        savedRecording = data.recording;
-        const idx = recs.findIndex(r => r.id === savedRecording.id);
-        if (idx >= 0) recs[idx] = { ...recs[idx], ...savedRecording };
-        else recs.unshift(savedRecording);
+        const pendingRec = data.session;
+        const recId = pendingRec.id || `rec-${endId || Date.now()}`;
+        const formattedPending = { ...pendingRec, id: recId };
+        const idx = recs.findIndex(r => r.id === recId);
+        if (idx >= 0) recs[idx] = { ...recs[idx], ...formattedPending };
+        else recs.unshift(formattedPending);
         fs.writeFileSync(recFile, JSON.stringify(recs, null, 2), 'utf8');
-        io.emit('recording:new', savedRecording);
-      } catch (e) {
-        console.warn('Error saving recording on class:end:', e.message);
+        io.emit('recording:new', formattedPending);
+        io.emit('recording:update', formattedPending);
+      } catch (err) {
+        console.warn('Error saving pending recording on class:end:', err.message);
       }
     }
 
     activeLiveClass = null;
     activePoll = null;
+    activeMediaStatus = { isCamOn: false, isMicOn: false, isScreenSharing: false };
+    liveClassViewers.clear();
+    broadcastLiveClassViewers(endId);
     io.emit('class:status_change', {
       id: endId,
       status: 'ENDED',
-      endedAt: new Date().toISOString(),
-      recording: savedRecording
+      endedAt: new Date().toISOString()
     });
   });
 
@@ -205,8 +286,34 @@ io.on('connection', (socket) => {
       else recs.unshift(formattedRec);
       fs.writeFileSync(recFile, JSON.stringify(recs, null, 2), 'utf8');
       io.emit('recording:new', formattedRec);
+      io.emit('recording:update', formattedRec);
     } catch (e) {
       console.warn('Error saving recording via socket:', e.message);
+    }
+  });
+
+  // Dedicated Real-time Recording Update Listener
+  socket.on('recording:update', (recordingData) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const recFile = path.join(__dirname, 'data', 'recordings.json');
+      let recs = [];
+      if (fs.existsSync(recFile)) {
+        recs = JSON.parse(fs.readFileSync(recFile, 'utf8') || '[]');
+      }
+      const recId = recordingData?.id;
+      if (recId) {
+        const formattedRec = { ...recordingData, id: recId };
+        const idx = recs.findIndex(r => r.id === recId);
+        if (idx >= 0) recs[idx] = { ...recs[idx], ...formattedRec };
+        else recs.unshift(formattedRec);
+        fs.writeFileSync(recFile, JSON.stringify(recs, null, 2), 'utf8');
+        io.emit('recording:new', formattedRec);
+        io.emit('recording:update', formattedRec);
+      }
+    } catch (e) {
+      console.warn('Error updating recording via socket:', e.message);
     }
   });
 
@@ -243,7 +350,77 @@ io.on('connection', (socket) => {
 
   // Teacher Hardware Media Status (Mic, Cam, Screen Share)
   socket.on('class:media_status', (mediaData) => {
-    socket.broadcast.emit('class:media_status', mediaData);
+    activeMediaStatus = { ...activeMediaStatus, ...mediaData };
+    socket.broadcast.emit('class:media_status', activeMediaStatus);
+  });
+
+  // WebRTC Live Video & Audio Signaling (Teacher broadcast to Students)
+  socket.on('webrtc:signal', (data) => {
+    if (data && data.to) {
+      io.to(data.to).emit('webrtc:signal', {
+        from: socket.id,
+        signal: data.signal,
+        type: data.type
+      });
+    } else {
+      socket.broadcast.emit('webrtc:signal', {
+        from: socket.id,
+        signal: data.signal,
+        type: data.type
+      });
+    }
+  });
+
+  // Real-Time Live Classroom Viewers Join / Leave / Query Handlers
+  socket.on('class:join_room', ({ sessionId, studentName, studentId }) => {
+    const sId = sessionId || activeLiveClass?.id || 'live';
+    liveClassViewers.set(socket.id, {
+      sessionId: sId,
+      studentName: studentName || 'শিক্ষার্থী',
+      studentId: studentId || socket.id,
+      joinedAt: Date.now()
+    });
+    broadcastLiveClassViewers(sId);
+  });
+
+  socket.on('class:leave_room', ({ sessionId }) => {
+    if (liveClassViewers.has(socket.id)) {
+      const viewer = liveClassViewers.get(socket.id);
+      liveClassViewers.delete(socket.id);
+      broadcastLiveClassViewers(sessionId || viewer?.sessionId);
+    }
+  });
+
+  socket.on('class:get_viewers', (query, callback) => {
+    const sId = query?.sessionId || activeLiveClass?.id;
+    const allViewers = Array.from(liveClassViewers.values());
+    const viewersInSession = sId
+      ? allViewers.filter(v => String(v.sessionId) === String(sId))
+      : allViewers;
+    const count = viewersInSession.length;
+    if (typeof callback === 'function') {
+      callback({ count, viewers: viewersInSession });
+    } else {
+      socket.emit('class:viewer_count', { sessionId: sId, count, viewers: viewersInSession });
+    }
+  });
+
+  socket.on('webrtc:viewer_join', (data) => {
+    const sId = data?.sessionId || activeLiveClass?.id || 'live';
+    if (!liveClassViewers.has(socket.id)) {
+      liveClassViewers.set(socket.id, {
+        sessionId: sId,
+        studentName: data?.studentName || 'Student',
+        studentId: socket.id,
+        joinedAt: Date.now()
+      });
+      broadcastLiveClassViewers(sId);
+    }
+    socket.broadcast.emit('webrtc:viewer_joined', {
+      socketId: socket.id,
+      studentName: data?.studentName || 'Student',
+      sessionId: sId
+    });
   });
 
   // 4. Live Classroom Chat & Q&A
@@ -288,19 +465,76 @@ io.on('connection', (socket) => {
     io.emit('poll:resolved');
   });
 
+  // -----------------------------------------------------------
+  // Study Lounge Real-Time Handlers
+  // -----------------------------------------------------------
+  socket.on('study_lounge:join_room', ({ roomId, user }) => {
+    if (roomId) {
+      studyLoungeUsers.set(socket.id, { roomId, user: user || { name: 'Student' } });
+      broadcastStudyLoungeState();
+    }
+  });
+
+  socket.on('study_lounge:leave_room', () => {
+    if (studyLoungeUsers.has(socket.id)) {
+      studyLoungeUsers.delete(socket.id);
+      broadcastStudyLoungeState();
+    }
+  });
+
+  socket.on('study_lounge:get_state', () => {
+    const counts = { Physics: 0, Chemistry: 0, Math: 0, Biology: 0 };
+    const roomPeers = { Physics: [], Chemistry: [], Math: [], Biology: [] };
+    studyLoungeUsers.forEach(({ roomId, user }) => {
+      if (counts[roomId] !== undefined) {
+        counts[roomId]++;
+        roomPeers[roomId].push({
+          id: user?.id || user?.email || 'guest',
+          name: user?.name || 'EduFast Student',
+          college: user?.college || user?.institution || 'College Student',
+          avatar: user?.avatar || '👨‍🎓',
+          streak: user?.streak || 7,
+          status: user?.status || `Solving in ${roomId}`
+        });
+      }
+    });
+    socket.emit('study_lounge:update', {
+      counts,
+      totalActive: studyLoungeUsers.size,
+      roomPeers
+    });
+  });
+
   socket.on('disconnect', () => {
     activeUsers.delete(socket.id);
     io.emit('users:online_update', {
       onlineCount: activeUsers.size,
       users: Array.from(new Set(Array.from(activeUsers.values()).map(u => u.name)))
     });
+
+    if (liveClassViewers.has(socket.id)) {
+      const viewer = liveClassViewers.get(socket.id);
+      liveClassViewers.delete(socket.id);
+      broadcastLiveClassViewers(viewer?.sessionId);
+    }
+
+    if (studyLoungeUsers.has(socket.id)) {
+      studyLoungeUsers.delete(socket.id);
+      broadcastStudyLoungeState();
+    }
   });
 });
 
 // Initialize database and start HTTP + Socket.io Server
 async function startServer() {
   try {
-    await initDb();
+    const db = await initDb();
+    try {
+      const { seedDatabase } = require('./database/seed');
+      await seedDatabase(db);
+    } catch (sErr) {
+      console.warn('[Seed Notice]:', sErr.message);
+    }
     server.listen(PORT, () => {
       console.log(`\n=============================================================`);
       console.log(`  🚀 EduFast Backend with Socket.io running on http://localhost:${PORT}`);

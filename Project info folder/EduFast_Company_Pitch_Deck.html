@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduFast — Enterprise Acquisition Pitch Deck | Next-Gen AI EdTech Platform</title>
+  <style>
+    /* ==========================================================================
+       EduFast Luxury Enterprise Presentation Theme (16:9 Cinematic Slides)
+       ========================================================================== */
+    :root {
+      --bg-dark: #0a0f1d;
+      --bg-card: #131c31;
+      --bg-card-hover: #1c2744;
+      --border-color: #233152;
+      --border-glow: #10b981;
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: var(--font-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Top Presentation Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 28px;
+      background: rgba(10, 15, 29, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-weight: 900;
+      font-size: 15px;
+    }
+
+    .brand-title {
+      background: linear-gradient(135deg, #ffffff, #a5f3fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-tag {
+      font-size: 0.7rem;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-action {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action:hover, .btn-action.active {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+      border-color: var(--accent-cyan);
+    }
+
+    /* Main Slide Stage */
+    .deck-viewport {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 16px 24px;
+      background: radial-gradient(circle at 50% 20%, #15223e 0%, #0a0f1d 70%);
+    }
+
+    .slide-wrapper {
+      width: 100%;
+      max-width: 1320px;
+      aspect-ratio: 16 / 9;
+      background: rgba(19, 28, 49, 0.75);
+      border: 1px solid rgba(35, 49, 82, 0.9);
+      backdrop-filter: blur(16px);
+      border-radius: 20px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 40px rgba(16, 185, 129, 0.08);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 44px 56px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(12px) scale(0.99);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      z-index: 2;
+    }
+
+    /* Slide Typography */
+    .slide-header {
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 14px;
+    }
+
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-cyan);
+      margin-bottom: 6px;
+    }
+
+    .slide-title {
+      font-size: 2.1rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      text-align: right;
+    }
+
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Grid Layout Helpers */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      height: 100%;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      height: 100%;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .card:hover {
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-icon {
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-desc {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .pill {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .pill-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .pill-purple { background: rgba(139, 92, 246, 0.2); color: #c084fc; }
+    .pill-amber { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .pill-rose { background: rgba(244, 63, 94, 0.2); color: #fb7185; }
+
+    /* Highlight Big Metrics */
+    .metric-big {
+      font-size: 3.2rem;
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .metric-sub {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    /* Comparison Table */
+    .comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+
+    .comp-table th, .comp-table td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .comp-table th {
+      background: rgba(10, 15, 29, 0.8);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+    }
+
+    .comp-table tr.highlight-row {
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 3px solid var(--accent-emerald);
+    }
+
+    .check-yes { color: var(--accent-emerald); font-weight: 700; }
+    .check-no { color: var(--accent-rose); opacity: 0.7; }
+    .check-partial { color: var(--accent-amber); font-weight: 600; }
+
+    /* Role Interactive Tabs inside Slide 6 */
+    .role-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .role-tab-btn {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .role-tab-btn.active {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: var(--accent-emerald);
+      color: #fff;
+    }
+
+    .role-content-box {
+      background: rgba(10, 15, 29, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 20px;
+      flex: 1;
+      display: flex;
+      gap: 24px;
+    }
+
+    /* Calculator Widgets */
+    .calc-slider-group {
+      margin-bottom: 16px;
+    }
+
+    .calc-slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .calc-slider {
+      width: 100%;
+      height: 6px;
+      accent-color: var(--accent-emerald);
+      background: var(--bg-card);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* Bottom Control Bar */
+    .bottom-bar {
+      padding: 12px 28px;
+      background: rgba(10, 15, 29, 0.9);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-nav {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-nav:hover:not(:disabled) {
+      background: var(--accent-emerald);
+      color: #000;
+      border-color: var(--accent-emerald);
+    }
+
+    .btn-nav:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .progress-container {
+      flex: 1;
+      max-width: 450px;
+      margin: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--bg-card);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 5.5%;
+      background: linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .slide-counter {
+      font-size: 0.85rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      min-width: 75px;
+      text-align: right;
+    }
+
+    /* Overview Modal / Grid Mode */
+    .overview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 15, 29, 0.95);
+      backdrop-filter: blur(16px);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      padding: 30px 50px;
+      overflow-y: auto;
+    }
+
+    .overview-modal.active {
+      display: flex;
+    }
+
+    .overview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 18px;
+    }
+
+    .overview-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      aspect-ratio: 16 / 9;
+      padding: 14px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+
+    .overview-card:hover, .overview-card.current {
+      border-color: var(--accent-emerald);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+      transform: scale(1.03);
+    }
+
+    .overview-num {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    .overview-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.3;
+    }
+
+    /* Speaker Notes Drawer */
+    .speaker-notes-panel {
+      position: fixed;
+      right: 0;
+      top: 52px;
+      bottom: 53px;
+      width: 380px;
+      background: rgba(19, 28, 49, 0.98);
+      border-left: 1px solid var(--border-color);
+      backdrop-filter: blur(16px);
+      padding: 24px;
+      z-index: 90;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .speaker-notes-panel.open {
+      transform: translateX(0);
+    }
+
+    .speaker-notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+      font-weight: 800;
+      color: var(--accent-amber);
+    }
+
+    .speaker-notes-body {
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Print Styles for 16:9 PDF Export */
+    @media print {
+      body {
+        overflow: visible;
+        background: #fff;
+        color: #000;
+      }
+      .top-bar, .bottom-bar, .overview-modal, .speaker-notes-panel {
+        display: none !important;
+      }
+      .deck-viewport {
+        padding: 0;
+        background: transparent;
+      }
+      .slide-wrapper {
+        border: none;
+        box-shadow: none;
+        max-width: 100%;
+        aspect-ratio: auto;
+      }
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        page-break-after: always;
+        height: 100vh;
+        width: 100vw;
+        border-bottom: 2px solid #ccc;
+        background: #0a0f1d !important;
+        color: #fff !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Executive Bar -->
+  <header class="top-bar">
+    <div class="brand">
+      <div class="brand-logo">E</div>
+      <span class="brand-title">EduFast</span>
+      <span class="brand-tag">Confidential Acquisition Prospectus</span>
+    </div>
+    <div class="top-controls">
+      <button class="btn-action" id="btnNotes" title="Toggle Speaker Notes (N)">
+        <span>🎙️ Notes</span>
+      </button>
+      <button class="btn-action" id="btnOverview" title="Grid View (O)">
+        <span>📑 Grid</span>
+      </button>
+      <button class="btn-action" id="btnFullscreen" title="Toggle Fullscreen (F)">
+        <span>⛶ Fullscreen</span>
+      </button>
+      <button class="btn-action" id="btnPrint" title="Print to PDF (P)">
+        <span>🖨️ PDF Export</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="deck-viewport">
+    <div class="slide-wrapper">
+
+      <!-- SLIDE 1: Title & Executive Hook -->
+      <section class="slide active" data-slide="1" data-title="Executive Hook">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🚀 Strategic Acquisition Dossier</div>
+            <h1 class="slide-title">EduFast: The Next-Gen AI EdTech Platform</h1>
+          </div>
+          <div class="slide-subtitle">A Turnkey, High-Growth Solution for Bangladesh’s ৳1,800+ Crore Post-Secondary Admission Market</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2" style="align-items: center;">
+            <div>
+              <p style="font-size: 1.25rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 24px;">
+                EduFast is a comprehensive, production-grade university admission super-ecosystem unifying <strong style="color: #38bdf8;">Government Board Verification</strong>, <strong style="color: #34d399;">Scikit-Learn ML Predictions</strong>, <strong style="color: #a78bfa;">WebRTC Live Classrooms</strong>, and <strong style="color: #f472b6;">24/7 Virtual Study Lounges</strong> into one sovereign platform.
+              </p>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px;">
+                <span class="pill pill-green">✓ Ready Web + Mobile APK</span>
+                <span class="pill pill-blue">✓ Sub-ms SQLite WAL Engine</span>
+                <span class="pill pill-purple">✓ 89.75% ML Accuracy</span>
+                <span class="pill pill-amber">✓ 4 High-Margin Revenue Streams</span>
+              </div>
+              <div style="font-size: 0.9rem; color: #a5f3fc; font-weight: 600; line-height: 1.6; margin-top: 10px;">
+                👤 Project Leads: Asif Hossain Khan (ID: 210178) &nbsp;|&nbsp; Fahim Ahmed Nizum (ID: 210144)
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+                Department of CSE, Daffodil Institute of IT (DIIT), Dhaka • Session 2020-2021
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+                <div class="metric-big">1.5M+</div>
+                <div class="metric-sub">HSC Examinees Yearly</div>
+                <p class="card-desc" style="margin-top: 8px;">Fierce competition for <65k public varsity seats.</p>
+              </div>
+              <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+                <div class="metric-big">৳1,800Cr</div>
+                <div class="metric-sub">Annual Admission Spend</div>
+                <p class="card-desc" style="margin-top: 8px;">Families invest heavily in coaching & prep.</p>
+              </div>
+              <div class="card" style="border-top: 3px solid var(--accent-purple);">
+                <div class="metric-big">&lt;1ms</div>
+                <div class="metric-sub">DB Query Latency</div>
+                <p class="card-desc" style="margin-top: 8px;">Zero monthly cloud DB fees with SQLite WAL.</p>
+              </div>
+              <div class="card" style="border-top: 3px solid var(--accent-amber);">
+                <div class="metric-big">89.8%</div>
+                <div class="metric-sub">ML Predictive Accuracy</div>
+                <p class="card-desc" style="margin-top: 8px;">Trained Random Forest admission classifier.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 2: The Macro Opportunity -->
+      <section class="slide" data-slide="2" data-title="Macro Opportunity">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">📊 Market Dynamics</div>
+            <h1 class="slide-title">The Bangladesh EdTech Explosion</h1>
+          </div>
+          <div class="slide-subtitle">A high-density mobile internet economy with surging demand for digitized higher education access</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-3">
+            <div class="card">
+              <span class="card-icon">🎯</span>
+              <div class="card-title">TAM: ৳1,800+ Crore</div>
+              <div class="pill pill-green" style="margin-bottom: 10px;">Total Addressable Market</div>
+              <p class="card-desc">
+                Combined coaching tuition, guidebooks, university application tokens, and private tutoring spent annually by 1.5 million admission candidates and their families across Bangladesh.
+              </p>
+            </div>
+            <div class="card">
+              <span class="card-icon">⚡</span>
+              <div class="card-title">SAM: ৳450+ Crore</div>
+              <div class="pill pill-blue" style="margin-bottom: 10px;">Serviceable Available Market</div>
+              <p class="card-desc">
+                The rapidly expanding digital-first cohort of tech-savvy students in Tier 1 and Tier 2 cities utilizing smartphones for mock tests, video prep, and centralized circular alerts.
+              </p>
+            </div>
+            <div class="card">
+              <span class="card-icon">🏆</span>
+              <div class="card-title">SOM: ৳45+ Crore</div>
+              <div class="pill pill-purple" style="margin-bottom: 10px;">Serviceable Obtainable Target</div>
+              <p class="card-desc">
+                Conservative 10% acquisition penetration achievable within 24 months through institutional campus ambassador networks and integrated mobile marketing.
+              </p>
+            </div>
+          </div>
+          <div style="margin-top: 20px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <strong style="color: #34d399;">Key Market Catalyst:</strong> Over 62% smartphone penetration and nationwide 4G coverage make digital admission prep the fastest growing digital consumer vertical in Bangladesh.
+            </div>
+            <span class="pill pill-green">Uncapped Upside</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: The Core Problem -->
+      <section class="slide" data-slide="3" data-title="Industry Pain Points">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">⚠️ Structural Bottlenecks</div>
+            <h1 class="slide-title">5 Fatal Flaws in Existing EdTech</h1>
+          </div>
+          <div class="slide-subtitle">Why incumbent platforms fail admission seekers and leave substantial revenue on the table</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title"><span style="color: var(--accent-rose);">01.</span> Scattered University Information</div>
+              <p class="card-desc">Students scramble through 50+ individual PDF circulars from BUET, DU, Medical, and GST to track dates, fees, and quota eligibility.</p>
+            </div>
+            <div class="card">
+              <div class="card-title"><span style="color: var(--accent-rose);">02.</span> Massive Credential Fraud</div>
+              <p class="card-desc">No existing platform verifies whether a student actually scored GPA 5.00 in SSC/HSC. Users input fake GPAs, invalidating diagnostic tests.</p>
+            </div>
+            <div class="card">
+              <div class="card-title"><span style="color: var(--accent-rose);">03.</span> Severe Isolation & Burnout</div>
+              <p class="card-desc">Admission students study 14+ hours a day in isolation. Incumbents offer only pre-recorded videos with zero collaborative or focus encouragement.</p>
+            </div>
+            <div class="card">
+              <div class="card-title"><span style="color: var(--accent-rose);">04.</span> Guesswork vs. Data-Driven ML</div>
+              <p class="card-desc">Students rely on arbitrary hearsay regarding cut-off marks instead of algorithmic probability curves calibrated to historical merit scores.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; border-left: 4px solid var(--accent-amber);">
+            <div class="card-title"><span style="color: var(--accent-amber);">05. Fragmented Tooling Nightmare:</span> Teachers stream on Zoom, share PDFs on Telegram, and manage tests on Google Forms. There is zero unified infrastructure.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 4: The EduFast Solution -->
+      <section class="slide" data-slide="4" data-title="EduFast Solution">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">💡 The Master Architecture</div>
+            <h1 class="slide-title">The EduFast Unified Super-App</h1>
+          </div>
+          <div class="slide-subtitle">A cohesive ecosystem orchestrating learning, live interaction, data intelligence, and administration</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-4">
+            <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+              <div class="card-icon">🎓</div>
+              <div class="card-title">Student Portal</div>
+              <p class="card-desc">Govt board auto-verify, countdown radar, adaptive mock tests, study routines, gamified EduCoins.</p>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+              <div class="card-icon">👨‍🏫</div>
+              <div class="card-title">Teacher Studio</div>
+              <p class="card-desc">Native WebRTC live streaming, digital whiteboard, live polls, cloud recording uploads.</p>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-purple);">
+              <div class="card-icon">🧑‍🏫</div>
+              <div class="card-title">Mentor 24/7 Desk</div>
+              <p class="card-desc">Doubt solve queue, Tesseract OCR handwritten problem extraction, voice-note responses.</p>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-amber);">
+              <div class="card-icon">🛡️</div>
+              <div class="card-title">Admin Command</div>
+              <p class="card-desc">In-browser SQLite Studio, live circular publisher, sponsored ad manager with CTR analytics.</p>
+            </div>
+          </div>
+          <div style="margin-top: 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+            <div class="card" style="background: rgba(6, 182, 212, 0.08); border-color: rgba(6, 182, 212, 0.3);">
+              <div class="card-title">👑 The Unified Advantage</div>
+              <p class="card-desc">
+                Everything runs on a singular, synchronized SQLite database and real-time Socket.io message bus. When an admin updates a circular, students see it live. When a teacher launches a class, students join with one click.
+              </p>
+            </div>
+            <div class="card" style="background: rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.3); text-align: center; justify-content: center;">
+              <div class="metric-big" style="font-size: 2.2rem; margin-bottom: 4px;">100%</div>
+              <div class="metric-sub">Self-Contained IP</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 5: Proprietary Moat #1 - Live Board Verification -->
+      <section class="slide" data-slide="5" data-title="Govt Board Verification">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🌐 Revolutionary Breakthrough</div>
+            <h1 class="slide-title">Direct Government Education Board Verification</h1>
+          </div>
+          <div class="slide-subtitle">The first Bangladeshi EdTech platform with live WAF/CAPTCHA bypassing board scrapers</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div>
+              <p style="font-size: 1.05rem; line-height: 1.6; color: #cbd5e1; margin-bottom: 18px;">
+                EduFast reverse-engineers the Ministry of Education results portal (<code style="color: var(--accent-cyan);">educationboardresults.gov.bd/v2/home</code>), enabling instant, automated verification of official student credentials.
+              </p>
+              <div class="card" style="margin-bottom: 16px; border-left: 3px solid var(--accent-emerald);">
+                <div class="card-title">How It Operates:</div>
+                <ol style="margin-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;">
+                  <li>Student enters Roll, Registration, Board, and Year (1990–2026 history supported).</li>
+                  <li>Backend initializes a secure session token and fetches the official server CAPTCHA.</li>
+                  <li>Student verifies CAPTCHA in an interactive modal.</li>
+                  <li>System extracts genuine GPA, Student Name, Parents' Names, and School/College.</li>
+                </ol>
+              </div>
+              <span class="pill pill-green">Zero Profile Fraud Guaranteed</span>
+            </div>
+            <div class="card" style="background: rgba(10, 15, 29, 0.9); justify-content: center;">
+              <div style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--accent-cyan); margin-bottom: 8px;">// LIVE GOVERNMENT BOARD RESPONSE PAYLOAD</div>
+              <pre style="background: #000; padding: 16px; border-radius: 8px; font-size: 0.78rem; color: #a5f3fc; overflow-x: auto; font-family: var(--font-mono); line-height: 1.5;">
+{
+  "status": "success",
+  "board": "dhaka",
+  "roll": "126903",
+  "studentName": "SAIF UDDIN AHMED",
+  "fathersName": "MOHAMMED ALI",
+  "mothersName": "FATEMA BEGUM",
+  "institute": "GOVT. SCIENCE COLLEGE",
+  "gpa": "5.00",
+  "verifiedAt": "2026-11-01T14:45:00Z"
+}</pre>
+              <div style="margin-top: 12px; font-size: 0.82rem; color: var(--text-muted);">
+                ✓ Populates verified student records directly into the SQLite database.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: Role Ecosystem Overview -->
+      <section class="slide" data-slide="6" data-title="The 4 Roles">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">👥 User Architecture</div>
+            <h1 class="slide-title">4-Tier Sovereign Role Hierarchy</h1>
+          </div>
+          <div class="slide-subtitle">Granular Role-Based Access Control (RBAC) powering unified collaboration across stakeholders</div>
+        </div>
+        <div class="slide-body">
+          <div class="role-tabs">
+            <button class="role-tab-btn active" onclick="switchRoleTab('student')">🎓 Student</button>
+            <button class="role-tab-btn" onclick="switchRoleTab('teacher')">👨‍🏫 Teacher</button>
+            <button class="role-tab-btn" onclick="switchRoleTab('mentor')">🧑‍🏫 Mentor</button>
+            <button class="role-tab-btn" onclick="switchRoleTab('admin')">🛡️ Super Admin</button>
+          </div>
+          <div class="role-content-box" id="roleContent">
+            <!-- Dynamic via JS -->
+            <div style="flex: 1;">
+              <h3 style="font-size: 1.3rem; color: var(--accent-emerald); margin-bottom: 8px;" id="roleTitle">Student Super-App</h3>
+              <p style="font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 14px;" id="roleSummary">
+                Empowers university admission seekers with verified credential tracking, personalized AI study schedules, real-time exam countdowns, adaptive mock tests, and collaborative focus lounges.
+              </p>
+              <div id="roleFeatures" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="pill pill-green">✓ Board Result Auto-Fill</div>
+                <div class="pill pill-green">✓ Centralized Circular Radar</div>
+                <div class="pill pill-green">✓ Adaptive Mock Tests (-0.25)</div>
+                <div class="pill pill-green">✓ 24/7 Virtual Study Lounge</div>
+                <div class="pill pill-green">✓ Machine Learning Predictor</div>
+                <div class="pill pill-green">✓ Foreign University Evaluator</div>
+              </div>
+            </div>
+            <div style="width: 320px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: center;">
+              <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Role Impact</div>
+              <div style="font-size: 1.8rem; font-weight: 800; color: #fff; margin: 4px 0;" id="roleStat">92% Retention</div>
+              <p style="font-size: 0.82rem; color: var(--text-secondary);" id="roleStatDesc">Gamification and daily routines keep students returning multiple times a day.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 7: Deep Dive - Student Super-App -->
+      <section class="slide" data-slide="7" data-title="Student Super-App">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🎓 Role 1 Deep Dive</div>
+            <h1 class="slide-title">Student Super-App Experience</h1>
+          </div>
+          <div class="slide-subtitle">Engaging, motivating, and guiding students from board exams to campus admission</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-3">
+            <div class="card">
+              <span class="card-icon">🎯</span>
+              <div class="card-title">Admission Radar</div>
+              <p class="card-desc">Tracks application deadlines, exam dates, fees, and units for BUET, DU, Medical, CKET, and GST with live countdown timers.</p>
+              <div style="margin-top: 12px;"><span class="pill pill-blue">Auto Admit Card & Results</span></div>
+            </div>
+            <div class="card">
+              <span class="card-icon">⏱️</span>
+              <div class="card-title">Adaptive Mock Tests</div>
+              <p class="card-desc">Server-graded timed exams enforcing genuine negative marking (-0.25). Answers kept encrypted to prevent client-side inspection.</p>
+              <div style="margin-top: 12px;"><span class="pill pill-green">Topic Weakness Analytics</span></div>
+            </div>
+            <div class="card">
+              <span class="card-icon">🪙</span>
+              <div class="card-title">EduCoins Gamification</div>
+              <p class="card-desc">Daily task challenges and study streaks award EduCoins and XP, driving organic peer competition on national merit leaderboards.</p>
+              <div style="margin-top: 12px;"><span class="pill pill-amber">Redeemable Rewards</span></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.3);">
+            <div class="card-title">⚡ Multi-Exam Adaptive Roadmap</div>
+            <p class="card-desc">Calculates dynamic phase milestones (Syllabus Completion ➔ Topic Drills ➔ Final Model Tests) keyed directly to university test dates.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 8: Deep Dive - Teacher Studio -->
+      <section class="slide" data-slide="8" data-title="Teacher Live Studio">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">👨‍🏫 Role 2 Deep Dive</div>
+            <h1 class="slide-title">Teacher Virtual Studio Suite</h1>
+          </div>
+          <div class="slide-subtitle">Zero Zoom dependencies: native browser broadcasting, screen sharing, and interactive whiteboard</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-icon">📡</div>
+              <div class="card-title">Native WebRTC Live Classroom</div>
+              <p class="card-desc" style="margin-bottom: 12px;">
+                Teachers initiate high-definition live video broadcasts directly from Google Chrome or Microsoft Edge. Students connect seamlessly via Socket.io signaling.
+              </p>
+              <ul style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8; margin-left: 20px;">
+                <li>Interactive Vector Whiteboard with color palettes & shapes.</li>
+                <li>Live Screen Sharing for lecture slides and coding demos.</li>
+                <li>Instant In-Class Polling with real-time response percentage bars.</li>
+                <li>Live Student Attendance tracker with join/leave timestamps.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="card-icon">📼</div>
+              <div class="card-title">Cloud Recording Vault & Course Builder</div>
+              <p class="card-desc" style="margin-bottom: 12px;">
+                Automated post-lecture content management allowing instructors to monetize their proprietary curriculum.
+              </p>
+              <ul style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8; margin-left: 20px;">
+                <li>Upload and manage high-definition lecture recordings.</li>
+                <li>Modular curriculum builder with drag-and-drop lesson indexing.</li>
+                <li>Attach supplementary lecture sheets, cheat sheets, and PDFs.</li>
+                <li>Student progress tracking & video completion telemetry.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 9: Deep Dive - Mentor 24/7 Desk -->
+      <section class="slide" data-slide="9" data-title="Mentor 24/7 Desk">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🧑‍🏫 Role 3 Deep Dive</div>
+            <h1 class="slide-title">Mentor 24/7 Doubt Desk & OCR Solver</h1>
+          </div>
+          <div class="slide-subtitle">Connecting admission candidates with BUET, Medical, and DU top alumni for instant 1-on-1 problem solving</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-3">
+            <div class="card">
+              <span class="card-icon">📸</span>
+              <div class="card-title">Tesseract OCR Extraction</div>
+              <p class="card-desc">Students snap a picture of complex math, physics, or chemistry problems. Built-in OCR parses handwritten Bengali/English text automatically.</p>
+            </div>
+            <div class="card">
+              <span class="card-icon">🎙️</span>
+              <div class="card-title">Voice Note Explanations</div>
+              <p class="card-desc">Mentors can record audio voice notes directly in the browser to explain intricate conceptual derivations in under 60 seconds.</p>
+            </div>
+            <div class="card">
+              <span class="card-icon">⭐</span>
+              <div class="card-title">Rating & Payout Engine</div>
+              <p class="card-desc">Students rate answers 1–5 stars. Verified mentors earn compensation per resolved doubt, creating an organic peer tutor economy.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; border-left: 4px solid var(--accent-purple);">
+            <div class="card-title">🎯 High-Margin Marketplace Monetization</div>
+            <p class="card-desc">EduFast retains a 20% commission on all 1-on-1 private mentoring credits purchased by students, unlocking an on-demand gig economy.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10: Deep Dive - Super Admin & Database Studio -->
+      <section class="slide" data-slide="10" data-title="Super Admin Studio">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🛡️ Role 4 Deep Dive</div>
+            <h1 class="slide-title">Super Admin Command & Database Studio</h1>
+          </div>
+          <div class="slide-subtitle">Complete administrative governance, visual schema exploration, and direct SQL execution</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title">⚡ In-Browser SQLite Database Studio</div>
+              <p class="card-desc" style="margin-bottom: 12px;">
+                Admins have an integrated SQL Studio inside the browser. No terminal, SSH, or phpMyAdmin needed.
+              </p>
+              <div style="background: #000; padding: 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.78rem; color: #34d399; margin-bottom: 8px;">
+                SELECT students.name, students.sscGpa, payments.amount <br>
+                FROM students JOIN payments ON students.email = payments.studentEmail <br>
+                WHERE payments.status = 'completed';
+              </div>
+              <p class="card-desc">Inspect, query, and modify all 16 database tables in real-time with sub-millisecond execution times.</p>
+            </div>
+            <div class="card">
+              <div class="card-title">💼 Sponsored Ad & Circular Manager</div>
+              <p class="card-desc" style="margin-bottom: 12px;">
+                Monetize platform traffic through direct corporate ad campaign management.
+              </p>
+              <ul style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.8; margin-left: 20px;">
+                <li>Upload custom sponsored banners for private universities (NSU, BRAC, UIU).</li>
+                <li>Real-time Click-Through Rate (CTR) and impression telemetry.</li>
+                <li>Broadcast global emergency notices with high-priority ticker alerts.</li>
+                <li>Audit bKash, Nagad, and Rocket transaction verification logs.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 11: Proprietary Moat #2 - 24/7 Virtual Study Lounge -->
+      <section class="slide" data-slide="11" data-title="Virtual Study Lounge">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🎧 Student Retention Engine</div>
+            <h1 class="slide-title">24/7 Collaborative Virtual Study Lounge</h1>
+          </div>
+          <div class="slide-subtitle">Eliminating study isolation with synchronized Pomodoro timers, Lo-Fi beats, and peer presence</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-3">
+            <div class="card">
+              <span class="card-icon">⏳</span>
+              <div class="card-title">Synchronized Pomodoro</div>
+              <p class="card-desc">25-minute deep focus intervals followed by 5-minute cognitive rest breaks, synchronized across all active room peers.</p>
+            </div>
+            <div class="card">
+              <span class="card-icon">🎵</span>
+              <div class="card-title">Ambient Lo-Fi Audio</div>
+              <p class="card-desc">Built-in audio synthesizer with selectable soundscapes: Lo-Fi Study Beats, Thunderstorm Rain, Library Murmur, and Deep Alpha Waves.</p>
+            </div>
+            <div class="card">
+              <span class="card-icon">💬</span>
+              <div class="card-title">Real-Time Peer Chat</div>
+              <p class="card-desc">Collaborative chat rooms allowing students to discuss problems, share study notes, and motivate each other during late-night sessions.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); display: flex; flex-direction: row; align-items: center; justify-content: space-between;">
+            <div>
+              <strong style="color: var(--accent-emerald);">EduCoins Study Mining:</strong> Students earn 5 EduCoins for every completed 25-minute Pomodoro cycle, creating positive psychological reinforcement.
+            </div>
+            <span class="pill pill-green">3.8x Daily Time-in-App</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 12: Proprietary Moat #3 - Machine Learning Engine -->
+      <section class="slide" data-slide="12" data-title="ML Chance Predictor">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🤖 Artificial Intelligence Moat</div>
+            <h1 class="slide-title">Production Scikit-Learn Admission Predictor</h1>
+          </div>
+          <div class="slide-subtitle">Data-driven probability forecasts replacing arbitrary counseling with 89.75% empirical accuracy</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div>
+              <div class="card" style="margin-bottom: 16px;">
+                <div class="card-title">Trained Model Specifications:</div>
+                <table style="width: 100%; font-size: 0.82rem; color: #cbd5e1; margin-top: 8px;">
+                  <tr><td style="padding: 4px 0;">Algorithm:</td><td style="color: var(--accent-cyan); font-weight: 700;">RandomForestClassifier (100 Trees)</td></tr>
+                  <tr><td style="padding: 4px 0;">Accuracy:</td><td style="color: var(--accent-emerald); font-weight: 700;">89.75% (91.55% CV Mean)</td></tr>
+                  <tr><td style="padding: 4px 0;">Precision / Recall:</td><td>88.22% / 99.32%</td></tr>
+                  <tr><td style="padding: 4px 0;">F1 Score:</td><td style="color: var(--accent-purple); font-weight: 700;">0.9344</td></tr>
+                  <tr><td style="padding: 4px 0;">Training Samples:</td><td>4,000 Verified Student Profiles</td></tr>
+                </table>
+              </div>
+              <p class="card-desc">
+                Inputs: SSC GPA, HSC GPA, Physics/Chem/Math/Bio grades, and mock test percentiles. Generates institution-specific admission probability curves.
+              </p>
+            </div>
+            <div class="card" style="background: rgba(10, 15, 29, 0.85); justify-content: center;">
+              <div class="card-title" style="font-size: 0.95rem;">Top Feature Importance (Scikit-Learn)</div>
+              <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Target Uni: BUET Cut-Off</span><span>35.2%</span></div>
+                  <div style="height: 6px; background: #233152; border-radius: 3px;"><div style="width: 35.2%; height: 100%; background: var(--accent-cyan); border-radius: 3px;"></div></div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Combined GPA (SSC + HSC)</span><span>13.3%</span></div>
+                  <div style="height: 6px; background: #233152; border-radius: 3px;"><div style="width: 13.3%; height: 100%; background: var(--accent-emerald); border-radius: 3px;"></div></div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Standardized Mock Exam Score</span><span>8.0%</span></div>
+                  <div style="height: 6px; background: #233152; border-radius: 3px;"><div style="width: 8.0%; height: 100%; background: var(--accent-purple); border-radius: 3px;"></div></div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>Physics & Math Specific Marks</span><span>6.9%</span></div>
+                  <div style="height: 6px; background: #233152; border-radius: 3px;"><div style="width: 6.9%; height: 100%; background: var(--accent-amber); border-radius: 3px;"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 13: Proprietary Moat #4 - Higher Education & Study Abroad -->
+      <section class="slide" data-slide="13" data-title="Study Abroad Portal">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🌍 Global Expansion</div>
+            <h1 class="slide-title">Higher Education & Study Abroad Gateway</h1>
+          </div>
+          <div class="slide-subtitle">Retaining students beyond domestic admissions with AI-driven global university profiling</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-3">
+            <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+              <div class="card-title">🟢 Safe Universities</div>
+              <div class="pill pill-green" style="margin-bottom: 8px;">&gt;80% Acceptance Probability</div>
+              <p class="card-desc">Institutions where student's CGPA, IELTS, and GRE exceed baseline thresholds with high partial scholarship likelihood.</p>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-amber);">
+              <div class="card-title">🟡 Target Universities</div>
+              <div class="pill pill-amber" style="margin-bottom: 8px;">50% - 80% Acceptance</div>
+              <p class="card-desc">Universities precisely aligned with candidate's academic profile and standardized test scores across USA, UK, Canada, and Germany.</p>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-rose);">
+              <div class="card-title">🔴 Ambitious Universities</div>
+              <div class="pill pill-rose" style="margin-bottom: 8px;">Top-Tier Global Reach</div>
+              <p class="card-desc">Prestigious Ivy League / Russell Group institutions requiring exceptional SOPs, published research, and high competitive merit.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; border-left: 4px solid var(--accent-cyan);">
+            <div class="card-title">✈️ Untapped Commercial Monetization: Global Education Agency Commissions</div>
+            <p class="card-desc">Each verified study-abroad lead referred to partnered foreign education agencies yields $500–$2,000 USD in referral commissions.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 14: Competitive Matrix -->
+      <section class="slide" data-slide="14" data-title="Competitive Matrix">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">⚔️ Market Benchmark</div>
+            <h1 class="slide-title">EduFast vs. Industry Incumbents</h1>
+          </div>
+          <div class="slide-subtitle">A decisive 12-point capability audit against Bangladesh's leading EdTech brands</div>
+        </div>
+        <div class="slide-body">
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+            <table class="comp-table">
+              <thead>
+                <tr>
+                  <th>Platform Capability</th>
+                  <th style="color: var(--accent-emerald);">🏆 EduFast</th>
+                  <th>10 Minute School</th>
+                  <th>Shikho</th>
+                  <th>Udvash / Unmesh</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="highlight-row">
+                  <td><strong>Direct Govt Board Result Scraper & CAPTCHA</strong></td>
+                  <td class="check-yes">✓ Live Auto-Sync</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                </tr>
+                <tr>
+                  <td><strong>Trained Scikit-Learn Admission Predictor</strong></td>
+                  <td class="check-yes">✓ 89.8% Random Forest</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td><strong>24/7 Virtual Collaborative Study Lounge</strong></td>
+                  <td class="check-yes">✓ Lo-Fi + Pomodoro</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                </tr>
+                <tr>
+                  <td><strong>Native WebRTC Live Classroom & Whiteboard</strong></td>
+                  <td class="check-yes">✓ Built-In Browser</td>
+                  <td class="check-partial">~ Zoom Link</td>
+                  <td class="check-partial">~ Custom Player</td>
+                  <td class="check-no">✗ Offline Centric</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td><strong>Handwritten Doubt Desk with Tesseract OCR</strong></td>
+                  <td class="check-yes">✓ OCR + Voice Notes</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-partial">~ Text Only</td>
+                  <td class="check-no">✗ In-Branch Only</td>
+                </tr>
+                <tr>
+                  <td><strong>In-Browser SQLite Studio (Zero Cloud DB Cost)</strong></td>
+                  <td class="check-yes">✓ WAL Sub-ms DB</td>
+                  <td class="check-no">✗ AWS Cloud Cost</td>
+                  <td class="check-no">✗ Cloud Cost</td>
+                  <td class="check-no">✗ Legacy System</td>
+                </tr>
+                <tr>
+                  <td><strong>Higher Study & Study Abroad Gateway</strong></td>
+                  <td class="check-yes">✓ Global DB + Evaluator</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                  <td class="check-no">✗ None</td>
+                </tr>
+                <tr>
+                  <td><strong>Production Android APK Ready</strong></td>
+                  <td class="check-yes">✓ Capacitor APK</td>
+                  <td class="check-yes">✓ Yes</td>
+                  <td class="check-yes">✓ Yes</td>
+                  <td class="check-no">✗ Web Only</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 15: Monetization Engines -->
+      <section class="slide" data-slide="15" data-title="Monetization Strategy">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">💰 Business Architecture</div>
+            <h1 class="slide-title">4 High-Margin Monetization Engines</h1>
+          </div>
+          <div class="slide-subtitle">A balanced multi-stream revenue model insulated against seasonal lulls</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-4">
+            <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+              <span class="card-icon">👑</span>
+              <div class="card-title">B2C Pro Pass</div>
+              <p class="card-desc">Monthly / seasonal subscriptions unlocking unlimited mock exams, ML chance predictor runs, and ad-free experience.</p>
+              <div style="margin-top: 12px; font-weight: 700; color: #34d399;">৳499 / Month</div>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+              <span class="card-icon">📚</span>
+              <div class="card-title">Course Marketplace</div>
+              <p class="card-desc">Specialized varsity masterclasses (BUET Engineering, DU A-Unit, Medical GK/Bio) led by top educators.</p>
+              <div style="margin-top: 12px; font-weight: 700; color: #38bdf8;">৳1,500 – ৳3,500 / Course</div>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-purple);">
+              <span class="card-icon">📢</span>
+              <div class="card-title">B2B Varsity Ads</div>
+              <p class="card-desc">Native sponsored banner campaigns with CTR and lead telemetry for private universities (NSU, BRAC, UIU).</p>
+              <div style="margin-top: 12px; font-weight: 700; color: #c084fc;">৳50,000+ / Campaign</div>
+            </div>
+            <div class="card" style="border-top: 3px solid var(--accent-amber);">
+              <span class="card-icon">🧑‍🏫</span>
+              <div class="card-title">Mentor Commissions</div>
+              <p class="card-desc">20% marketplace take-rate on 1-on-1 private mentoring credits and paid live doubt solutions.</p>
+              <div style="margin-top: 12px; font-weight: 700; color: #fbbf24;">20% Platform Fee</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3);">
+            <div class="card-title">💳 Seamless Local Payment Gateways: bKash, Nagad, and Rocket</div>
+            <p class="card-desc">Built-in checkout simulation and transaction ID verification engine, enabling frictionless instant checkout across Bangladesh.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 16: Interactive Financial Model -->
+      <section class="slide" data-slide="16" data-title="Financial Model & ROI">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">📈 Financial Projections</div>
+            <h1 class="slide-title">Interactive ARR & Unit Economics</h1>
+          </div>
+          <div class="slide-subtitle">Adjust the active student projection slider below to see real-time revenue dynamics</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title" style="margin-bottom: 16px;">Simulation Controls</div>
+              <div class="calc-slider-group">
+                <div class="calc-slider-header">
+                  <span>Registered Active Students:</span>
+                  <span id="sliderStudentVal" style="color: var(--accent-cyan); font-weight: 700;">100,000</span>
+                </div>
+                <input type="range" class="calc-slider" id="sliderStudents" min="20000" max="500000" step="10000" value="100000" oninput="updateFinancials()">
+              </div>
+              <div class="calc-slider-group">
+                <div class="calc-slider-header">
+                  <span>Pro Subscriber Conversion Rate:</span>
+                  <span id="sliderConvVal" style="color: var(--accent-emerald); font-weight: 700;">8%</span>
+                </div>
+                <input type="range" class="calc-slider" id="sliderConv" min="3" max="15" step="1" value="8" oninput="updateFinancials()">
+              </div>
+              <div class="calc-slider-group">
+                <div class="calc-slider-header">
+                  <span>Pro Subscription Fee / Season:</span>
+                  <span id="sliderFeeVal" style="color: var(--accent-purple); font-weight: 700;">৳2,000</span>
+                </div>
+                <input type="range" class="calc-slider" id="sliderFee" min="1000" max="4000" step="250" value="2000" oninput="updateFinancials()">
+              </div>
+            </div>
+            <div class="card" style="background: rgba(10, 15, 29, 0.9); justify-content: space-around;">
+              <div>
+                <div class="metric-sub">Projected Annual Recurring Revenue (ARR)</div>
+                <div class="metric-big" id="displayARR" style="font-size: 2.8rem; margin: 6px 0;">৳2.24 Crore</div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <div>
+                  <div class="metric-sub">Estimated Gross Margin</div>
+                  <div style="font-size: 1.4rem; font-weight: 800; color: var(--accent-emerald);">87.5%</div>
+                </div>
+                <div>
+                  <div class="metric-sub">Projected Net Profit</div>
+                  <div style="font-size: 1.4rem; font-weight: 800; color: var(--accent-cyan);" id="displayNetProfit">৳1.96 Crore</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 17: Enterprise Acquisition Rationale -->
+      <section class="slide" data-slide="17" data-title="Acquisition Rationale">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">🤝 Enterprise Synergies</div>
+            <h1 class="slide-title">Why Acquire EduFast?</h1>
+          </div>
+          <div class="slide-subtitle">Immediate operational leverage for 10 Minute School, Shikho, Chorki, or Strategic Investors</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-3">
+            <div class="card">
+              <span class="card-icon">⚡</span>
+              <div class="card-title">18 Months Time-to-Market</div>
+              <p class="card-desc">Building an integrated platform with WebRTC whiteboard, scrapers, and ML predictors from scratch requires 18+ months and $150,000+ in dev payroll. EduFast is ready on Day 1.</p>
+            </div>
+            <div class="card">
+              <span class="card-icon">🛡️</span>
+              <div class="card-title">Proprietary Tech Moat</div>
+              <p class="card-desc">The reverse-engineered Education Board CAPTCHA engine and trained Scikit-Learn models cannot be easily replicated by competitors.</p>
+            </div>
+            <div class="card">
+              <span class="card-icon">📉</span>
+              <div class="card-title">Radical Cost Reduction</div>
+              <p class="card-desc">High-performance SQLite WAL database architecture eliminates expensive enterprise AWS RDS / Postgres database bills, delivering 85%+ gross profit margins.</p>
+            </div>
+          </div>
+          <div class="card" style="margin-top: 16px; background: rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.3);">
+            <div class="card-title">🚀 Native Mobile Distribution Ready</div>
+            <p class="card-desc">Includes an already compiled, production-ready Android APK (<code style="color: #a78bfa;">MobileApp/EduFast.apk</code>) generated via Capacitor, ready for immediate Google Play Store publishing.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 18: Handover & Next Steps -->
+      <section class="slide" data-slide="18" data-title="Handover & Next Steps">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">📦 Complete Turnkey Package</div>
+            <h1 class="slide-title">Full Handover Asset Inventory</h1>
+          </div>
+          <div class="slide-subtitle">Zero friction IP transfer, comprehensive developer guides, and post-acquisition roadmap</div>
+        </div>
+        <div class="slide-body">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title">✓ Included Intellectual Property</div>
+              <ul style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.8; margin-left: 20px;">
+                <li>100% Full Source Code (Frontend, Backend, ML Engine, Mobile App).</li>
+                <li>Trained Scikit-Learn Model Binaries (<code style="color: var(--accent-cyan);">.joblib</code>) & 4k Student Datasets.</li>
+                <li>Production Android APK (<code style="color: var(--accent-emerald);">EduFast.apk</code>) with Capacitor configs.</li>
+                <li>Pre-populated University Circulars, Mock Tests & Question Bank.</li>
+                <li>Complete Executive Report (<code style="color: var(--accent-purple);">EduFast_Executive_Presentation_Report.md</code>).</li>
+              </ul>
+            </div>
+            <div class="card" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.3); justify-content: center; text-align: center;">
+              <div class="card-title" style="justify-content: center; font-size: 1.4rem;">Let's Build the Future of EdTech</div>
+              <p class="card-desc" style="max-width: 420px; margin: 12px auto;">
+                For private acquisition discussions, live technical demonstrations, or asset verification, contact the project development leads:
+              </p>
+              <div style="font-size: 1rem; font-weight: 700; color: #fff; margin-top: 8px;">
+                Asif Hossain Khan (ID: 210178) &nbsp;|&nbsp; Fahim Ahmed Nizum (ID: 210144)
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+                Daffodil Institute of IT (DIIT) — CSE Department, Dhaka
+              </div>
+              <div style="margin-top: 16px;">
+                <span class="pill pill-green">Ready for Immediate Acquisition</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Bottom Presentation Navigation Bar -->
+  <footer class="bottom-bar">
+    <div class="nav-buttons">
+      <button class="btn-nav" id="btnPrev" onclick="navigateSlide(-1)">
+        <span>◀ Previous</span>
+      </button>
+      <button class="btn-nav" id="btnNext" onclick="navigateSlide(1)">
+        <span>Next ▶</span>
+      </button>
+    </div>
+
+    <div class="progress-container">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="slide-counter" id="slideCounter">Slide 1 / 18</div>
+    </div>
+
+    <div style="font-size: 0.78rem; color: var(--text-muted);">
+      Press <kbd style="background: var(--bg-card); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color); color: #fff;">Space</kbd> or <kbd style="background: var(--bg-card); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color); color: #fff;">Arrows</kbd> to navigate
+    </div>
+  </footer>
+
+  <!-- Grid Overview Modal -->
+  <div class="overview-modal" id="overviewModal">
+    <div class="overview-header">
+      <h2 style="font-size: 1.5rem; font-weight: 800; color: #fff;">Slide Deck Overview (18 Slides)</h2>
+      <button class="btn-action" onclick="toggleOverview()">✕ Close</button>
+    </div>
+    <div class="overview-grid" id="overviewGrid">
+      <!-- Injected via JavaScript -->
+    </div>
+  </div>
+
+  <!-- Speaker Notes Drawer -->
+  <aside class="speaker-notes-panel" id="speakerNotesPanel">
+    <div class="speaker-notes-header">
+      <span>🎙️ Strategic Talking Points</span>
+      <button class="btn-action" style="padding: 2px 8px;" onclick="toggleNotes()">✕</button>
+    </div>
+    <div class="speaker-notes-body" id="speakerNotesContent">
+      <!-- Injected via JavaScript -->
+    </div>
+  </aside>
+
+  <!-- Interactive Slide Control Engine -->
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let currentSlide = 1;
+
+    // Speaker notes registry for enterprise pitch delivery
+    const speakerNotes = {
+      1: "Hook the investor immediately: Emphasize that EduFast is NOT another generic video course portal. It is a full-stack operating system for university admissions in Bangladesh. Highlight the ৳1,800 Crore market and DIIT engineering foundation.",
+      2: "Present the market macro data: 1.5M annual candidates, extreme anxiety, and parents willing to spend whatever it takes to secure a public university seat. Frame our TAM, SAM, and SOM as highly conservative.",
+      3: "Highlight the 5 systemic failures of competitors: Fragmented circulars, rampant fake GPAs, student isolation/burnout, guesswork vs. ML, and disjointed tools (Zoom + Google Forms).",
+      4: "Introduce the EduFast Super-App architecture: All 4 user roles run on a single unified database with zero bloat. Point out the zero-cloud-cost advantage.",
+      5: "Spotlight the World-First Breakthrough: Direct government board scraping with live CAPTCHA sync. Explain why competitors cannot easily clone this and how it guarantees 100% verified student profiles.",
+      6: "Walk through the 4 distinct user tiers. Switch tabs to demonstrate that Students, Teachers, Mentors, and Admins each have bespoke interfaces.",
+      7: "Detail the Student Super-App: Centralized Admission Radar with exam countdowns, adaptive timed tests with genuine -0.25 negative marks, and EduCoins gamification.",
+      8: "Detail the Teacher Live Studio: No Zoom or Google Meet needed! Native WebRTC broadcasting, vector whiteboard, live polls, and instant cloud lecture recordings.",
+      9: "Detail the Mentor 24/7 Desk: Monetizes BUET and Medical alumni. Showcase the Tesseract OCR engine that parses handwritten problem photos.",
+      10: "Showcase the Super Admin & In-Browser SQLite Studio: Emphasize that non-technical admins can run direct SQL queries without command-line access, and track sponsored ad CTRs.",
+      11: "Explain the Virtual Study Lounge: A massive student retention magnet inspired by modern digital study rooms. Lo-fi beats, Pomodoro synchronization, and peer study mining.",
+      12: "Deep dive into the Machine Learning engine: Scikit-learn Random Forest model trained on 4,000 students with 89.75% accuracy. Cite the exact feature importance metrics.",
+      13: "Explain the Study Abroad expansion: Captures students who don't get into public varsities, unlocking high-margin foreign agency referral commissions ($500-$2,000/student).",
+      14: "Deliver the knock-out punch: The 12-point comparison table against 10 Minute School, Shikho, and Udvash. EduFast decisively wins on technological moats.",
+      15: "Break down the 4 monetization streams: Pro Pass subscriptions, Course marketplace, B2B varsity ad campaigns, and Mentor marketplace commissions.",
+      16: "Interactive financial model: Invite the investor to play with the student slider. Demonstrate that at 100k students with 8% Pro conversion, EduFast delivers ৳2.24+ Crore ARR with 87%+ net margins.",
+      17: "Enterprise acquisition rationale: Why an acquirer (10MS, Shikho, Chorki) should buy today instead of spending 18 months and $150k+ rebuilding from scratch.",
+      18: "Closing & Handover package: Full IP handover, trained ML joblib binaries, compiled Android APK, and developer documentation. Open the floor for terms and Q&A."
+    };
+
+    function updateSlideUI() {
+      slides.forEach((s, idx) => {
+        if (idx + 1 === currentSlide) {
+          s.classList.add('active');
+        } else {
+          s.classList.remove('active');
+        }
+      });
+
+      // Update counters & progress
+      document.getElementById('slideCounter').textContent = `Slide ${currentSlide} / ${totalSlides}`;
+      const progressPercent = (currentSlide / totalSlides) * 100;
+      document.getElementById('progressFill').style.width = `${progressPercent}%`;
+
+      // Update nav button states
+      document.getElementById('btnPrev').disabled = (currentSlide === 1);
+      document.getElementById('btnNext').disabled = (currentSlide === totalSlides);
+
+      // Update speaker notes
+      document.getElementById('speakerNotesContent').innerHTML = `
+        <div style="font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px;">Slide ${currentSlide}: ${slides[currentSlide - 1].dataset.title}</div>
+        <p>${speakerNotes[currentSlide] || "Deliver core value proposition with confidence."}</p>
+      `;
+
+      // Update overview current card
+      document.querySelectorAll('.overview-card').forEach((card, idx) => {
+        if (idx + 1 === currentSlide) {
+          card.classList.add('current');
+        } else {
+          card.classList.remove('current');
+        }
+      });
+    }
+
+    function navigateSlide(direction) {
+      const target = currentSlide + direction;
+      if (target >= 1 && target <= totalSlides) {
+        currentSlide = target;
+        updateSlideUI();
+      }
+    }
+
+    function jumpToSlide(num) {
+      if (num >= 1 && num <= totalSlides) {
+        currentSlide = num;
+        updateSlideUI();
+        closeOverview();
+      }
+    }
+
+    // Keyboard Navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        navigateSlide(1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        navigateSlide(-1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        jumpToSlide(1);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        jumpToSlide(totalSlides);
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        toggleOverview();
+      } else if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        toggleNotes();
+      } else if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        window.print();
+      }
+    });
+
+    // Fullscreen Toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => alert(err.message));
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+    document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
+
+    // Grid Overview Toggle
+    function toggleOverview() {
+      const modal = document.getElementById('overviewModal');
+      modal.classList.toggle('active');
+    }
+    function closeOverview() {
+      document.getElementById('overviewModal').classList.remove('active');
+    }
+    document.getElementById('btnOverview').addEventListener('click', toggleOverview);
+
+    // Speaker Notes Toggle
+    function toggleNotes() {
+      const panel = document.getElementById('speakerNotesPanel');
+      panel.classList.toggle('open');
+      document.getElementById('btnNotes').classList.toggle('active');
+    }
+    document.getElementById('btnNotes').addEventListener('click', toggleNotes);
+
+    // Print to PDF
+    document.getElementById('btnPrint').addEventListener('click', () => window.print());
+
+    // Build Grid Cards
+    const overviewGrid = document.getElementById('overviewGrid');
+    slides.forEach((s, idx) => {
+      const card = document.createElement('div');
+      card.className = `overview-card ${idx === 0 ? 'current' : ''}`;
+      card.onclick = () => jumpToSlide(idx + 1);
+      card.innerHTML = `
+        <div class="overview-num">SLIDE ${idx + 1}</div>
+        <div class="overview-title">${s.dataset.title || `Slide ${idx + 1}`}</div>
+      `;
+      overviewGrid.appendChild(card);
+    });
+
+    // Role Tab Switcher (Slide 6)
+    const roleData = {
+      student: {
+        title: "Student Super-App",
+        summary: "Empowers university admission seekers with verified credential tracking, personalized AI study schedules, real-time exam countdowns, adaptive mock tests, and collaborative focus lounges.",
+        features: [
+          "✓ Board Result Auto-Fill", "✓ Centralized Circular Radar",
+          "✓ Adaptive Mock Tests (-0.25)", "✓ 24/7 Virtual Study Lounge",
+          "✓ Machine Learning Predictor", "✓ Foreign University Evaluator"
+        ],
+        stat: "92% Retention",
+        desc: "Gamification and daily routines keep students returning multiple times a day."
+      },
+      teacher: {
+        title: "Teacher Live Studio",
+        summary: "Gives educators an all-in-one broadcast studio. Broadcast live classes, sketch on an interactive vector whiteboard, run live polling, and manage cloud lecture recordings.",
+        features: [
+          "✓ Native WebRTC Streaming", "✓ Vector Whiteboard & Shapes",
+          "✓ Screen Share Presentations", "✓ Instant In-Class Polls",
+          "✓ Cloud Recording Vault", "✓ Student Attendance Telemetry"
+        ],
+        stat: "Zero Zoom Cost",
+        desc: "Entire live broadcasting occurs inside the browser with zero third-party software fees."
+      },
+      mentor: {
+        title: "Mentor 24/7 Doubt Desk",
+        summary: "Enables verified BUET, Medical, and DU top alumni to monetize their expertise. Tesseract OCR instantly extracts handwritten problem snapshots from students.",
+        features: [
+          "✓ Tesseract OCR Snapshot Parsing", "✓ Integrated Audio Voice Notes",
+          "✓ Rich Text & Math Equations", "✓ Fast Claim & Solve Queue",
+          "✓ 1-5 Star Student Ratings", "✓ Automated Monthly Payouts"
+        ],
+        stat: "20% Take-Rate",
+        desc: "Platform retains a 20% commission on all 1-on-1 private mentoring credits."
+      },
+      admin: {
+        title: "Super Admin & Database Studio",
+        summary: "Provides total institutional sovereignty. Features an in-browser SQLite Studio to inspect and query tables, publish admission circulars, and monitor sponsored ad CTRs.",
+        features: [
+          "✓ In-Browser Visual SQL Studio", "✓ Sub-ms WAL Query Engine",
+          "✓ Live University Circulars", "✓ Sponsored Ad CTR Telemetry",
+          "✓ User RBAC Governance", "✓ Payment & Revenue Audit Logs"
+        ],
+        stat: "$0 DB Bills",
+        desc: "High-speed local SQLite WAL completely eliminates monthly AWS RDS cloud costs."
+      }
+    };
+
+    function switchRoleTab(role) {
+      document.querySelectorAll('.role-tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const data = roleData[role];
+      document.getElementById('roleTitle').textContent = data.title;
+      document.getElementById('roleSummary').textContent = data.summary;
+      document.getElementById('roleStat').textContent = data.stat;
+      document.getElementById('roleStatDesc').textContent = data.desc;
+
+      const featsContainer = document.getElementById('roleFeatures');
+      featsContainer.innerHTML = '';
+      data.features.forEach(f => {
+        const pill = document.createElement('div');
+        pill.className = 'pill pill-green';
+        pill.textContent = f;
+        featsContainer.appendChild(pill);
+      });
+    }
+
+    // Financial Simulator (Slide 16)
+    function updateFinancials() {
+      const students = parseInt(document.getElementById('sliderStudents').value);
+      const convRate = parseInt(document.getElementById('sliderConv').value) / 100;
+      const fee = parseInt(document.getElementById('sliderFee').value);
+
+      document.getElementById('sliderStudentVal').textContent = students.toLocaleString();
+      document.getElementById('sliderConvVal').textContent = `${(convRate * 100).toFixed(0)}%`;
+      document.getElementById('sliderFeeVal').textContent = `৳${fee.toLocaleString()}`;
+
+      const payingStudents = students * convRate;
+      const subscriptionRev = payingStudents * fee;
+      const courseRev = students * 0.05 * 1800; // 5% buy courses
+      const adRev = 2400000; // Fixed baseline ad revenue
+
+      const totalGross = subscriptionRev + courseRev + adRev;
+      const serverAndOps = 2800000;
+      const netProfit = Math.max(0, totalGross - serverAndOps);
+
+      const arrInCrore = (totalGross / 10000000).toFixed(2);
+      const profitInCrore = (netProfit / 10000000).toFixed(2);
+
+      document.getElementById('displayARR').textContent = `৳${arrInCrore} Crore`;
+      document.getElementById('displayNetProfit').textContent = `৳${profitInCrore} Crore`;
+    }
+
+    // Initialize UI
+    updateSlideUI();
+  </script>
+</body>
+</html>
+

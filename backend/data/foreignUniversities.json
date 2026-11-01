@@ -1,0 +1,298 @@
+[
+  {
+    "id": "univ-usa-1792950379305",
+    "name": "international bd",
+    "country": "AAAAA",
+    "countryCode": "USA",
+    "flag": "🏛️",
+    "city": "SSSSS",
+    "qsRank": 100,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.25,
+    "minIelts": 6.5,
+    "minGre": 310,
+    "tuitionPerYear": "$25,000 / Year",
+    "scholarship": "Full Tuition Waiver & Teaching Assistantship (TA/RA)",
+    "acceptanceRate": "15%",
+    "popularPrograms": [
+      "Computer Science",
+      "Data Science",
+      "AI",
+      "Mechanical Engineering"
+    ],
+    "applyDeadline": "December 15",
+    "portalUrl": "https://www.facebook.com/BdCFT/"
+  },
+  {
+    "id": "mit-usa",
+    "name": "Massachusetts Institute of Technology (MIT)",
+    "country": "United States",
+    "countryCode": "USA",
+    "flag": "🇺🇸",
+    "city": "Cambridge, MA",
+    "qsRank": 1,
+    "degreeLevels": [
+      "Bachelors",
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.85,
+    "minIelts": 7.5,
+    "minGre": 325,
+    "tuitionPerYear": "$59,750",
+    "scholarship": "Full Need-Based & TA/RA Fellowships (100% Tuition + Stipend)",
+    "acceptanceRate": "4%",
+    "popularPrograms": [
+      "Computer Science",
+      "Artificial Intelligence",
+      "Mechanical Engineering",
+      "Physics"
+    ],
+    "applyDeadline": "December 15 (Fall Intake)",
+    "portalUrl": "https://gradapply.mit.edu"
+  },
+  {
+    "id": "tum-germany",
+    "name": "Technical University of Munich (TUM)",
+    "country": "Germany",
+    "countryCode": "DEU",
+    "flag": "🇩🇪",
+    "city": "Munich, Bavaria",
+    "qsRank": 28,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.3,
+    "minIelts": 6.5,
+    "minGre": 310,
+    "tuitionPerYear": "€0 (Tuition Free, Semester Fee ~€150)",
+    "scholarship": "DAAD Fellowship & Deutschlandstipendium (~€934/month stipend)",
+    "acceptanceRate": "24%",
+    "popularPrograms": [
+      "Informatics (Computer Science)",
+      "Data Engineering",
+      "Robotics",
+      "Automotive"
+    ],
+    "applyDeadline": "May 31 (Winter Semester)",
+    "portalUrl": "https://www.tum.de/en/studies/application"
+  },
+  {
+    "id": "utoronto-canada",
+    "name": "University of Toronto",
+    "country": "Canada",
+    "countryCode": "CAN",
+    "flag": "🇨🇦",
+    "city": "Toronto, Ontario",
+    "qsRank": 21,
+    "degreeLevels": [
+      "Bachelors",
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.4,
+    "minIelts": 7,
+    "minGre": 315,
+    "tuitionPerYear": "CAD $42,000",
+    "scholarship": "Ontario Graduate Scholarship (OGS) & U of T Fellowships",
+    "acceptanceRate": "38%",
+    "popularPrograms": [
+      "Computer Science",
+      "Software Engineering",
+      "Management & Finance",
+      "Biomedical"
+    ],
+    "applyDeadline": "January 15 (Fall Intake)",
+    "portalUrl": "https://www.sgs.utoronto.ca/admissions"
+  },
+  {
+    "id": "oxford-uk",
+    "name": "University of Oxford",
+    "country": "United Kingdom",
+    "countryCode": "GBR",
+    "flag": "🇬🇧",
+    "city": "Oxford, Oxfordshire",
+    "qsRank": 3,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.75,
+    "minIelts": 7.5,
+    "minGre": 320,
+    "tuitionPerYear": "£34,000",
+    "scholarship": "Clarendon Fund, Rhodes Scholarship & Commonwealth Scholarship",
+    "acceptanceRate": "14%",
+    "popularPrograms": [
+      "Advanced Computer Science",
+      "Mathematical Sciences",
+      "Public Policy",
+      "Economics"
+    ],
+    "applyDeadline": "January 10 (Fall Intake)",
+    "portalUrl": "https://www.ox.ac.uk/admissions/graduate"
+  },
+  {
+    "id": "unsw-australia",
+    "name": "University of New South Wales (UNSW Sydney)",
+    "country": "Australia",
+    "countryCode": "AUS",
+    "flag": "🇦🇺",
+    "city": "Sydney, NSW",
+    "qsRank": 19,
+    "degreeLevels": [
+      "Bachelors",
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.2,
+    "minIelts": 6.5,
+    "minGre": 0,
+    "tuitionPerYear": "AUD $48,000",
+    "scholarship": "Australia Awards & International Scientia Coursework Scholarship",
+    "acceptanceRate": "45%",
+    "popularPrograms": [
+      "Information Technology",
+      "Cyber Security",
+      "Civil Engineering",
+      "Data Science"
+    ],
+    "applyDeadline": "November 30 (Term 1 / Feb Intake)",
+    "portalUrl": "https://www.unsw.edu.au/study"
+  },
+  {
+    "id": "kth-sweden",
+    "name": "KTH Royal Institute of Technology",
+    "country": "Sweden",
+    "countryCode": "SWE",
+    "flag": "🇸🇪",
+    "city": "Stockholm",
+    "qsRank": 73,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.25,
+    "minIelts": 6.5,
+    "minGre": 0,
+    "tuitionPerYear": "SEK 155,000 (~$15,000)",
+    "scholarship": "Swedish Institute (SI) Scholarship (100% Tuition + SEK 12,000/mo Living Cost)",
+    "acceptanceRate": "32%",
+    "popularPrograms": [
+      "Machine Learning",
+      "Software Engineering of Distributed Systems",
+      "Telecommunications"
+    ],
+    "applyDeadline": "January 15 (Autumn Intake)",
+    "portalUrl": "https://www.universityadmissions.se"
+  },
+  {
+    "id": "utwente-netherlands",
+    "name": "University of Twente",
+    "country": "Netherlands",
+    "countryCode": "NLD",
+    "flag": "🇳🇱",
+    "city": "Enschede, Overijssel",
+    "qsRank": 210,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.1,
+    "minIelts": 6.5,
+    "minGre": 0,
+    "tuitionPerYear": "€16,500",
+    "scholarship": "University of Twente Scholarship (UTS) & Holland Scholarship",
+    "acceptanceRate": "52%",
+    "popularPrograms": [
+      "Computer Science",
+      "Interaction Technology",
+      "Business Information Technology"
+    ],
+    "applyDeadline": "May 1 (September Intake)",
+    "portalUrl": "https://www.utwente.nl/en/education/master"
+  },
+  {
+    "id": "georgia-tech-usa",
+    "name": "Georgia Institute of Technology (Georgia Tech)",
+    "country": "United States",
+    "countryCode": "USA",
+    "flag": "🇺🇸",
+    "city": "Atlanta, GA",
+    "qsRank": 88,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.5,
+    "minIelts": 7,
+    "minGre": 315,
+    "tuitionPerYear": "$31,000",
+    "scholarship": "Graduate Teaching Assistant (GTA) / Research Assistant (GRA) Tuition Waiver",
+    "acceptanceRate": "16%",
+    "popularPrograms": [
+      "Computer Science",
+      "Electrical and Computer Engineering",
+      "Industrial Engineering"
+    ],
+    "applyDeadline": "January 1 (Fall Intake)",
+    "portalUrl": "https://grad.gatech.edu"
+  },
+  {
+    "id": "alberta-canada",
+    "name": "University of Alberta",
+    "country": "Canada",
+    "countryCode": "CAN",
+    "flag": "🇨🇦",
+    "city": "Edmonton, Alberta",
+    "qsRank": 96,
+    "degreeLevels": [
+      "Bachelors",
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.2,
+    "minIelts": 6.5,
+    "minGre": 305,
+    "tuitionPerYear": "CAD $28,000",
+    "scholarship": "Alberta Graduate Excellence Scholarship (AGES) + Guaranteed Funding for Thesis-based",
+    "acceptanceRate": "48%",
+    "popularPrograms": [
+      "Computing Science",
+      "Artificial Intelligence (Amii Hub)",
+      "Petroleum Engineering"
+    ],
+    "applyDeadline": "March 1 (Fall Intake)",
+    "portalUrl": "https://www.ualberta.ca/graduate-studies"
+  },
+  {
+    "id": "tokyo-japan",
+    "name": "The University of Tokyo (Todai)",
+    "country": "Japan",
+    "countryCode": "JPN",
+    "flag": "🇯🇵",
+    "city": "Tokyo",
+    "qsRank": 28,
+    "degreeLevels": [
+      "Masters",
+      "PhD"
+    ],
+    "minCgpa": 3.35,
+    "minIelts": 6.5,
+    "minGre": 0,
+    "tuitionPerYear": "¥535,800 (~$3,800)",
+    "scholarship": "MEXT Japanese Government Scholarship (Full Tuition + ¥147,000/mo Stipend + Airfare)",
+    "acceptanceRate": "22%",
+    "popularPrograms": [
+      "Information Science and Technology",
+      "Civil Engineering",
+      "Applied Physics"
+    ],
+    "applyDeadline": "December 10 (October Intake)",
+    "portalUrl": "https://www.u-tokyo.ac.jp/en/admissions-and-fees"
+  }
+]

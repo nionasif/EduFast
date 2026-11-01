@@ -1,0 +1,92 @@
+{
+  "model_name": "RandomForestClassifier",
+  "library": "scikit-learn 1.9.1 / Python 3.13",
+  "training_samples": 3200,
+  "test_samples": 800,
+  "metrics": {
+    "accuracy": 0.8975,
+    "precision": 0.8822,
+    "recall": 0.9932,
+    "f1_score": 0.9344,
+    "cv_mean_accuracy": 0.9155,
+    "cv_std_accuracy": 0.0073,
+    "confusion_matrix": [
+      [
+        134,
+        78
+      ],
+      [
+        4,
+        584
+      ]
+    ]
+  },
+  "comparison": {
+    "logistic_regression_accuracy": 0.8712,
+    "logistic_regression_f1": 0.9181
+  },
+  "feature_importance_top10": [
+    {
+      "feature": "target_uni_BUET",
+      "importance": 0.3519
+    },
+    {
+      "feature": "combined_gpa",
+      "importance": 0.1332
+    },
+    {
+      "feature": "mock_score",
+      "importance": 0.0802
+    },
+    {
+      "feature": "hsc_gpa",
+      "importance": 0.0689
+    },
+    {
+      "feature": "ssc_gpa",
+      "importance": 0.0599
+    },
+    {
+      "feature": "study_hours",
+      "importance": 0.0467
+    },
+    {
+      "feature": "target_uni_JU_BIOLOGY",
+      "importance": 0.0465
+    },
+    {
+      "feature": "chem_gp",
+      "importance": 0.046
+    },
+    {
+      "feature": "target_uni_MEDICAL_MBBS",
+      "importance": 0.0383
+    },
+    {
+      "feature": "target_uni_DU_SCIENCE",
+      "importance": 0.0208
+    }
+  ],
+  "features": [
+    "ssc_gpa",
+    "hsc_gpa",
+    "combined_gpa",
+    "math_gp",
+    "physics_gp",
+    "chem_gp",
+    "bio_gp",
+    "eng_gp",
+    "mock_score",
+    "study_hours"
+  ],
+  "categories": [
+    "JU_BIOLOGY",
+    "CKRUET",
+    "BUET",
+    "DU_BUSINESS",
+    "GST_SCIENCE",
+    "DU_ARTS",
+    "DU_SCIENCE",
+    "MEDICAL_MBBS"
+  ]
+}

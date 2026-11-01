@@ -1,5 +1,7 @@
 import React from 'react';
 import { X, FileText } from 'lucide-react';
+import { getCustomServerUrl } from '../../services/api';
+import { formatYouTubeEmbedUrl, isYouTubeUrl } from '../../services/videoHelper';
 
 export default function RecordingPreviewModal({
   previewRecording,
@@ -8,6 +10,11 @@ export default function RecordingPreviewModal({
   theme
 }) {
   if (!previewRecording) return null;
+
+  const rawUrl = previewRecording.videoUrl || '';
+  const resolvedUrl = rawUrl.startsWith('/uploads') ? `${getCustomServerUrl()}${rawUrl}` : rawUrl;
+  const isYouTube = isYouTubeUrl(resolvedUrl);
+  const embedUrl = isYouTube ? formatYouTubeEmbedUrl(resolvedUrl) : resolvedUrl;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -46,9 +53,9 @@ export default function RecordingPreviewModal({
           paddingTop: '56.25%',
           marginBottom: '1rem'
         }}>
-          {previewRecording.videoUrl.includes('youtube.com') || previewRecording.videoUrl.includes('youtu.be') ? (
+          {isYouTube ? (
             <iframe
-              src={previewRecording.videoUrl}
+              src={embedUrl}
               title={previewRecording.title}
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -56,9 +63,11 @@ export default function RecordingPreviewModal({
             />
           ) : (
             <video
-              src={previewRecording.videoUrl}
+              key={resolvedUrl}
+              src={resolvedUrl}
               controls
               autoPlay
+              playsInline
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }}
             />
           )}

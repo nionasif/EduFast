@@ -57,7 +57,7 @@ router.post('/api/upload/video', upload.single('video'), (req, res) => {
         originalName: req.file.originalname,
         sizeBytes: req.file.size,
         videoUrl: videoUrl,
-        fullUrl: `http://localhost:5001${videoUrl}`
+        fullUrl: `${req.protocol}://${req.get('host')}${videoUrl}`
       }
     });
   } catch (err) {
@@ -99,10 +99,62 @@ router.get('/api/upload/videos', (req, res) => {
 router.get('/api/courses/:courseId/curriculum', async (req, res) => {
   try {
     const db = getDb();
-    const rows = await db.all(
+    let rows = await db.all(
       'SELECT * FROM course_curriculum WHERE courseId = ? ORDER BY orderIndex ASC, id ASC',
       [req.params.courseId]
     );
+
+    // If no rows in SQLite course_curriculum, check backend/DATA/courses.json
+    if (rows.length === 0) {
+      try {
+        const coursesFilePath = path.join(__dirname, '..', 'DATA', 'courses.json');
+        if (fs.existsSync(coursesFilePath)) {
+          const coursesList = JSON.parse(fs.readFileSync(coursesFilePath, 'utf8') || '[]');
+          const matched = coursesList.find(c => String(c.id) === String(req.params.courseId));
+          if (matched && Array.isArray(matched.modules) && matched.modules.length > 0) {
+            // Ensure course exists in courses table
+            await db.run(
+              `INSERT OR IGNORE INTO courses (id, title, instructor, isApproved, status)
+               VALUES (?, ?, ?, ?, ?)`,
+              [matched.id, matched.title, matched.instructor || 'EduFast Instructor', matched.isApproved ? 1 : 0, matched.status || 'Pending']
+            );
+
+            // Insert each lesson into course_curriculum
+            for (let mIdx = 0; mIdx < matched.modules.length; mIdx++) {
+              const mod = matched.modules[mIdx];
+              if (Array.isArray(mod.lessons)) {
+                for (let lIdx = 0; lIdx < mod.lessons.length; lIdx++) {
+                  const les = mod.lessons[lIdx];
+                  if (les.title && les.videoUrl) {
+                    await db.run(
+                      `INSERT INTO course_curriculum (courseId, moduleTitle, topicTitle, videoUrl, videoSourceType, duration, orderIndex)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                      [
+                        matched.id,
+                        mod.title || `Module ${mIdx + 1}`,
+                        les.title,
+                        les.videoUrl,
+                        les.videoSourceType || 'external',
+                        les.duration || '30:00',
+                        lIdx
+                      ]
+                    );
+                  }
+                }
+              }
+            }
+
+            // Query rows again
+            rows = await db.all(
+              'SELECT * FROM course_curriculum WHERE courseId = ? ORDER BY orderIndex ASC, id ASC',
+              [req.params.courseId]
+            );
+          }
+        }
+      } catch (fbErr) {
+        console.warn('Fallback curriculum loading notice:', fbErr.message);
+      }
+    }
 
     // Group by moduleTitle
     const moduleMap = {};
@@ -285,6 +337,48 @@ router.delete('/api/courses/curriculum/:lessonId', async (req, res) => {
   } catch (err) {
     console.error('Delete lesson error:', err);
     return res.status(500).json({ success: false, error: 'Failed to delete lesson.' });
+  }
+});
+
+// Ensure document upload directory exists
+const docUploadDir = path.join(__dirname, '..', 'uploads', 'documents');
+if (!fs.existsSync(docUploadDir)) {
+  fs.mkdirSync(docUploadDir, { recursive: true });
+}
+
+const docStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, docUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E4);
+    cb(null, `${baseName}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const uploadDoc = multer({ storage: docStorage, limits: { fileSize: 1024 * 1024 * 50 } });
+
+// 7. POST /api/upload/document - Upload PDF/Sheets
+router.post('/api/upload/document', uploadDoc.single('document'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No document file provided.' });
+    }
+    const docUrl = `/uploads/documents/${req.file.filename}`;
+    return res.json({
+      success: true,
+      message: 'Document uploaded successfully!',
+      data: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        documentUrl: docUrl,
+        fullUrl: `${req.protocol}://${req.get('host')}${docUrl}`
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

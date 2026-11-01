@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video, Upload, Trash2, Play, Eye, FileText, CheckCircle2, Clock, AlertCircle, RefreshCw, Film } from 'lucide-react';
+import { formatYouTubeEmbedUrl, isYouTubeUrl } from '../../services/videoHelper';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
 
 export default function TeacherCurriculumModal({
   isOpen,
@@ -246,6 +248,11 @@ export default function TeacherCurriculumModal({
           return;
         }
       }
+    } else {
+      // If YouTube or external link
+      if (isYouTubeUrl(finalVideoUrl)) {
+        finalVideoUrl = formatYouTubeEmbedUrl(finalVideoUrl, true);
+      }
     }
 
     if (!finalVideoUrl || !finalVideoUrl.trim()) {
@@ -289,6 +296,7 @@ export default function TeacherCurriculumModal({
           setCurriculum(data.curriculum);
           localStorage.setItem(`edufast_curriculum_${course.id}`, JSON.stringify(data.curriculum));
           onCurriculumUpdated(data.curriculum);
+          window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'curriculum', courseId: course.id } }));
         } else {
           fetchData();
         }
@@ -621,64 +629,73 @@ export default function TeacherCurriculumModal({
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.35rem' }}>
                   ৩. ভিডিও সোর্স নির্বাচন করুন *
                 </label>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.3fr 0.9fr', gap: '0.4rem' }}>
                   <button
                     type="button"
-                    onClick={() => setVideoSourceType('upload')}
+                    onClick={() => { setVideoSourceType('upload'); setVideoUrl(''); }}
                     style={{
-                      flex: 1.2,
-                      padding: '0.45rem',
-                      borderRadius: '6px',
-                      border: videoSourceType === 'upload' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
+                      padding: '0.5rem 0.6rem',
+                      borderRadius: '8px',
+                      border: videoSourceType === 'upload' ? '1.5px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
                       background: videoSourceType === 'upload' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.04)',
                       color: videoSourceType === 'upload' ? '#34d399' : '#94a3b8',
-                      fontSize: '0.76rem',
+                      fontSize: '0.78rem',
                       fontWeight: 700,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem'
                     }}
                   >
-                    💻 পিসি থেকে আপলোড
+                    💻 ১. পিসি থেকে আপলোড
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setVideoSourceType('url'); setSelectedFile(null); setFilePreviewUrl(null); }}
+                    style={{
+                      padding: '0.5rem 0.6rem',
+                      borderRadius: '8px',
+                      border: videoSourceType === 'url' ? '1.5px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
+                      background: videoSourceType === 'url' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.04)',
+                      color: videoSourceType === 'url' ? '#fbbf24' : '#94a3b8',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    ▶️ ২. YouTube লিংক (কাস্টম প্লেয়ার)
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setVideoSourceType('server')}
                     style={{
-                      flex: 1,
-                      padding: '0.45rem',
-                      borderRadius: '6px',
-                      border: videoSourceType === 'server' ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
+                      padding: '0.5rem 0.4rem',
+                      borderRadius: '8px',
+                      border: videoSourceType === 'server' ? '1.5px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
                       background: videoSourceType === 'server' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.04)',
                       color: videoSourceType === 'server' ? '#38bdf8' : '#94a3b8',
                       fontSize: '0.76rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.25rem'
                     }}
                   >
-                    🗂️ সার্ভার ভিডিও
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setVideoSourceType('url')}
-                    style={{
-                      flex: 0.9,
-                      padding: '0.45rem',
-                      borderRadius: '6px',
-                      border: videoSourceType === 'url' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
-                      background: videoSourceType === 'url' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.04)',
-                      color: videoSourceType === 'url' ? '#f59e0b' : '#94a3b8',
-                      fontSize: '0.76rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    🔗 অনলাইন লিংক
+                    🗂️ সার্ভার ফাইল
                   </button>
                 </div>
               </div>
 
-              {/* DIRECT PC FILE UPLOAD ZONE */}
+              {/* OPTION 1: DIRECT PC FILE UPLOAD ZONE */}
               {videoSourceType === 'upload' && (
                 <div style={{
                   background: 'rgba(16, 185, 129, 0.05)',
@@ -691,7 +708,7 @@ export default function TeacherCurriculumModal({
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399' }}>
-                      📂 পিসি থেকে ভিডিও ফাইল বেছে নিন (.mp4, .webm, .mkv)
+                      📂 পিসি থেকে সরাসরি ভিডিও ফাইল বেছে নিন (.mp4, .webm, .mkv)
                     </span>
                     {selectedFile && (
                       <span style={{ fontSize: '0.72rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
@@ -712,7 +729,7 @@ export default function TeacherCurriculumModal({
                   {filePreviewUrl && (
                     <div style={{ marginTop: '0.4rem', borderRadius: '8px', overflow: 'hidden', background: '#000', border: '1px solid rgba(255,255,255,0.1)' }}>
                       <div style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.3rem 0.6rem', background: 'rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>📺 আপলোডের আগে ভিডিও প্রিভিউ দেখুন:</span>
+                        <span>📺 আপলোডের আগে পিসির ভিডিও প্রিভিউ দেখুন:</span>
                         <span style={{ color: '#34d399' }}>● প্রস্তুত</span>
                       </div>
                       <video
@@ -738,6 +755,93 @@ export default function TeacherCurriculumModal({
                 </div>
               )}
 
+              {/* OPTION 2: YOUTUBE LINK / WHITE-LABEL DISGUISED STREAM */}
+              {videoSourceType === 'url' && (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.05)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: '10px',
+                  padding: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fbbf24', margin: 0 }}>
+                      🔗 YouTube ভিডিও লিংক পেস্ট করুন:
+                    </label>
+                    <span style={{ fontSize: '0.7rem', color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                      ইন-হাউজ প্লেয়ার মোড
+                    </span>
+                  </div>
+
+                  <input
+                    type="url"
+                    className="admin-input"
+                    placeholder="e.g. https://www.youtube.com/watch?v=... বা https://youtu.be/..."
+                    value={videoUrl}
+                    onChange={e => setVideoUrl(e.target.value)}
+                    style={{ borderColor: isYouTubeUrl(videoUrl) ? '#10b981' : undefined }}
+                  />
+
+                  <div style={{ fontSize: '0.73rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                    🛡️ <strong>সুরক্ষিত স্ট্রিমিং:</strong> ইউটিউব লিংক যুক্ত করলেও ছাত্র-ছাত্রীদের কাছে এটি EduFast-এর নিজস্ব হাই-স্পিড ভিডিও প্লেয়ারের মতো প্রদর্শিত হবে। ইউটিউবের লোগো বা বাইরের চ্যানেলের ভিডিও সাজেশন হাইড থাকবে।
+                  </div>
+
+                  {/* Live White-Label Player Preview if YouTube URL is entered */}
+                  {isYouTubeUrl(videoUrl) && (
+                    <div style={{
+                      marginTop: '0.35rem',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      background: '#000',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                      position: 'relative'
+                    }}>
+                      <div style={{
+                        fontSize: '0.72rem',
+                        color: '#34d399',
+                        padding: '0.35rem 0.65rem',
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <span>✨ কাস্টম প্লেয়ার প্রিভিউ (লাইভ যেমন দেখাবে):</span>
+                        <span style={{ fontWeight: 700 }}>● লিংক সক্রিয়</span>
+                      </div>
+
+                      <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
+                        <iframe
+                          key={videoUrl}
+                          src={formatYouTubeEmbedUrl(videoUrl, false)}
+                          title="YouTube Preview"
+                          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+
+                        {/* White-label branding overlay watermark */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '8px',
+                          left: '8px',
+                          background: 'rgba(15, 23, 42, 0.85)',
+                          backdropFilter: 'blur(6px)',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          borderRadius: '6px',
+                          padding: '0.2rem 0.5rem',
+                          pointerEvents: 'none',
+                          zIndex: 3
+                        }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--primary-teal, #14b8a6)' }}>EduFast Cloud</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* SERVER VIDEOS LIST */}
               {videoSourceType === 'server' && (
                 <div>
@@ -757,22 +861,6 @@ export default function TeacherCurriculumModal({
                       </option>
                     ))}
                   </select>
-                </div>
-              )}
-
-              {/* DIRECT URL INPUT */}
-              {videoSourceType === 'url' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '0.3rem' }}>
-                    ভিডিও URL / YouTube Link
-                  </label>
-                  <input
-                    type="url"
-                    className="admin-input"
-                    placeholder="https://...mp4 বা YouTube Link"
-                    value={videoUrl}
-                    onChange={e => setVideoUrl(e.target.value)}
-                  />
                 </div>
               )}
 
@@ -897,12 +985,24 @@ export default function TeacherCurriculumModal({
                     ✕ বন্ধ করুন
                   </button>
                 </div>
-                <video
-                  src={getFullVideoUrl(activePreviewVideo.videoUrl)}
-                  controls
-                  autoPlay
-                  style={{ width: '100%', maxHeight: '220px', borderRadius: '8px', objectFit: 'contain' }}
-                />
+                {isYouTubeUrl(activePreviewVideo.videoUrl) ? (
+                  <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', borderRadius: '8px', overflow: 'hidden' }}>
+                    <iframe
+                      src={formatYouTubeEmbedUrl(activePreviewVideo.videoUrl, true)}
+                      title={activePreviewVideo.title}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <video
+                    src={getFullVideoUrl(activePreviewVideo.videoUrl)}
+                    controls
+                    autoPlay
+                    style={{ width: '100%', maxHeight: '220px', borderRadius: '8px', objectFit: 'contain' }}
+                  />
+                )}
               </div>
             )}
 

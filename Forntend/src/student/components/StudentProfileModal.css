@@ -285,7 +285,10 @@
   padding: 0.65rem 0.85rem;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  min-height: 62px;
   gap: 0.25rem;
+  box-sizing: border-box;
 }
 
 .sp-info-label {
@@ -295,6 +298,7 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  min-height: 18px;
 }
 
 .sp-info-value {
@@ -306,6 +310,7 @@
   align-items: center;
   gap: 0.45rem;
   flex-wrap: wrap;
+  min-height: 24px;
 }
 
 .sp-copy-btn {

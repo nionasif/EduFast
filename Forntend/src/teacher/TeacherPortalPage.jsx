@@ -7,8 +7,12 @@ import {
   addNotification
 } from '../data/mockData';
 import { socket } from '../socket';
+import api from '../services/api';
+import LoginPage from '../common/pages/LoginPage';
 import { Trash2 } from 'lucide-react';
 import '../admin.css';
+import useLiveMediaStream from '../hooks/useLiveMediaStream';
+import { createTeacherBroadcaster } from '../services/liveWebRTC';
 
 // Modular Components
 import TeacherHeader from './components/TeacherHeader';
@@ -26,6 +30,9 @@ import TeacherCoursesTab from './tabs/TeacherCoursesTab';
 import TeacherNoticesTab from './tabs/TeacherNoticesTab';
 import TeacherProfileTab from './tabs/TeacherProfileTab';
 import TeacherCurriculumModal from './components/TeacherCurriculumModal';
+import CoursePlayerPage from '../student/pages/CoursePlayerPage';
+import { formatYouTubeEmbedUrl, isYouTubeUrl } from '../services/videoHelper';
+import BroadcastNoticeBanner from '../common/components/BroadcastNoticeBanner';
 
 export default function TeacherPortalPage({ onExitToPublic }) {
   // -------------------------------------------------------------
@@ -119,16 +126,87 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     }
   });
 
+  // Fetch backend teacher data
+  const fetchTeacherBackendData = async () => {
+    try {
+      const coursesRes = await api.get('/teacher/courses');
+      const coursesData = coursesRes.data?.data || coursesRes.data;
+      if (Array.isArray(coursesData)) {
+        setCourses(coursesData);
+        localStorage.setItem('edufast_dynamic_courses', JSON.stringify(coursesData));
+      }
+      const liveRes = await api.get('/live/classes');
+      const liveData = liveRes.data?.data || liveRes.data;
+      if (Array.isArray(liveData)) {
+        setLiveSessions(liveData);
+      }
+    } catch (err) {
+      console.warn('Teacher backend data load notice:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeacherBackendData();
+  }, [teacherUser?.email]);
+
+  // Real-time socket listener for course approval, status changes, and notifications
+  useEffect(() => {
+    const handleStatusUpdate = (data) => {
+      if (data && data.courseId) {
+        setCourses(prev => prev.map(c => {
+          if (String(c.id) === String(data.courseId)) {
+            const isApproved = (data.isApproved === true || data.isApproved === 1);
+            return {
+              ...c,
+              isApproved,
+              status: data.status || (isApproved ? 'Approved' : 'Pending'),
+              approvedAt: isApproved ? new Date().toISOString() : null
+            };
+          }
+          return c;
+        }));
+
+        if (data.isApproved) {
+          addToast(
+            `🎉 সুখবর! আপনার "${data.course?.title || 'কোর্স'}" এডমিন কর্তৃক সফলভাবে অনুমোদিত হয়েছে এবং এখন ওয়েবসাইটে লাইভ!`,
+            'success'
+          );
+        } else {
+          addToast(
+            `কোর্স "${data.course?.title || ''}" এর স্ট্যাটাস পেন্ডিং/স্থগিত করা হয়েছে।`,
+            'info'
+          );
+        }
+      }
+    };
+
+    const handleCourseDeleted = (data) => {
+      if (data && data.id) {
+        setCourses(prev => prev.filter(c => String(c.id) !== String(data.id)));
+      }
+    };
+
+    socket.on('course:status_updated', handleStatusUpdate);
+    socket.on('course:approval_changed', handleStatusUpdate);
+    socket.on('course:deleted', handleCourseDeleted);
+
+    return () => {
+      socket.off('course:status_updated', handleStatusUpdate);
+      socket.off('course:approval_changed', handleStatusUpdate);
+      socket.off('course:deleted', handleCourseDeleted);
+    };
+  }, []);
+
   // Cross-system reactive data update listener
   useEffect(() => {
     const refreshData = () => {
-      setCourses(getCourses());
-      setLiveSessions(getLiveClasses());
+      fetchTeacherBackendData();
       setRecordings(getTeacherRecordings());
     };
     window.addEventListener('edufast-data-update', refreshData);
     return () => window.removeEventListener('edufast-data-update', refreshData);
   }, []);
+
 
   // -------------------------------------------------------------
   // Logout Handler
@@ -151,23 +229,108 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const [liveStudioTab, setLiveStudioTab] = useState('whiteboard'); // 'whiteboard' | 'slides'
   const [activeBoardTool, setActiveBoardTool] = useState('pen');
   const [boardColor, setBoardColor] = useState('#319795');
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isCamOn, setIsCamOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [endClassModalOpen, setEndClassModalOpen] = useState(false);
+
+  // Live Camera, Microphone & Screen Share Stream Manager
+  const liveMedia = useLiveMediaStream();
+  const broadcasterRef = useRef(null);
+
+  // Auto-detect and activate camera and mic when teacher starts or enters live studio
+  useEffect(() => {
+    if (isLiveStudioActive) {
+      liveMedia.startStream({ targetMicOn: true, targetCamOn: true })
+        .then(stream => {
+          if (stream) {
+            addToast('🎙️ মাইক্রোফোন ও 📷 ক্যামেরা স্বয়ংক্রিয়ভাবে চালু হয়েছে!', 'success');
+          }
+        })
+        .catch(err => {
+          console.warn('Live studio stream init error:', err);
+        });
+    } else {
+      liveMedia.stopStream();
+    }
+  }, [isLiveStudioActive]);
+
+  // Real-Time Live Attendees State
+  const [liveViewerCount, setLiveViewerCount] = useState(0);
+
+  // Sync real-time viewer count from socket
+  useEffect(() => {
+    const handleViewerCount = (data) => {
+      if (data && typeof data.count === 'number') {
+        setLiveViewerCount(data.count);
+      }
+    };
+    socket.on('class:viewer_count', handleViewerCount);
+    if (isLiveStudioActive && currentBroadcastingSession?.id) {
+      socket.emit('class:get_viewers', { sessionId: currentBroadcastingSession.id });
+    }
+    return () => {
+      socket.off('class:viewer_count', handleViewerCount);
+    };
+  }, [isLiveStudioActive, currentBroadcastingSession?.id]);
+
+  // Real-Time WebRTC Broadcaster (Streams Sir's live camera and voice to students)
+  useEffect(() => {
+    if (isLiveStudioActive) {
+      broadcasterRef.current = createTeacherBroadcaster({
+        socket,
+        getLocalStream: () => liveMedia.screenStreamRef?.current || liveMedia.streamRef.current,
+        onViewerCountChange: (count) => setLiveViewerCount(count)
+      });
+
+      const onViewerJoined = (data) => {
+        broadcasterRef.current?.handleViewerJoined(data);
+      };
+      const onSignal = (data) => {
+        broadcasterRef.current?.handleSignal(data);
+      };
+
+      socket.on('webrtc:viewer_joined', onViewerJoined);
+      socket.on('webrtc:signal', onSignal);
+
+      return () => {
+        socket.off('webrtc:viewer_joined', onViewerJoined);
+        socket.off('webrtc:signal', onSignal);
+        broadcasterRef.current?.closeAllPeers();
+        broadcasterRef.current = null;
+      };
+    }
+  }, [isLiveStudioActive]);
+
+  // Keep peer tracks synced if stream updates (e.g. screen share or device change)
+  useEffect(() => {
+    if (broadcasterRef.current) {
+      const activeBroadcastStream = liveMedia.screenStream || liveMedia.stream;
+      if (activeBroadcastStream) {
+        broadcasterRef.current.updateTracks(activeBroadcastStream);
+        broadcasterRef.current.broadcastToAllPending();
+        try {
+          socket.emit('class:teacher_ready', { isLive: true });
+        } catch {}
+      }
+    }
+  }, [liveMedia.stream, liveMedia.screenStream]);
 
   // Whiteboard Canvas
   const whiteboardCanvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
 
   useEffect(() => {
-    if (isLiveStudioActive && liveStudioTab === 'whiteboard' && whiteboardCanvasRef.current) {
+    if (isLiveStudioActive && whiteboardCanvasRef.current) {
       const canvas = whiteboardCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight || 460;
-      ctx.fillStyle = '#1a202c';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Initialize dimensions only if not already initialized, to preserve drawings across tab switches
+      if (!canvas.width || canvas.width === 0 || canvas.width === 300) {
+        const parentW = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+        const parentH = canvas.parentElement ? canvas.parentElement.clientHeight : 0;
+        canvas.width = parentW > 100 ? parentW : 1280;
+        canvas.height = parentH > 100 ? parentH : 720;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#1a202c';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
     }
   }, [isLiveStudioActive, liveStudioTab]);
 
@@ -179,26 +342,8 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   };
 
   const startDrawing = (e) => {
+    isDrawingRef.current = true;
     setIsDrawing(true);
-    const canvas = whiteboardCanvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    try {
-      socket.emit('class:draw_stroke', {
-        tool: activeBoardTool,
-        color: boardColor,
-        type: 'start',
-        normX: x / canvas.width,
-        normY: y / canvas.height
-      });
-    } catch {}
-    draw(e);
-  };
-
-  const draw = (e) => {
-    if (!isDrawing) return;
     const canvas = whiteboardCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -206,13 +351,49 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const normX = x / canvas.width;
-    const normY = y / canvas.height;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
 
     if (activeBoardTool === 'pen') {
       ctx.strokeStyle = boardColor;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    } else if (activeBoardTool === 'eraser') {
+      ctx.fillStyle = '#1a202c';
+      ctx.fillRect(x - 15, y - 15, 30, 30);
+    }
+
+    try {
+      socket.emit('class:draw_stroke', {
+        tool: activeBoardTool,
+        color: boardColor,
+        type: 'start',
+        normX: canvas.width > 0 ? x / canvas.width : 0,
+        normY: canvas.height > 0 ? y / canvas.height : 0
+      });
+    } catch {}
+  };
+
+  const draw = (e) => {
+    if (!isDrawingRef.current) return;
+    const canvas = whiteboardCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const normX = canvas.width > 0 ? x / canvas.width : 0;
+    const normY = canvas.height > 0 ? y / canvas.height : 0;
+
+    if (activeBoardTool === 'pen') {
+      ctx.strokeStyle = boardColor;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.lineTo(x, y);
       ctx.stroke();
       ctx.beginPath();
@@ -234,6 +415,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   };
 
   const stopDrawing = () => {
+    isDrawingRef.current = false;
     setIsDrawing(false);
     const canvas = whiteboardCanvasRef.current;
     if (canvas) {
@@ -263,14 +445,14 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     if (isLiveStudioActive) {
       try {
         socket.emit('class:media_status', {
-          isMicOn,
-          isCamOn,
-          isScreenSharing,
+          isMicOn: liveMedia.isMicOn,
+          isCamOn: liveMedia.isCamOn,
+          isScreenSharing: liveMedia.isScreenSharing,
           teacherName: teacherUser?.name || 'শিক্ষক'
         });
       } catch {}
     }
-  }, [isMicOn, isCamOn, isScreenSharing, isLiveStudioActive, teacherUser]);
+  }, [liveMedia.isMicOn, liveMedia.isCamOn, liveMedia.isScreenSharing, isLiveStudioActive, teacherUser]);
 
   // Studio Chat & Polls
   const [studioMessages, setStudioMessages] = useState([
@@ -323,6 +505,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
 
     setCurrentBroadcastingSession(liveSessionData);
     setIsLiveStudioActive(true);
+    setActiveTab('live-studio');
 
     // Save in local storage & sync to backend DATA/liveClasses.json
     try {
@@ -370,56 +553,77 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     handleStartLiveClass(instantClass);
   };
 
-  const confirmEndLiveClass = (autoSaveRecording = true) => {
+  const confirmEndLiveClass = () => {
     if (!currentBroadcastingSession) return;
 
-    let newRec = null;
-    if (autoSaveRecording) {
-      newRec = {
-        id: `rec-${Date.now()}`,
-        title: `${currentBroadcastingSession.title} (Live Archive)`,
-        teacherId: teacherUser.id || teacherUser.email,
-        teacherEmail: teacherUser.email,
-        instructor: teacherUser.name,
-        group: currentBroadcastingSession.group || 'Science',
-        duration: currentBroadcastingSession.duration || '60 Minutes',
-        videoUrl: currentBroadcastingSession.streamUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-        sheetUrl: 'live_lecture_notes.pdf',
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        views: 1,
-        description: `Archived from live session conducted on ${new Date().toLocaleDateString()}.`
-      };
-      saveTeacherRecording(newRec);
-      addToast('Live broadcast ended and saved to Class Recordings!', 'success');
-    } else {
-      addToast('Live broadcast ended.', 'info');
+    const endedId = currentBroadcastingSession.id;
+
+    // Create a pending recording entry for this ended live class
+    const pendingRecordingItem = {
+      id: `rec-${endedId || Date.now()}`,
+      liveSessionId: endedId,
+      title: currentBroadcastingSession.title || 'লাইভ ক্লাস রেকর্ডিং',
+      teacherId: teacherUser.id || teacherUser.email,
+      teacherEmail: teacherUser.email,
+      instructor: currentBroadcastingSession.instructor || teacherUser.name || 'শিক্ষক',
+      group: currentBroadcastingSession.group || currentBroadcastingSession.academicGroup || 'Science',
+      duration: currentBroadcastingSession.duration || '90 Minutes',
+      videoUrl: '',
+      uploadedFileName: '',
+      videoUploaded: false,
+      status: 'pending_upload', // Sir needs to upload recording from PC
+      sheetUrl: '',
+      description: currentBroadcastingSession.overview || 'লাইভ ক্লাস সম্পন্ন হয়েছে। শিক্ষক কর্তৃক রেকর্ডিং ফাইল আপলোডের অপেক্ষায় রয়েছে।',
+      topics: currentBroadcastingSession.topics || 'Live Class Session Recording',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      views: 0,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      saveTeacherRecording(pendingRecordingItem);
+      setRecordings(prev => [pendingRecordingItem, ...prev.filter(r => r.id !== pendingRecordingItem.id)]);
+    } catch (e) {
+      console.warn('Error saving pending recording:', e);
     }
 
-    // Real-Time Socket Broadcast: notify all students class has ended with recording attached
+    // Real-Time Socket Broadcast: notify all students class has ended & pending recording created
     try {
       socket.emit('class:end', {
-        sessionId: currentBroadcastingSession.id,
+        sessionId: endedId,
         teacherId: teacherUser.id || teacherUser.email,
         teacherName: teacherUser.name,
-        recording: newRec
+        session: pendingRecordingItem
       });
-      if (newRec) {
-        socket.emit('recording:create', newRec);
-      }
+      socket.emit('recording:create', pendingRecordingItem);
     } catch (err) {
       console.warn('Socket end class error:', err);
     }
 
     try {
-      deleteLiveClass(currentBroadcastingSession.id);
-      setLiveSessions(prev => prev.filter(c => String(c.id) !== String(currentBroadcastingSession.id)));
+      deleteLiveClass(endedId);
+      setLiveSessions(prev => prev.filter(c => String(c.id) !== String(endedId)));
+      window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'live', action: 'delete' } }));
     } catch (e) {
       console.warn('Error deleting ended live class:', e);
+    }
+
+    try {
+      liveMedia.stopStream();
+      if (broadcasterRef.current) {
+        broadcasterRef.current.closeAllPeers();
+        broadcasterRef.current = null;
+      }
+      setLiveViewerCount(0);
+    } catch (e) {
+      console.warn('Error stopping live media on class end:', e);
     }
 
     setIsLiveStudioActive(false);
     setCurrentBroadcastingSession(null);
     setEndClassModalOpen(false);
+    setActiveTab('recordings');
+    addToast('লাইভ ক্লাস সমাপ্ত হয়েছে। রেকর্ড ক্লাসের তালিকায় যুক্ত হয়েছে, আপনার পিসি থেকে ভিডিও আপলোড করুন।', 'success');
   };
 
   const handleSendStudioMessage = (e) => {
@@ -555,8 +759,13 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const handleOpenEditRecording = (rec) => {
     setEditingRecordingId(rec.id);
     setRecordingFormData({
-      title: rec.title || '', group: rec.group || 'Science', duration: rec.duration || '45 Minutes',
-      videoUrl: rec.videoUrl || '', sheetUrl: rec.sheetUrl || '', description: rec.description || '',
+      title: rec.title || '',
+      group: rec.group || 'Science',
+      duration: rec.duration || '90 Minutes',
+      videoUrl: rec.videoUrl || '',
+      uploadedFileName: rec.uploadedFileName || '',
+      sheetUrl: rec.sheetUrl || '',
+      description: rec.description || '',
       topics: rec.topics || ''
     });
     setIsRecordingModalOpen(true);
@@ -565,26 +774,47 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const handleSaveRecording = (e) => {
     e.preventDefault();
     if (!recordingFormData.title || !recordingFormData.videoUrl) {
-      addToast('Please enter both title and video URL.', 'error');
+      addToast('অনুগ্রহ করে ক্লাসের শিরোনাম ও ভিডিও ফাইল/ইউআরএল নির্বাচন করুন।', 'error');
       return;
     }
+    const recId = editingRecordingId || `rec-${Date.now()}`;
+    const existing = recordings.find(r => r.id === recId) || {};
+    let finalRecVideoUrl = recordingFormData.videoUrl ? recordingFormData.videoUrl.trim() : '';
+    if (isYouTubeUrl(finalRecVideoUrl)) {
+      finalRecVideoUrl = formatYouTubeEmbedUrl(finalRecVideoUrl, true);
+    }
+
     const recData = {
-      id: editingRecordingId || `rec-${Date.now()}`,
+      ...existing,
+      id: recId,
       title: recordingFormData.title,
       teacherId: teacherUser.id || teacherUser.email,
       teacherEmail: teacherUser.email,
-      instructor: teacherUser.name,
+      instructor: teacherUser.name || existing.instructor || 'শিক্ষক',
       group: recordingFormData.group,
       duration: recordingFormData.duration,
-      videoUrl: recordingFormData.videoUrl,
+      videoUrl: finalRecVideoUrl,
+      uploadedFileName: recordingFormData.uploadedFileName || existing.uploadedFileName || '',
+      videoUploaded: true, // Marked as uploaded so students can play it!
+      status: 'ready',     // Status is ready
       sheetUrl: recordingFormData.sheetUrl,
       description: recordingFormData.description,
       topics: recordingFormData.topics,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      views: editingRecordingId ? (recordings.find(r => r.id === editingRecordingId)?.views || 0) : 0
+      date: existing.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      views: existing.views || 0,
+      updatedAt: new Date().toISOString()
     };
     saveTeacherRecording(recData);
-    addToast(editingRecordingId ? 'Class recording updated!' : 'Class recording uploaded successfully!', 'success');
+    setRecordings(prev => {
+      const idx = prev.findIndex(r => r.id === recId);
+      if (idx >= 0) return prev.map(r => r.id === recId ? recData : r);
+      return [recData, ...prev];
+    });
+    try {
+      socket.emit('recording:create', recData);
+      socket.emit('recording:update', recData);
+    } catch {}
+    addToast(editingRecordingId ? 'ক্লাসের ভিডিও সফলভাবে আপলোড হয়েছে! স্টুডেন্টরা এখন দেখতে পারবে।' : 'নতুন ক্লাস রেকর্ডিং আপলোড হয়েছে!', 'success');
     setIsRecordingModalOpen(false);
   };
 
@@ -624,6 +854,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const [editingCourseId, setEditingCourseId] = useState(null);
   const [curriculumCourse, setCurriculumCourse] = useState(null);
   const [isCurriculumModalOpen, setIsCurriculumModalOpen] = useState(false);
+  const [previewCourseForPlayer, setPreviewCourseForPlayer] = useState(null);
 
   const handleOpenCurriculum = (course) => {
     setCurriculumCourse(course);
@@ -737,6 +968,51 @@ export default function TeacherPortalPage({ onExitToPublic }) {
       status: editingCourseId ? (courses.find(c => c.id === editingCourseId)?.status ?? 'Pending') : 'Pending'
     };
     saveCourse(finalCourse);
+    setCourses(prev => {
+      const idx = prev.findIndex(c => String(c.id) === String(finalCourse.id));
+      if (idx >= 0) {
+        return prev.map(c => String(c.id) === String(finalCourse.id) ? finalCourse : c);
+      }
+      return [finalCourse, ...prev];
+    });
+
+    // 1. Immediately cache curriculum locally for student course player
+    try {
+      localStorage.setItem(`edufast_curriculum_${finalCourse.id}`, JSON.stringify(finalCourse.modules || []));
+      window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'curriculum', courseId: finalCourse.id } }));
+    } catch {}
+
+    // 2. Sync all lessons into backend SQLite database table course_curriculum
+    const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    if (Array.isArray(finalCourse.modules)) {
+      finalCourse.modules.forEach(mod => {
+        if (Array.isArray(mod.lessons)) {
+          mod.lessons.forEach(les => {
+            if (les.title && les.videoUrl) {
+              fetch(`${BACKEND_URL}/api/courses/${finalCourse.id}/curriculum`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  courseId: finalCourse.id,
+                  courseTitle: finalCourse.title,
+                  instructor: finalCourse.instructor,
+                  moduleTitle: mod.title,
+                  topicTitle: les.title,
+                  videoUrl: les.videoUrl,
+                  videoSourceType: les.videoSourceType || (isYouTubeUrl(les.videoUrl) ? 'external' : 'local'),
+                  duration: les.duration || '30:00'
+                })
+              }).catch(err => console.warn('SQLite lesson sync notice:', err.message));
+            }
+          });
+        }
+      });
+    }
+
+    try {
+      socket.emit('course:new', finalCourse);
+    } catch {}
+
     addToast(
       editingCourseId 
         ? 'কোর্স সফলভাবে আপডেট করা হয়েছে!' 
@@ -749,6 +1025,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const handleDeleteCourse = (courseId) => {
     if (window.confirm('Are you sure you want to delete this course and all associated lessons?')) {
       deleteCourse(courseId);
+      setCourses(prev => prev.filter(c => String(c.id) !== String(courseId)));
       addToast('Course deleted.', 'info');
     }
   };
@@ -824,24 +1101,33 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   };
 
   // -------------------------------------------------------------
-  // RENDER: REDIRECT (If not authenticated)
+  // RENDER: TEACHER LOGIN (If not authenticated)
   // -------------------------------------------------------------
-  useEffect(() => {
-    if (!isAuthenticated && onExitToPublic) {
-      onExitToPublic('landing');
-    }
-  }, [isAuthenticated, onExitToPublic]);
-
   if (!isAuthenticated) {
-    return null;
+    return (
+      <LoginPage
+        initialRole="teacher"
+        onTeacherLoginSuccess={(u) => {
+          setTeacherUser(u);
+          setIsAuthenticated(true);
+        }}
+        onLoginSuccess={(u) => {
+          setTeacherUser(u);
+          setIsAuthenticated(true);
+        }}
+        addToast={addToast}
+        onNavigate={onExitToPublic}
+      />
+    );
   }
 
   // Check if items belong to this authenticated teacher
   const isMyCourse = (c) => {
     if (!c || !teacherUser) return false;
     if (c.teacherId && (c.teacherId === teacherUser.id || c.teacherId === teacherUser.email)) return true;
-    if (c.teacherEmail && c.teacherEmail.toLowerCase() === (teacherUser.email || '').toLowerCase()) return true;
+    if (c.teacherEmail && teacherUser.email && c.teacherEmail.toLowerCase() === teacherUser.email.toLowerCase()) return true;
     if (c.instructor && teacherUser.name && c.instructor.trim().toLowerCase() === teacherUser.name.trim().toLowerCase()) return true;
+    if (!c.teacherId && !c.teacherEmail) return true;
     return false;
   };
 
@@ -878,6 +1164,9 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: theme.bg, color: theme.text, display: 'flex', flexDirection: 'column', transition: 'background-color 0.3s ease, color 0.3s ease' }}>
       
+      {/* 0. Top Broadcast Notice Banner */}
+      <BroadcastNoticeBanner />
+
       {/* Top Header Navigation */}
       <TeacherHeader
         activeTab={activeTab}
@@ -917,6 +1206,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
           <TeacherLiveStudioTab
             isLiveStudioActive={isLiveStudioActive}
             currentBroadcastingSession={currentBroadcastingSession}
+            liveViewerCount={liveViewerCount}
             liveSessions={myLiveSessions}
             handleStartLiveClass={handleStartLiveClass}
             handleQuickStartInstantClass={handleQuickStartInstantClass}
@@ -935,12 +1225,13 @@ export default function TeacherPortalPage({ onExitToPublic }) {
             draw={draw}
             stopDrawing={stopDrawing}
             handleClearBoard={handleClearBoard}
-            isMicOn={isMicOn}
-            setIsMicOn={setIsMicOn}
-            isCamOn={isCamOn}
-            setIsCamOn={setIsCamOn}
-            isScreenSharing={isScreenSharing}
-            setIsScreenSharing={setIsScreenSharing}
+            liveMedia={liveMedia}
+            isMicOn={liveMedia.isMicOn}
+            setIsMicOn={liveMedia.setIsMicOn}
+            isCamOn={liveMedia.isCamOn}
+            setIsCamOn={liveMedia.setIsCamOn}
+            isScreenSharing={liveMedia.isScreenSharing}
+            setIsScreenSharing={liveMedia.setIsScreenSharing}
             teacherUser={teacherUser}
             studioMessages={studioMessages}
             studioInputMsg={studioInputMsg}
@@ -949,6 +1240,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
             activeQuizPoll={activeQuizPoll}
             handleCreateQuizPoll={handleCreateQuizPoll}
             handleResolveQuizPoll={handleResolveQuizPoll}
+            addToast={addToast}
             theme={theme}
           />
         )}
@@ -975,6 +1267,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
             handleOpenEditCourse={handleOpenEditCourse}
             handleDeleteCourse={handleDeleteCourse}
             handleOpenCurriculum={handleOpenCurriculum}
+            handlePreviewCourse={setPreviewCourseForPlayer}
             theme={theme}
           />
         )}
@@ -1132,6 +1425,47 @@ export default function TeacherPortalPage({ onExitToPublic }) {
                 হ্যাঁ, ডিলিট করুন (Delete)
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Student-View Course Player Preview */}
+      {previewCourseForPlayer && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, backgroundColor: '#0f172a', display: 'flex', flexDirection: 'column' }}>
+          <div style={{
+            backgroundColor: '#1e293b',
+            padding: '0.65rem 1.5rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid #334155',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            zIndex: 10001
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontSize: '1rem' }}>👁️</span>
+              <span style={{ fontSize: '0.88rem', color: 'var(--primary-teal)', fontWeight: 800 }}>
+                টিচার প্রিভিউ মোড (Teacher Live Preview) — {previewCourseForPlayer.title}
+              </span>
+              <span style={{ fontSize: '0.72rem', background: 'rgba(20, 184, 166, 0.2)', color: '#2dd4bf', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 700 }}>
+                ছাত্র-ছাত্রীরা যেভাবে দেখবে
+              </span>
+            </div>
+            <button
+              onClick={() => setPreviewCourseForPlayer(null)}
+              className="btn btn-secondary"
+              style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, backgroundColor: '#334155', color: '#fff', border: '1px solid #475569' }}
+            >
+              ✕ প্রিভিউ বন্ধ করুন (Exit Preview)
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <CoursePlayerPage
+              course={previewCourseForPlayer}
+              user={{ name: teacherUser?.name || 'শিক্ষক', role: 'TeacherPreview', email: teacherUser?.email }}
+              onBack={() => setPreviewCourseForPlayer(null)}
+              addToast={addToast}
+            />
           </div>
         </div>
       )}

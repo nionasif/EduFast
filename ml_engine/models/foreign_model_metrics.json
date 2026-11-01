@@ -1,0 +1,17 @@
+{
+  "model": "RandomForestClassifier (Higher Education Support)",
+  "training_samples": 2400,
+  "test_samples": 600,
+  "accuracy": 0.945,
+  "cv_accuracy": 0.9407,
+  "features": [
+    "cgpa",
+    "ielts",
+    "gre",
+    "publications",
+    "extracurricular",
+    "work_exp_years",
+    "target_country",
+    "degree"
+  ]
+}

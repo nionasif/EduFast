@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import EmailVerification from '../components/EmailVerification';
 import EmailOTPModal from '../components/EmailOTPModal';
+import api from '../../services/api';
 
 const BOARDS = [
   'Dhaka', 'Chittagong', 'Rajshahi', 'Comilla', 'Barisal',
   'Jessore', 'Sylhet', 'Dinajpur', 'Mymensingh', 'Madrasah', 'Technical'
 ];
+
+// Generates 35 years of passing history (e.g. 2026 down to 1990)
+const CURRENT_YEAR = new Date().getFullYear();
+const PASSING_YEARS = Array.from({ length: 37 }, (_, i) => String(CURRENT_YEAR - i));
 
 export default function SignupPage({
   onRegisterSuccess,
@@ -35,7 +40,7 @@ export default function SignupPage({
           if (onNavigate) onNavigate('dashboard');
         }
       }
-    } catch {}
+    } catch { }
   }, [initialRole, onNavigate]);
 
   // -------------------------------------------------------------
@@ -82,6 +87,20 @@ export default function SignupPage({
   const [isSscVerified, setIsSscVerified] = useState(false);
   const [isHscVerified, setIsHscVerified] = useState(false);
 
+  // Live Education Board Captcha Modal State
+  const [showBoardCaptchaModal, setShowBoardCaptchaModal] = useState(false);
+  const [captchaSessionId, setCaptchaSessionId] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [isSubmittingCaptcha, setIsSubmittingCaptcha] = useState(false);
+  const [isReloadingCaptcha, setIsReloadingCaptcha] = useState(false);
+  const [activeExamType, setActiveExamType] = useState('ssc');
+  const [captchaError, setCaptchaError] = useState('');
+
+  // Manual Year Input Toggle States (supports students who passed 10+ years ago)
+  const [isManualSscYear, setIsManualSscYear] = useState(false);
+  const [isManualHscYear, setIsManualHscYear] = useState(false);
+
   const isStudentFormValid = () => {
     if (!isStudentEmailVerified) return false;
     if (!studentMobile || studentMobile.length < 11) return false;
@@ -108,67 +127,137 @@ export default function SignupPage({
     return true;
   };
 
+  const applyVerifiedResult = (examType, resultInfo) => {
+    if (!resultInfo) return;
+    if (resultInfo.name) {
+      setPersonalInfo((prev) => ({
+        ...prev,
+        name: prev.name && prev.name.trim() ? prev.name : resultInfo.name,
+        fathersName: prev.fathersName && prev.fathersName.trim() ? prev.fathersName : (resultInfo.fathersName || prev.fathersName),
+        mothersName: prev.mothersName && prev.mothersName.trim() ? prev.mothersName : (resultInfo.mothersName || prev.mothersName),
+        group: resultInfo.group || prev.group
+      }));
+    }
+
+    if (examType === 'ssc') {
+      setSscDetails((prev) => {
+        const hasValidGpa = resultInfo.gpa !== undefined && resultInfo.gpa !== null && parseFloat(resultInfo.gpa) > 0;
+        const hasValidInst = resultInfo.institute && resultInfo.institute !== 'School/College';
+        return {
+          ...prev,
+          gpa: hasValidGpa ? String(resultInfo.gpa) : prev.gpa,
+          school: hasValidInst ? resultInfo.institute : prev.school
+        };
+      });
+      setIsSscVerified(true);
+    } else {
+      setHscDetails((prev) => {
+        const hasValidGpa = resultInfo.gpa !== undefined && resultInfo.gpa !== null && parseFloat(resultInfo.gpa) > 0;
+        const hasValidInst = resultInfo.institute && resultInfo.institute !== 'School/College';
+        return {
+          ...prev,
+          gpa: hasValidGpa ? String(resultInfo.gpa) : prev.gpa,
+          college: hasValidInst ? resultInfo.institute : prev.college
+        };
+      });
+      setIsHscVerified(true);
+    }
+  };
+
   const verifyResult = async (examType) => {
     const details = examType === 'ssc' ? sscDetails : hscDetails;
     const setVerifying = examType === 'ssc' ? setIsVerifyingSsc : setIsVerifyingHsc;
 
-    if (!details.roll || !details.reg || !details.board || !details.year) {
-      addToast(`Please fill Roll, Registration, Board, and Year to verify.`, 'error');
+    if (!details.roll || !details.board || !details.year) {
+      addToast(`Please fill Roll, Board, and Year to verify.`, 'error');
       return;
     }
 
     setVerifying(true);
     try {
-      const response = await fetch('http://localhost:5001/api/fetch-result', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          examType,
-          roll: details.roll,
-          reg: details.reg,
-          board: details.board,
-          year: parseInt(details.year, 10)
-        })
+      const resData = await api.post('/board/start-session', {
+        examType,
+        roll: details.roll,
+        reg: details.reg || '',
+        board: details.board,
+        year: parseInt(details.year, 10)
       });
-
-      const resData = await response.json();
       setVerifying(false);
 
-      if (resData.success && (resData.data || resData.result)) {
-        const resultInfo = resData.data || resData.result;
-        if (resultInfo.name) {
-          setPersonalInfo((prev) => ({
-            ...prev,
-            name: resultInfo.name || prev.name,
-            fathersName: resultInfo.fathersName || prev.fathersName,
-            mothersName: resultInfo.mothersName || prev.mothersName,
-            group: resultInfo.group || prev.group
-          }));
+      if (resData && resData.success) {
+        // Case 1: Instant match from registry
+        if (resData.isInstant && resData.data) {
+          applyVerifiedResult(examType, resData.data);
+          addToast(`✅ ${examType.toUpperCase()} Result verified & autofilled! (GPA: ${resData.data.gpa})`, 'success');
+          return;
         }
 
-        if (examType === 'ssc') {
-          setSscDetails((prev) => ({
-            ...prev,
-            gpa: resultInfo.gpa ? String(resultInfo.gpa) : prev.gpa,
-            school: resultInfo.institute || prev.school
-          }));
-          setIsSscVerified(true);
-        } else {
-          setHscDetails((prev) => ({
-            ...prev,
-            gpa: resultInfo.gpa ? String(resultInfo.gpa) : prev.gpa,
-            college: resultInfo.institute || prev.college
-          }));
-          setIsHscVerified(true);
+        // Case 2: Live session started on government portal with official CAPTCHA
+        if (resData.captchaImage && resData.sessionId) {
+          setActiveExamType(examType);
+          setCaptchaSessionId(resData.sessionId);
+          setCaptchaImage(resData.captchaImage);
+          setCaptchaInput('');
+          setCaptchaError('');
+          setShowBoardCaptchaModal(true);
+          return;
         }
-        addToast(`${examType.toUpperCase()} Result verified and autofilled!`, 'success');
-      } else {
-        addToast(resData.error || resData.message || `Failed to verify ${examType.toUpperCase()} result.`, 'error');
       }
+
+      addToast(resData?.error || `Failed to connect to education board portal. You can enter GPA manually.`, 'error');
     } catch (err) {
       console.error(`Verification error for ${examType}:`, err);
-      addToast(`Error connecting to education board verification service.`, 'error');
+      addToast(`Education Board verification service unreachable. You can enter GPA manually.`, 'info');
       setVerifying(false);
+    }
+  };
+
+  const handleBoardCaptchaSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!captchaInput || captchaInput.trim().length !== 4) {
+      setCaptchaError('Please enter the 4 digits shown in the security image.');
+      return;
+    }
+
+    setIsSubmittingCaptcha(true);
+    setCaptchaError('');
+    try {
+      const res = await api.post('/board/submit-captcha', {
+        sessionId: captchaSessionId,
+        captcha: captchaInput.trim()
+      });
+      setIsSubmittingCaptcha(false);
+
+      if (res && res.success && res.data) {
+        applyVerifiedResult(activeExamType, res.data);
+        setShowBoardCaptchaModal(false);
+        addToast(`🎉 Real-Time ${activeExamType.toUpperCase()} Result Verified directly from Education Board! (GPA: ${res.data.gpa})`, 'success');
+      } else {
+        setCaptchaError(res?.error || 'Security code did not match. Please try again.');
+        setCaptchaInput('');
+      }
+    } catch (err) {
+      setIsSubmittingCaptcha(false);
+      setCaptchaError('Error submitting to education board portal. Please retry.');
+    }
+  };
+
+  const handleReloadBoardCaptcha = async () => {
+    if (!captchaSessionId) return;
+    setIsReloadingCaptcha(true);
+    setCaptchaError('');
+    try {
+      const res = await api.post('/board/reload-captcha', { sessionId: captchaSessionId });
+      setIsReloadingCaptcha(false);
+      if (res && res.success && res.captchaImage) {
+        setCaptchaImage(res.captchaImage);
+        setCaptchaInput('');
+      } else {
+        setCaptchaError('Could not reload image. Please try verifying again.');
+      }
+    } catch (err) {
+      setIsReloadingCaptcha(false);
+      setCaptchaError('Error reloading image.');
     }
   };
 
@@ -212,24 +301,17 @@ export default function SignupPage({
     setPendingStudent(newUser);
     setIsSubmittingStudent(true);
 
-    fetch('http://localhost:5001/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newUser, isPreVerified: isStudentEmailVerified })
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        return { ok: res.ok, status: res.status, data };
-      })
-      .then(({ ok, status, data }) => {
+    api.post('/auth/register', { ...newUser, isPreVerified: isStudentEmailVerified })
+      .then((data) => {
         setIsSubmittingStudent(false);
-        if (ok && data.success) {
+        if (data.success) {
           if (data.isVerified) {
-            addToast('Registration complete & email verified! Welcome to EduFast.', 'success');
+            addToast('🎉 স্বাগতম! অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং ১০০ EduCoins ওয়েলকাম বোনাস যুক্ত হয়েছে!', 'success');
+            const studentWithCoins = { ...(data.user || newUser), coins: (data.user?.coins || 100), isVerified: true };
             if (onRegisterSuccess) {
-              onRegisterSuccess(data.user || newUser);
+              onRegisterSuccess(studentWithCoins);
             } else {
-              localStorage.setItem('edufast_student_session', JSON.stringify(data.user || newUser));
+              localStorage.setItem('edufast_student_session', JSON.stringify(studentWithCoins));
               onNavigate('dashboard');
             }
           } else {
@@ -239,17 +321,15 @@ export default function SignupPage({
           }
         } else {
           addToast(data.error || 'Registration failed. Please check details.', 'error');
-          // If already unverified user with recent request, allow entering OTP directly
-          if (status === 429 || (data.error && data.error.includes('wait'))) {
-            setEmailForOtp(personalInfo.email);
-            setIsEmailOtpOpen(true);
-          }
         }
       })
       .catch((err) => {
         setIsSubmittingStudent(false);
-        console.error('Registration API error:', err);
-        addToast('Network error: Unable to connect to backend server on port 5001.', 'error');
+        if (err.status === 429 || (err.message && err.message.includes('wait'))) {
+          setEmailForOtp(personalInfo.email);
+          setIsEmailOtpOpen(true);
+        }
+        addToast(err.message || 'Unable to connect to backend server.', 'error');
       });
   };
 
@@ -544,7 +624,27 @@ export default function SignupPage({
                 {/* SSC Information Section */}
                 <h3 className="signup-section-title">
                   🎓 SSC / Equivalent Academic Record
-                  {isSscVerified && <span className="verified-badge" style={{ marginLeft: '1rem', fontSize: '0.75rem' }}>✓ Verified</span>}
+                  {isSscVerified && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginLeft: '1rem' }}>
+                      <span className="verified-badge" style={{ fontSize: '0.75rem' }}>✓ Verified</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsSscVerified(false)}
+                        title="Click to edit fields"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0d9488',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        (Edit)
+                      </button>
+                    </span>
+                  )}
                 </h3>
                 <div className="grid-2">
                   <div className="form-group">
@@ -589,20 +689,52 @@ export default function SignupPage({
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Passing Year <span style={{ color: 'red' }}>*</span></label>
-                    <select
-                      className="form-select"
-                      value={sscDetails.year}
-                      onChange={(e) => setSscDetails({ ...sscDetails, year: e.target.value })}
-                      disabled={!isStudentMobileVerified || isSscVerified}
-                      style={isSscVerified ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
-                      required
-                    >
-                      <option value="2024">2024</option>
-                      <option value="2023">2023</option>
-                      <option value="2022">2022</option>
-                      <option value="2021">2021</option>
-                    </select>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Passing Year <span style={{ color: 'red' }}>*</span></label>
+                      <button
+                        type="button"
+                        onClick={() => setIsManualSscYear(!isManualSscYear)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0d9488',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        {isManualSscYear ? '📋 ড্রপডাউন নির্বাচন' : '✍️ মেনুয়ালি লিখুন'}
+                      </button>
+                    </div>
+
+                    {isManualSscYear ? (
+                      <input
+                        type="number"
+                        min="1980"
+                        max="2035"
+                        className="form-input"
+                        placeholder="e.g. 2014 বা যেকোনো সাল"
+                        value={sscDetails.year}
+                        onChange={(e) => setSscDetails({ ...sscDetails, year: e.target.value.slice(0, 4) })}
+                        disabled={!isStudentMobileVerified || isSscVerified}
+                        style={isSscVerified ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
+                        required
+                      />
+                    ) : (
+                      <select
+                        className="form-select"
+                        value={sscDetails.year}
+                        onChange={(e) => setSscDetails({ ...sscDetails, year: e.target.value })}
+                        disabled={!isStudentMobileVerified || isSscVerified}
+                        style={isSscVerified ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
+                        required
+                      >
+                        {PASSING_YEARS.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -664,7 +796,27 @@ export default function SignupPage({
                 {/* HSC Information Section */}
                 <h3 className="signup-section-title">
                   🏛️ HSC / Equivalent Academic Record
-                  {isHscVerified && <span className="verified-badge" style={{ marginLeft: '1rem', fontSize: '0.75rem' }}>✓ Verified</span>}
+                  {isHscVerified && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginLeft: '1rem' }}>
+                      <span className="verified-badge" style={{ fontSize: '0.75rem' }}>✓ Verified</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsHscVerified(false)}
+                        title="Click to edit fields"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0d9488',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        (Edit)
+                      </button>
+                    </span>
+                  )}
                 </h3>
                 <div className="grid-2">
                   <div className="form-group">
@@ -709,20 +861,53 @@ export default function SignupPage({
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Passing Year <span style={{ color: 'red' }}>*</span></label>
-                    <select
-                      className="form-select"
-                      value={hscDetails.year}
-                      onChange={(e) => setHscDetails({ ...hscDetails, year: e.target.value })}
-                      disabled={!isStudentMobileVerified || isHscVerified}
-                      style={isHscVerified ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
-                      required
-                    >
-                      <option value="2026">2026 (Candidate)</option>
-                      <option value="2025">2025</option>
-                      <option value="2024">2024</option>
-                      <option value="2023">2023</option>
-                    </select>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Passing Year <span style={{ color: 'red' }}>*</span></label>
+                      <button
+                        type="button"
+                        onClick={() => setIsManualHscYear(!isManualHscYear)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0d9488',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        {isManualHscYear ? '📋 ড্রপডাউন নির্বাচন' : '✍️ মেনুয়ালি লিখুন'}
+                      </button>
+                    </div>
+
+                    {isManualHscYear ? (
+                      <input
+                        type="number"
+                        min="1980"
+                        max="2035"
+                        className="form-input"
+                        placeholder="e.g. 2016 বা যেকোনো সাল"
+                        value={hscDetails.year}
+                        onChange={(e) => setHscDetails({ ...hscDetails, year: e.target.value.slice(0, 4) })}
+                        disabled={!isStudentMobileVerified || isHscVerified}
+                        style={isHscVerified ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
+                        required
+                      />
+                    ) : (
+                      <select
+                        className="form-select"
+                        value={hscDetails.year}
+                        onChange={(e) => setHscDetails({ ...hscDetails, year: e.target.value })}
+                        disabled={!isStudentMobileVerified || isHscVerified}
+                        style={isHscVerified ? { background: '#f3f4f6', cursor: 'not-allowed' } : {}}
+                        required
+                      >
+                        <option value="2026">2026 (Candidate)</option>
+                        {PASSING_YEARS.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
@@ -1115,13 +1300,264 @@ export default function SignupPage({
             const finalUser = {
               ...pendingStudent,
               ...userPayload,
+              coins: (userPayload && userPayload.coins !== undefined && userPayload.coins > 0) ? userPayload.coins : 100,
               isVerified: true
             };
             onRegisterSuccess(finalUser);
-            addToast('Email verified successfully! Welcome to EduFast.', 'success');
+            addToast('🎉 স্বাগতম! অ্যাকাউন্ট ভেরিফাই হয়েছে এবং ১০০ EduCoins ওয়েলকাম বোনাস যুক্ত হয়েছে!', 'success');
           }}
           addToast={addToast}
         />
+
+        {/* Real-Time Education Board Security Verification Modal */}
+        {showBoardCaptchaModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 99999,
+              padding: '1rem'
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '460px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #0d9488 0%, #115e59 100%)',
+                  padding: '1.25rem 1.5rem',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '1.4rem' }}>🎓</span>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#ffffff' }}>
+                      শিক্ষা বোর্ড লাইভ রেজাল্ট ভেরিফিকেশন
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.78rem', opacity: 0.9 }}>
+                      Official Bangladesh Education Board Portal (v2)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBoardCaptchaModal(false)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    color: '#ffffff',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    fontSize: '1rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '1.5rem' }}>
+                <div
+                  style={{
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '8px',
+                    padding: '0.75rem',
+                    marginBottom: '1.25rem',
+                    fontSize: '0.85rem',
+                    color: '#166534',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.2rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span><strong>Exam:</strong> {activeExamType.toUpperCase()} ({activeExamType === 'ssc' ? sscDetails.year : hscDetails.year})</span>
+                    <span><strong>Board:</strong> {activeExamType === 'ssc' ? sscDetails.board : hscDetails.board}</span>
+                  </div>
+                  <div>
+                    <span><strong>Roll:</strong> {activeExamType === 'ssc' ? sscDetails.roll : hscDetails.roll}</span>
+                    <span style={{ marginLeft: '1rem' }}><strong>Reg:</strong> {activeExamType === 'ssc' ? (sscDetails.reg || 'N/A') : (hscDetails.reg || 'N/A')}</span>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '0.88rem', color: '#374151', margin: '0 0 0.75rem 0', fontWeight: 500 }}>
+                  নিচের শিক্ষা বোর্ডের সিকিউরিটি ইমেজটি দেখে ৪টি সংখ্যা টাইপ করুন:
+                </p>
+
+                {/* Captcha Image Container */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.75rem',
+                    backgroundColor: '#f8fafc',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px dashed #cbd5e1',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  {captchaImage ? (
+                    <img
+                      src={captchaImage}
+                      alt="Education Board Captcha"
+                      style={{
+                        height: '52px',
+                        borderRadius: '6px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Loading security image...</span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleReloadBoardCaptcha}
+                    disabled={isReloadingCaptcha}
+                    title="Reload Image"
+                    style={{
+                      background: '#e2e8f0',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '0.5rem 0.75rem',
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: '#334155'
+                    }}
+                  >
+                    {isReloadingCaptcha ? '...' : '🔄 পরিবর্তন'}
+                  </button>
+                </div>
+
+                {/* 4-digit input */}
+                <form onSubmit={handleBoardCaptchaSubmit}>
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.4rem' }}>
+                      ৪ ডিজিট সিকিউরিটি কোড (4-digit Security Code) <span style={{ color: 'red' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      autoFocus
+                      placeholder="e.g. 4952"
+                      value={captchaInput}
+                      onChange={(e) => setCaptchaInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      style={{
+                        width: '100%',
+                        textAlign: 'center',
+                        fontSize: '1.4rem',
+                        fontWeight: 700,
+                        letterSpacing: '6px',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        border: '2px solid #0d9488',
+                        outline: 'none',
+                        color: '#0f172a',
+                        backgroundColor: '#ffffff'
+                      }}
+                    />
+                  </div>
+
+                  {captchaError && (
+                    <div
+                      style={{
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '6px',
+                        padding: '0.6rem',
+                        color: '#b91c1c',
+                        fontSize: '0.82rem',
+                        marginBottom: '1rem',
+                        fontWeight: 500
+                      }}
+                    >
+                      ⚠️ {captchaError}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowBoardCaptchaModal(false)}
+                      style={{
+                        flex: 1,
+                        padding: '0.65rem',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#f1f5f9',
+                        color: '#475569',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      বাতিল (Cancel)
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingCaptcha || captchaInput.length !== 4}
+                      style={{
+                        flex: 2,
+                        padding: '0.65rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: (isSubmittingCaptcha || captchaInput.length !== 4) ? '#94a3b8' : '#0d9488',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                        cursor: (isSubmittingCaptcha || captchaInput.length !== 4) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        transition: 'background-color 0.2s'
+                      }}
+                    >
+                      {isSubmittingCaptcha ? (
+                        <>
+                          <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                          লাইভ রেজাল্ট আনা হচ্ছে...
+                        </>
+                      ) : (
+                        '⚡ রেজাল্ট ফেচ করুন'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

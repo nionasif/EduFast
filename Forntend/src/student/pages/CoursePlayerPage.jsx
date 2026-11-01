@@ -1,31 +1,56 @@
 import React, { useState, useRef, useEffect } from 'react';
+import api from '../../services/api';
 import { getCourseCurriculum } from '../../data/mockData';
+import { resolveVideoSource, isYouTubeUrl } from '../../services/videoHelper';
 
 export default function CoursePlayerPage({ course, user, onBack, addToast }) {
   // Course curriculum state
   const [curriculum, setCurriculum] = useState(() => {
-    return getCourseCurriculum(course?.id || 'demo', course?.title);
+    if (Array.isArray(course?.modules) && course.modules.length > 0) {
+      return course.modules;
+    }
+    return course?.id ? getCourseCurriculum(course.id, course?.title) : [];
   });
 
-  // Fetch live uploaded curriculum from SQLite database
+  // Fetch live uploaded curriculum from SQLite database & listen to updates
   useEffect(() => {
     if (!course?.id) return;
-    fetch(`http://localhost:5001/api/courses/${course.id}/curriculum`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          setCurriculum(data.data);
-        }
-      })
-      .catch(() => {});
-  }, [course?.id]);
+
+    const loadCurriculum = () => {
+      api.get(`/courses/${course.id}/curriculum`)
+        .then(res => {
+          if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+            setCurriculum(res.data.data);
+          } else if (Array.isArray(course?.modules) && course.modules.length > 0) {
+            setCurriculum(course.modules);
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not load custom curriculum from server:', err);
+          if (Array.isArray(course?.modules) && course.modules.length > 0) {
+            setCurriculum(course.modules);
+          }
+        });
+    };
+
+    loadCurriculum();
+
+    const handleDataUpdate = (e) => {
+      if (e.detail?.type === 'curriculum' || e.detail?.type === 'course') {
+        loadCurriculum();
+      }
+    };
+    window.addEventListener('edufast-data-update', handleDataUpdate);
+    return () => window.removeEventListener('edufast-data-update', handleDataUpdate);
+  }, [course?.id, course?.modules]);
 
   const resolveVideoUrl = (url) => {
     if (!url) return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
       return url;
     }
-    return `http://localhost:5001${url}`;
+    const baseUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    return `${baseUrl}${url}`;
   };
 
   // Current selected lesson
@@ -150,10 +175,10 @@ export default function CoursePlayerPage({ course, user, onBack, addToast }) {
     if (optIdx === 0) {
       setCheckpointFeedback({
         success: true,
-        message: '🎉 সঠিক উত্তর! কোণিক বেগ ধ্রুব থাকলে কোণিক ত্বরণ শূন্য হয়। +২৫ EduCoins যোগ হয়েছে!'
+        message: '🎉 সঠিক উত্তর! কোণিক বেগ ধ্রুব থাকলে কোণিক ত্বরণ শূন্য হয়। কনসেপ্ট চেকপয়েন্ট সফলভাবে উত্তীর্ণ হয়েছেন!'
       });
       setCheckpointCompleted(true);
-      if (addToast) addToast('⚡ Checkpoint Passed! +25 EduCoins awarded.', 'success');
+      if (addToast) addToast('⚡ Checkpoint Passed! Concept mastered.', 'success');
     } else {
       setCheckpointFeedback({
         success: false,
@@ -262,15 +287,34 @@ export default function CoursePlayerPage({ course, user, onBack, addToast }) {
     }
   };
 
-  const markCurrentLessonComplete = () => {
+  const markCurrentLessonComplete = async () => {
+    const lesson = curriculum[activeModuleIndex]?.lessons[activeLessonIndex];
+    const lessonId = lesson?.id || `m${activeModuleIndex}_l${activeLessonIndex}`;
+
+    // Optimistic UI update
     setCurriculum(prev => {
       const copy = JSON.parse(JSON.stringify(prev));
-      copy[activeModuleIndex].lessons[activeLessonIndex].completed = true;
+      if (copy[activeModuleIndex]?.lessons[activeLessonIndex]) {
+        copy[activeModuleIndex].lessons[activeLessonIndex].completed = true;
+      }
       try {
         localStorage.setItem(`edufast_curriculum_${course?.id}`, JSON.stringify(copy));
       } catch {}
       return copy;
     });
+
+    if (course?.id) {
+      try {
+        const res = await api.post(`/courses/${course.id}/lessons/${lessonId}/complete`, {
+          studentEmail: user?.email
+        });
+        if (res.data?.success) {
+          if (addToast) addToast(`Lesson complete! +${res.data.scoreAwarded || 50} XP earned!`, 'success');
+        }
+      } catch (err) {
+        console.warn('Could not persist lesson completion to server:', err);
+      }
+    }
   };
 
   // Handle Ask Question
@@ -378,7 +422,7 @@ export default function CoursePlayerPage({ course, user, onBack, addToast }) {
       </header>
 
       {/* 2. MAIN LEARNING ENVIRONMENT (GRID) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', flex: 1 }}>
+      <div className="course-player-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', flex: 1 }}>
         
         {/* LEFT COLUMN: VIDEO PLAYER & INTERACTIVE TABS */}
         <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
@@ -387,14 +431,54 @@ export default function CoursePlayerPage({ course, user, onBack, addToast }) {
           <div style={{ position: 'relative', background: '#000000', width: '100%', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             
             {!isAudioOnly ? (
-              <video
-                ref={videoRef}
-                src={resolveVideoUrl(currentLesson?.videoUrl)}
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onClick={togglePlay}
-              />
+              (() => {
+                const videoSource = resolveVideoSource(currentLesson?.videoUrl);
+                if (videoSource.isYouTube) {
+                  return (
+                    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
+                      <iframe
+                        key={videoSource.url}
+                        src={videoSource.url}
+                        title={currentLesson?.title || 'EduFast Lecture'}
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                      {/* EduFast Custom Branding Pill */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '12px',
+                        background: 'rgba(15, 23, 42, 0.9)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '8px',
+                        padding: '0.25rem 0.65rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        pointerEvents: 'none',
+                        zIndex: 4,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                      }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary-teal, #14b8a6)' }}>EduFast Cloud</span>
+                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>• Ultra HD Stream</span>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <video
+                    ref={videoRef}
+                    src={videoSource.url}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onClick={togglePlay}
+                  />
+                );
+              })()
             ) : (
               /* AUDIO-ONLY LOW-DATA MODE SCREEN */
               <div style={{
@@ -438,7 +522,7 @@ export default function CoursePlayerPage({ course, user, onBack, addToast }) {
             )}
 
             {/* Play/Pause Overlay Indicator on click (video mode only) */}
-            {!isPlaying && !isAudioOnly && !showInVideoCheckpoint && (
+            {!isPlaying && !isAudioOnly && !showInVideoCheckpoint && !isYouTubeUrl(currentLesson?.videoUrl) && (
               <div
                 onClick={togglePlay}
                 style={{

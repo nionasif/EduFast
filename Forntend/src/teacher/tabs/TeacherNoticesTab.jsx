@@ -1,5 +1,6 @@
-import React from 'react';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, Trash2, Megaphone, Shield } from 'lucide-react';
+import api from '../../services/api';
 
 export default function TeacherNoticesTab({
   notices,
@@ -7,6 +8,21 @@ export default function TeacherNoticesTab({
   addToast,
   theme
 }) {
+  const [adminNotices, setAdminNotices] = useState([]);
+
+  useEffect(() => {
+    const fetchAdminNotices = async () => {
+      try {
+        const res = await api.get('/notices');
+        if (res && res.data && Array.isArray(res.data)) {
+          setAdminNotices(res.data);
+        }
+      } catch (e) {
+        console.warn('Teacher tab admin notices fetch warning:', e.message);
+      }
+    };
+    fetchAdminNotices();
+  }, []);
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
       <div style={{ backgroundColor: theme.cardBg, borderRadius: '12px', padding: '1.75rem', border: `1px solid ${theme.cardBorder}`, transition: 'all 0.3s ease' }}>
@@ -14,6 +30,45 @@ export default function TeacherNoticesTab({
           <AlertCircle style={{ width: '20px', height: '20px', color: 'var(--primary-teal)' }} />
           Student Notices & Announcements
         </h2>
+
+        {/* Admin Broadcast Notices section if present */}
+        {adminNotices.length > 0 && (
+          <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem', textTransform: 'uppercase' }}>
+              <Shield style={{ width: '14px', height: '14px' }} />
+              Official Admin Broadcast Notices
+            </div>
+            {adminNotices.map(an => (
+              <div
+                key={an.id}
+                style={{
+                  padding: '0.9rem 1.1rem',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                    <span style={{ backgroundColor: '#f59e0b', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontSize: '0.68rem', fontWeight: 800 }}>
+                      {an.priority || 'Important'}
+                    </span>
+                    <strong style={{ color: theme.text, fontSize: '0.92rem' }}>{an.title}</strong>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: theme.textMuted }}>{an.content}</p>
+                </div>
+                {an.date && (
+                  <span style={{ fontSize: '0.74rem', color: theme.textMuted, whiteSpace: 'nowrap', marginLeft: '0.75rem' }}>
+                    {an.date}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Add notice form */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

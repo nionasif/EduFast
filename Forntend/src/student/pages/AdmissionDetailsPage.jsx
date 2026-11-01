@@ -1,10 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
+import api from '../../services/api';
 import { getAdmissions, getStudentMockStats } from '../../data/mockData';
 import CountdownTimer from '../../common/components/CountdownTimer';
+import SponsoredPartnerBanner from '../../common/components/SponsoredPartnerBanner';
+import AdmitCardModal from '../components/AdmitCardModal';
+import ResultModal from '../components/ResultModal';
 
 export default function AdmissionDetailsPage({ user, addToast, initialSelectedUnivId }) {
-  const [admissionsList, setAdmissionsList] = useState(getAdmissions);
+  const [admissionsList, setAdmissionsList] = useState(() => getAdmissions());
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('all'); // Default to 'all' so all universities show for every account
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'admit' | 'result'
+  const [activeAdmitCardUniv, setActiveAdmitCardUniv] = useState(null);
+  const [activeResultUniv, setActiveResultUniv] = useState(null);
   const [mockStats, setMockStats] = useState(() => getStudentMockStats(user));
 
   // If a university was selected from Dashboard, bring it to the very top
@@ -16,6 +23,30 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
       return 0;
     });
   }, [admissionsList, initialSelectedUnivId]);
+
+  const displayedAdmissions = useMemo(() => {
+    let list = sortedAdmissionsList;
+    if (statusFilter === 'admit') {
+      list = list.filter(u => u.admitCardStatus === 'available' || u.admitCardUrl);
+    } else if (statusFilter === 'result') {
+      list = list.filter(u => u.resultStatus === 'published');
+    }
+    return list;
+  }, [sortedAdmissionsList, statusFilter]);
+
+  useEffect(() => {
+    // Fetch live universities from SQLite database
+    api.get('/universities')
+      .then(res => {
+        const data = res.data?.data || res.data;
+        if (Array.isArray(data) && data.length > 0) {
+          setAdmissionsList(data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load universities from backend:', err);
+      });
+  }, []);
 
   useEffect(() => {
     if (initialSelectedUnivId) {
@@ -31,7 +62,6 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
 
   useEffect(() => {
     const handleUpdate = () => {
-      setAdmissionsList(getAdmissions());
       setMockStats(getStudentMockStats(user));
     };
     window.addEventListener('edufast-data-update', handleUpdate);
@@ -43,6 +73,7 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
   }, [user]);
 
   const sscGpa = Number(user?.ssc?.gpa) || 0;
+
   const hscGpa = Number(user?.hsc?.gpa) || 0;
   const combinedGpa = sscGpa + hscGpa;
   const studentGroup = (user?.group || '').trim();
@@ -66,18 +97,20 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
     }
 
     // 3. Combined GPA Match
-    if (combinedGpa < (unit.minGpa || 0)) {
+    const requiredMinGpa = Number(unit.minGpa || 0);
+    if (combinedGpa < requiredMinGpa) {
       return {
         eligible: false,
-        reason: `Combined GPA must be at least ${(unit.minGpa || 0).toFixed(2)} (Your combined: ${combinedGpa.toFixed(2)})`
+        reason: `Combined GPA must be at least ${requiredMinGpa.toFixed(2)} (Your combined: ${combinedGpa.toFixed(2)})`
       };
     }
 
     // 4. Individual GPA Match (SSC & HSC minimums)
-    if (sscGpa < (unit.minIndividualGpa || 0) || hscGpa < (unit.minIndividualGpa || 0)) {
+    const requiredMinSingle = Number(unit.minIndividualGpa || 0);
+    if (sscGpa < requiredMinSingle || hscGpa < requiredMinSingle) {
       return {
         eligible: false,
-        reason: `Requires minimum individual GPA of ${(unit.minIndividualGpa || 0).toFixed(2)} in both SSC & HSC (Your SSC: ${sscGpa.toFixed(2)}, HSC: ${hscGpa.toFixed(2)})`
+        reason: `Requires minimum individual GPA of ${requiredMinSingle.toFixed(2)} in both SSC & HSC (Your SSC: ${sscGpa.toFixed(2)}, HSC: ${hscGpa.toFixed(2)})`
       };
     }
 
@@ -215,14 +248,14 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
         };
       }
 
-      const isGpaEligible = combinedGpa >= t.minGpa && sscGpa >= t.minSingle && hscGpa >= t.minSingle;
+      const isGpaEligible = combinedGpa >= Number(t.minGpa || 0) && sscGpa >= Number(t.minSingle || 0) && hscGpa >= Number(t.minSingle || 0);
       if (!isGpaEligible) {
         return {
           univ: t.univ,
           chance: 0,
           status: "Ineligible (অযোগ্য)",
           color: "#ef4444",
-          tip: `ন্যূনতম জিপিএ ${t.minGpa.toFixed(2)} (উভয় পরীক্ষায় ${t.minSingle.toFixed(2)}) আবশ্যক। আপনার বর্তমান জিপিএ: ${combinedGpa.toFixed(2)}।`
+          tip: `ন্যূনতম জিপিএ ${Number(t.minGpa || 0).toFixed(2)} (উভয় পরীক্ষায় ${Number(t.minSingle || 0).toFixed(2)}) আবশ্যক। আপনার বর্তমান জিপিএ: ${combinedGpa.toFixed(2)}।`
         };
       }
 
@@ -303,6 +336,8 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
       </div>
 
       <div className="container" style={{ padding: '2rem 0' }}>
+        {/* Sponsored Partner / University Ads Banner */}
+        <SponsoredPartnerBanner />
 
         {/* Dynamic Global Filter Buttons */}
         <div className="admission-filter-pill-container">
@@ -325,6 +360,30 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
                 {pill.label}
               </button>
             ))}
+          </div>
+
+          {/* Quick Admit Card & Result Filter Pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`admission-filter-pill ${statusFilter === 'all' ? 'active' : ''}`}
+            >
+              সব সার্কুলার
+            </button>
+            <button
+              onClick={() => setStatusFilter('admit')}
+              className={`admission-filter-pill ${statusFilter === 'admit' ? 'active' : ''}`}
+              style={{ borderColor: '#0284c7' }}
+            >
+              🎫 Admit Card Live
+            </button>
+            <button
+              onClick={() => setStatusFilter('result')}
+              className={`admission-filter-pill ${statusFilter === 'result' ? 'active' : ''}`}
+              style={{ borderColor: '#10b981' }}
+            >
+              🏆 Result Published
+            </button>
           </div>
 
           {/* Student academic stats summary badges */}
@@ -439,7 +498,7 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
 
         {/* Admissions list grid */}
         <div className="admission-grid">
-          {sortedAdmissionsList.map((univ) => {
+          {displayedAdmissions.map((univ) => {
             const isSelectedTarget = univ.id === initialSelectedUnivId;
             
             // In 'all' mode: show all units.
@@ -492,6 +551,51 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
                       <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)', display: 'block', marginTop: '0.15rem' }}>
                         📅 Exam Date: <strong>{univ.examDate}</strong> | Application Fee: <strong>৳ {univ.applicationFee}</strong>
                       </span>
+
+                      {/* Admit Card & Result Quick Action Badges */}
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setActiveAdmitCardUniv(univ); }}
+                          style={{
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            border: '1px solid #0284c7',
+                            background: univ.admitCardStatus === 'available' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(241, 245, 249, 0.6)',
+                            color: univ.admitCardStatus === 'available' ? '#0284c7' : '#64748b'
+                          }}
+                        >
+                          <span>🎫</span>
+                          <span>{univ.admitCardStatus === 'available' ? 'Admit Card ডাউনলোড' : 'Admit Card (অপেক্ষমান)'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setActiveResultUniv(univ); }}
+                          style={{
+                            padding: '0.3rem 0.65rem',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            border: '1px solid #10b981',
+                            background: univ.resultStatus === 'published' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(241, 245, 249, 0.6)',
+                            color: univ.resultStatus === 'published' ? '#059669' : '#64748b'
+                          }}
+                        >
+                          <span>🏆</span>
+                          <span>{univ.resultStatus === 'published' ? 'Result মেধা তালিকা' : 'Result (অপেক্ষমান)'}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -557,7 +661,7 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
 
                         <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                           <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)', alignSelf: 'center' }}>
-                            Min GPA req: {unit.minGpa.toFixed(1)} (Ind. {unit.minIndividualGpa.toFixed(1)})
+                            Min GPA req: {Number(unit.minGpa || 0).toFixed(1)} (Ind. {Number(unit.minIndividualGpa || 0).toFixed(1)})
                           </span>
                           <button 
                             className={`btn ${check.eligible ? 'btn-primary' : 'btn-secondary'}`}
@@ -588,6 +692,22 @@ export default function AdmissionDetailsPage({ user, addToast, initialSelectedUn
         </div>
 
       </div>
+
+      {/* 🎫 Admit Card Preview and Download Modal */}
+      <AdmitCardModal
+        isOpen={!!activeAdmitCardUniv}
+        onClose={() => setActiveAdmitCardUniv(null)}
+        univ={activeAdmitCardUniv}
+        user={user}
+      />
+
+      {/* 🏆 University Admission Result Modal */}
+      <ResultModal
+        isOpen={!!activeResultUniv}
+        onClose={() => setActiveResultUniv(null)}
+        univ={activeResultUniv}
+        user={user}
+      />
     </div>
   );
 }

@@ -2,7 +2,8 @@
 // LIVE CLASSES DATA STORE (DATA/liveClasses.json)
 // ==========================================
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
 
 export const defaultLiveClasses = [];
 

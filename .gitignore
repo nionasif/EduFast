@@ -29,6 +29,11 @@ __pycache__/
 dist/
 build/
 
+# Heavy uploads & models
+backend/uploads/videos/
+*.mp4
+eng.traineddata
+
 # Logs
 *.log
 npm-debug.log*

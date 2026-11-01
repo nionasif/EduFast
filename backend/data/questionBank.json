@@ -1,1 +1,134 @@
-[]
+[
+  {
+    "id": "qb-du-ka-2024",
+    "examName": "Dhaka University Ka Unit Admission Test",
+    "varsity": "Dhaka University (DU)",
+    "subject": "Physics",
+    "year": "2024",
+    "questionsCount": 4,
+    "totalMarks": 10,
+    "duration": "30 Minutes",
+    "questions": [
+      {
+        "id": "du24-p1",
+        "question": "একটি কণা স্থির অবস্থা থেকে 2 m/s² সমত্বরণে যাত্রা শুরু করলে 5s পর বেগ কত হবে?",
+        "options": ["5 m/s", "10 m/s", "15 m/s", "20 m/s"],
+        "correctIndex": 1,
+        "explanation": "v = u + at = 0 + (2 * 5) = 10 m/s"
+      },
+      {
+        "id": "du24-p2",
+        "question": "ভূপৃষ্ঠ থেকে কত উচ্চতায় অভিকর্ষজ ত্বরণ এর মান ভূপৃষ্ঠের মানের এক চতুর্থাংশ (g/4) হবে?",
+        "options": ["R", "2R", "R/2", "4R"],
+        "correctIndex": 0,
+        "explanation": "g' = g * (R / (R+h))² => 1/4 = (R / (R+h))² => R+h = 2R => h = R"
+      },
+      {
+        "id": "du24-p3",
+        "question": "দুটি ভেক্টর A ও B পরস্পর লম্ব হলে তাদের ডট গুণন (A · B) এর মান কত?",
+        "options": ["1", "0", "-1", "|A||B|"],
+        "correctIndex": 1,
+        "explanation": "A · B = |A||B| cos(90°) = 0, কারণ cos 90° = 0।"
+      },
+      {
+        "id": "du24-p4",
+        "question": "সরল ছন্দিত স্পন্দনে স্পন্দিত কোনো কণার সাম্যাবস্থানে বেগ কত?",
+        "options": ["সর্বনিম্ন (0)", "সর্বোচ্চ (omega * A)", "ঋণাত্মক", "অসীম"],
+        "correctIndex": 1,
+        "explanation": "সাম্যাবস্থানে সরণ x = 0 হওয়ায় বেগ v = omega * sqrt(A² - x²) = omega * A (সর্বোচ্চ)।"
+      }
+    ]
+  },
+  {
+    "id": "qb-buet-2023",
+    "examName": "BUET Engineering Admission Pre-Assessment",
+    "varsity": "BUET Engineering",
+    "subject": "Higher Math",
+    "year": "2023",
+    "questionsCount": 3,
+    "totalMarks": 15,
+    "duration": "45 Minutes",
+    "questions": [
+      {
+        "id": "buet23-m1",
+        "question": "d/dx [sin(ln x)] এর মান কত?",
+        "options": ["cos(ln x)", "(1/x) cos(ln x)", "-cos(ln x)/x", "sin(1/x)"],
+        "correctIndex": 1,
+        "explanation": "চেইন রুল অনুসারে d/dx[sin(ln x)] = cos(ln x) * d/dx[ln x] = (1/x) cos(ln x)"
+      },
+      {
+        "id": "buet23-m2",
+        "question": "নিচের কোন ম্যাট্রিক্সের বিপরীত ম্যাট্রিক্স বিদ্যমান নেই?",
+        "options": ["প্রতিসম ম্যাট্রিক্স", "ব্যতিক্রমী ম্যাট্রিক্স", "কর্ণ ম্যাট্রিক্স", "একক ম্যাট্রিক্স"],
+        "correctIndex": 1,
+        "explanation": "ব্যতিক্রমী বা Singular ম্যাট্রিক্সের নির্ণায়কের মান ০ (det A = 0) হওয়ায় এর বিপরীত ম্যাট্রিক্স থাকে না।"
+      },
+      {
+        "id": "buet23-m3",
+        "question": "lim (x -> 0) [sin(x) / x] এর মান কত?",
+        "options": ["0", "1", "e", "অনির্ণেয়"],
+        "correctIndex": 1,
+        "explanation": "মৌলিক ক্যালকুলাস উপপাদ্য অনুযায়ী lim (x -> 0) [sin(x) / x] = 1।"
+      }
+    ]
+  },
+  {
+    "id": "qb-medical-2023",
+    "examName": "National MBBS & BDS Combined Admission Test",
+    "varsity": "Medical Colleges",
+    "subject": "Biology",
+    "year": "2023",
+    "questionsCount": 3,
+    "totalMarks": 15,
+    "duration": "30 Minutes",
+    "questions": [
+      {
+        "id": "med23-b1",
+        "question": "প্রোটিন তৈরির কারখানা বা প্রোটিন ফ্যাক্টরি বলা হয় কোন অঙ্গাণুকে?",
+        "options": ["মাইটোকন্ড্রিয়া", "গলজি বস্তু", "রাইবোজোম", "লাইসোজোম"],
+        "correctIndex": 2,
+        "explanation": "রাইবোজোম কোষে প্রোটিন সংশ্লেষণ করে বলে একে প্রোটিন ফ্যাক্টরি বলে।"
+      },
+      {
+        "id": "med23-b2",
+        "question": "মানবদেহের বৃহত্তম অন্তঃক্ষরা (Endocrine) গ্রন্থি কোনটি?",
+        "options": ["পিটুইটারি গ্রন্থি", "থাইরয়েড গ্রন্থি", "অগ্ন্যাশয়", "অ্যাড্রেনাল গ্রন্থি"],
+        "correctIndex": 1,
+        "explanation": "থাইরয়েড গ্রন্থি হলো মানবদেহের বৃহত্তম অন্তঃক্ষরা গ্রন্থি।"
+      },
+      {
+        "id": "med23-b3",
+        "question": "মানুষের রক্তের স্বাভাবিক pH মান কত?",
+        "options": ["6.5 - 6.8", "7.0 - 7.2", "7.35 - 7.45", "7.8 - 8.0"],
+        "correctIndex": 2,
+        "explanation": "মানবদেহের ধমনীর রক্তের স্বাভাবিক pH মান প্রায় ৭.৩৫ থেকে ৭.৪৫ (হালকা ক্ষারীয়)।"
+      }
+    ]
+  },
+  {
+    "id": "qb-iba-2022",
+    "examName": "IBA BBA Admission Assessment",
+    "varsity": "IBA (DU)",
+    "subject": "English",
+    "year": "2022",
+    "questionsCount": 2,
+    "totalMarks": 10,
+    "duration": "20 Minutes",
+    "questions": [
+      {
+        "id": "iba22-e1",
+        "question": "He is proficient _____ Mathematics and analytical problem-solving.",
+        "options": ["at", "in", "with", "for"],
+        "correctIndex": 1,
+        "explanation": "Appropriate preposition: 'Proficient in' means highly skilled in a field of study."
+      },
+      {
+        "id": "iba22-e2",
+        "question": "Choose the correct synonym of 'EPHEMERAL':",
+        "options": ["Eternal", "Transient", "Monumental", "Perpetual"],
+        "correctIndex": 1,
+        "explanation": "'Ephemeral' means lasting for a very short time; its synonym is 'Transient'."
+      }
+    ]
+  }
+]

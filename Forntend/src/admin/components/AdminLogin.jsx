@@ -72,10 +72,6 @@ export default function AdminLogin({
           </button>
         </form>
 
-        <div className="admin-hint-box">
-          💡 Default Access: User <code>admin</code> | Pass <code>admin123</code>
-        </div>
-
         <button
           type="button"
           className="admin-return-btn"

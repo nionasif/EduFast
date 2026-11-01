@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { DEFAULT_USER, DEFAULT_TEACHER, getTeacherProfile } from '../../data/mockData';
 import EmailOTPModal from './EmailOTPModal';
+import api, { setAuthSession } from '../../services/api';
 
 export default function LoginModal({
   isOpen,
@@ -11,7 +11,7 @@ export default function LoginModal({
   onNavigate,
   initialRole = 'student'
 }) {
-  const [role, setRole] = useState(initialRole); // 'student' | 'teacher'
+  const [role, setRole] = useState(initialRole); // 'student' | 'teacher' | 'mentor' | 'admin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,104 +31,78 @@ export default function LoginModal({
 
   if (!isOpen) return null;
 
-  const handlePreFill = () => {
-    if (role === 'teacher') {
-      setEmail('teacher@edufast.com');
-      setPassword('password123');
-    } else {
-      setEmail('student@edufast.com');
-      setPassword('password123');
-    }
-  };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!email || !password) {
-      addToast('Please enter both Email and Password.', 'error');
+      addToast('Please enter both Email/Identifier and Password.', 'error');
       return;
     }
 
-    if (role === 'teacher') {
-      // Teacher Login Logic
-      try {
-        const storedProfile = localStorage.getItem('edufast_teacher_profile');
-        const teacherProfile = storedProfile ? JSON.parse(storedProfile) : null;
+    setIsSubmitting(true);
+    const cleanIdentifier = email.trim();
 
-        if (teacherProfile && teacherProfile.email && email.toLowerCase() === teacherProfile.email.toLowerCase()) {
-          localStorage.setItem('edufast_teacher_session', JSON.stringify(teacherProfile));
-          if (onTeacherLoginSuccess) {
-            onTeacherLoginSuccess(teacherProfile);
-          } else {
-            onNavigate('teacher');
-          }
-          addToast(`Welcome back, ${teacherProfile.name || 'Instructor'}!`, 'success');
-          onClose();
+    try {
+      const data = await api.post('/auth/login', {
+        email: cleanIdentifier,
+        password,
+        role
+      });
+
+      setIsSubmitting(false);
+
+      if (data.requiresVerification) {
+        addToast(data.error || 'Please verify your email before logging in.', 'error');
+        setUnverifiedEmail(data.email || cleanIdentifier);
+        setIsVerifyingOtp(true);
+        return;
+      }
+
+      if (data.success && data.user) {
+        const userRole = (data.role || role || 'student').toLowerCase();
+        const expectedRole = (role || 'student').toLowerCase();
+
+        // Extra client-side safeguard: Prevent cross-role redirect
+        if (userRole !== expectedRole) {
+          addToast(`Security Notice: Cannot log in as ${userRole} from ${expectedRole} portal. Please select the correct tab.`, 'error');
           return;
         }
-      } catch { }
 
-      if (email.includes('@') && password.length >= 6) {
-        // Authenticated Teacher User
-        const teacherData = {
-          ...DEFAULT_TEACHER,
-          id: `teacher-${Date.now()}`,
-          name: email.split('@')[0],
-          email: email
-        };
-        localStorage.setItem('edufast_teacher_session', JSON.stringify(teacherData));
-        if (onTeacherLoginSuccess) {
-          onTeacherLoginSuccess(teacherData);
+        setAuthSession(data.token, data.user, userRole);
+
+        if (userRole === 'teacher') {
+          if (onTeacherLoginSuccess) {
+            onTeacherLoginSuccess(data.user);
+          } else if (onNavigate) {
+            onNavigate('teacher');
+          }
+          addToast(`Welcome back, Instructor ${data.user.name || ''}!`, 'success');
+        } else if (userRole === 'mentor') {
+          if (onNavigate) onNavigate('mentor');
+          addToast(`Welcome back, Mentor ${data.user.name || ''}!`, 'success');
+        } else if (userRole === 'admin') {
+          if (onNavigate) onNavigate('admin');
+          addToast('Welcome to EduFast Admin Portal!', 'success');
         } else {
-          onNavigate('teacher');
+          if (onLoginSuccess) onLoginSuccess(data.user);
+          addToast('Welcome back to Edufast!', 'success');
         }
-        addToast(`Logged in successfully as ${teacherData.name}.`, 'success');
         onClose();
-      } else {
-        addToast('Invalid teacher credentials. Password must be at least 6 characters.', 'error');
+        return;
       }
-    } else {
-      // Student Login with Backend Verification Check
-      setIsSubmitting(true);
-      const cleanIdentifier = email.trim();
 
-      fetch('http://localhost:5001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanIdentifier, password })
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          return { ok: res.ok, status: res.status, data };
-        })
-        .then(({ ok, status, data }) => {
-          setIsSubmitting(false);
-
-          // If user is unverified (status 403)
-          if (status === 403 || data.requiresVerification) {
-            addToast(data.error || 'Please verify your email before logging in.', 'error');
-            setUnverifiedEmail(data.email || cleanIdentifier);
-            setIsVerifyingOtp(true);
-            return;
-          }
-
-          if (ok && data.success) {
-            try {
-              localStorage.setItem('edufast_student_session', JSON.stringify(data.user));
-            } catch (e) { }
-            onLoginSuccess(data.user);
-            addToast('Welcome back to Edufast!', 'success');
-            onClose();
-            return;
-          }
-
-          addToast(data.error || 'Invalid credentials. Please check your email and password.', 'error');
-        })
-        .catch((err) => {
-          setIsSubmitting(false);
-          console.warn('Backend login unavailable:', err.message);
-          addToast('Could not connect to authentication server. Please ensure backend is running.', 'error');
-        });
+      addToast(data.error || 'Invalid credentials. Please check your details.', 'error');
+    } catch (err) {
+      setIsSubmitting(false);
+      console.warn('Backend login notice:', err.message);
+      if (err.data?.requiresVerification) {
+        addToast(err.data?.error || 'Please verify your email before logging in.', 'error');
+        setUnverifiedEmail(err.data?.email || cleanIdentifier);
+        setIsVerifyingOtp(true);
+        return;
+      }
+      addToast(err.message || 'Could not connect to authentication server.', 'error');
     }
   };
 
@@ -136,6 +110,49 @@ export default function LoginModal({
     setRole(newRole);
     setEmail('');
     setPassword('');
+  };
+
+  const handlePreFill = () => {
+    if (role === 'teacher') {
+      setEmail('teacher@edufast.com');
+      setPassword('teacher123');
+    } else if (role === 'mentor') {
+      setEmail('mentor@edufast.com');
+      setPassword('mentor123');
+    } else if (role === 'admin') {
+      setEmail('admin@edufast.com');
+      setPassword('admin123');
+    } else {
+      setEmail('student@edufast.com');
+      setPassword('password123');
+    }
+  };
+
+  const getRoleButtonColor = () => {
+    switch (role) {
+      case 'teacher': return 'var(--primary-teal, #319795)';
+      case 'mentor': return '#6366f1';
+      case 'admin': return '#0f172a';
+      default: return 'var(--cta-orange, #dd6b20)';
+    }
+  };
+
+  const getRoleButtonText = () => {
+    switch (role) {
+      case 'teacher': return 'Log In to Teacher Studio';
+      case 'mentor': return 'Log In to Mentor Desk';
+      case 'admin': return 'Log In to Admin Panel';
+      default: return 'Log In as Student';
+    }
+  };
+
+  const getRoleLabel = () => {
+    switch (role) {
+      case 'teacher': return 'Teacher';
+      case 'mentor': return 'Mentor';
+      case 'admin': return 'Admin';
+      default: return 'Student';
+    }
   };
 
   return (
@@ -146,77 +163,81 @@ export default function LoginModal({
         {/* Role Toggle Selector */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '6px',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '4px',
           backgroundColor: 'var(--gray-100, #f1f5f9)',
           padding: '4px',
           borderRadius: '10px',
           marginBottom: '1.25rem'
         }}>
-          <button
-            type="button"
-            onClick={() => handleSwitchRole('student')}
-            style={{
-              padding: '0.6rem',
-              borderRadius: '8px',
-              border: 'none',
-              backgroundColor: role === 'student' ? 'var(--primary-teal, #319795)' : 'transparent',
-              color: role === 'student' ? '#ffffff' : 'var(--gray-700, #4a5568)',
-              fontWeight: 700,
-              fontSize: '0.88rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            🎓 Student (শিক্ষার্থী)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchRole('teacher')}
-            style={{
-              padding: '0.6rem',
-              borderRadius: '8px',
-              border: 'none',
-              backgroundColor: role === 'teacher' ? 'var(--primary-teal, #319795)' : 'transparent',
-              color: role === 'teacher' ? '#ffffff' : 'var(--gray-700, #4a5568)',
-              fontWeight: 700,
-              fontSize: '0.88rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            👨‍🏫 Teacher (শিক্ষক)
-          </button>
+          {[
+            { id: 'student', label: 'Student', icon: '🎓' },
+            { id: 'teacher', label: 'Teacher', icon: '👨‍🏫' },
+            { id: 'mentor', label: 'Mentor', icon: '🧑‍🏫' },
+            { id: 'admin', label: 'Admin', icon: '🛡️' }
+          ].map(r => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => handleSwitchRole(r.id)}
+              style={{
+                padding: '0.5rem 0.2rem',
+                borderRadius: '7px',
+                border: 'none',
+                backgroundColor: role === r.id ? 'var(--primary-teal, #319795)' : 'transparent',
+                color: role === r.id ? '#ffffff' : 'var(--gray-700, #4a5568)',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.1rem',
+                boxShadow: role === r.id ? '0 2px 5px rgba(0,0,0,0.1)' : 'none'
+              }}
+            >
+              <span style={{ fontSize: '0.95rem' }}>{r.icon}</span>
+              <span>{r.label}</span>
+            </button>
+          ))}
         </div>
 
         <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
           <h2 style={{ color: 'var(--primary-teal)', fontSize: '1.65rem', margin: 0 }}>
-            {role === 'teacher' ? 'Teacher Studio Log In' : 'Log In to Edufast'}
+            {role === 'teacher' ? 'Teacher Studio Log In' :
+             role === 'mentor' ? 'Mentor Portal Log In' :
+             role === 'admin' ? 'Admin Portal Log In' :
+             'Log In to Edufast'}
           </h2>
           <p style={{ color: 'var(--gray-500)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
             {role === 'teacher'
-              ? 'Enter instructor credentials or use the auto-fill helper.'
-              : 'Enter student credentials or use the auto-fill helper.'}
+              ? 'Enter instructor credentials or use auto-fill.'
+              : role === 'mentor'
+              ? 'Enter mentor credentials to solve student doubts.'
+              : role === 'admin'
+              ? 'Enter system administrator credentials.'
+              : 'Enter student credentials or use auto-fill.'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">
-              {role === 'teacher' ? 'Email Address' : 'Email or Mobile Number (ইমেইল অথবা মোবাইল নম্বর)'}
+              {role === 'teacher' ? 'Email Address' :
+               role === 'mentor' ? 'Mentor Email or Mobile' :
+               role === 'admin' ? 'Admin Username or Email' :
+               'Email or Mobile Number (ইমেইল অথবা মোবাইল নম্বর)'}
             </label>
             <input
               type={role === 'teacher' ? 'email' : 'text'}
               className="form-input"
-              placeholder={role === 'teacher' ? 'e.g. teacher@edufast.com' : 'e.g. student@edufast.com or 018xxxxxxxx'}
+              placeholder={
+                role === 'teacher' ? 'e.g. teacher@edufast.com' :
+                role === 'mentor' ? 'e.g. mentor@edufast.com or 018xxxxxxxx' :
+                role === 'admin' ? 'e.g. admin@edufast.com or admin' :
+                'e.g. student@edufast.com or 018xxxxxxxx'
+              }
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -240,9 +261,9 @@ export default function LoginModal({
             <button
               type="button"
               onClick={handlePreFill}
-              style={{ background: 'none', border: 'none', color: 'var(--primary-teal)', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: 'var(--primary-teal)', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' }}
             >
-              💡 Auto-fill {role === 'teacher' ? 'Teacher' : 'Student'} Test Credentials
+              💡 Auto-fill {getRoleLabel()} Test Credentials
             </button>
           </div>
 
@@ -250,7 +271,21 @@ export default function LoginModal({
             type="submit"
             className="btn btn-primary"
             disabled={isSubmitting}
-            style={{ width: '100%', height: '46px', backgroundColor: role === 'teacher' ? 'var(--primary-teal, #319795)' : 'var(--cta-orange, #dd6b20)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            style={{
+              width: '100%',
+              height: '46px',
+              backgroundColor: getRoleButtonColor(),
+              border: 'none',
+              borderRadius: '8px',
+              color: '#ffffff',
+              fontWeight: 700,
+              fontSize: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer'
+            }}
           >
             {isSubmitting ? (
               <>
@@ -268,7 +303,7 @@ export default function LoginModal({
                 Signing In...
               </>
             ) : (
-              role === 'teacher' ? 'Log In to Teacher Studio' : 'Log In as Student'
+              getRoleButtonText()
             )}
           </button>
         </form>
@@ -302,6 +337,10 @@ export default function LoginModal({
             href="#"
             onClick={(e) => {
               e.preventDefault();
+              if (role === 'admin') {
+                addToast('Admin accounts can only be provisioned by the system administrator.', 'info');
+                return;
+              }
               onClose();
               if (onNavigate) {
                 onNavigate('signup', role);
@@ -309,7 +348,10 @@ export default function LoginModal({
             }}
             style={{ color: 'var(--primary-teal)', fontWeight: '600', textDecoration: 'none' }}
           >
-            {role === 'teacher' ? 'Create Teacher Account →' : 'Create an Account →'}
+            {role === 'teacher' ? 'Create Teacher Account →' :
+             role === 'mentor' ? 'Apply as Mentor →' :
+             role === 'admin' ? 'Internal Access Only' :
+             'Create an Account →'}
           </a>
         </div>
       </div>

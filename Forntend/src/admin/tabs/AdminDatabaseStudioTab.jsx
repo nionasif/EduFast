@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
 
 export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
   const [tables, setTables] = useState([]);
@@ -15,9 +16,45 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [formData, setFormData] = useState({});
   const [selectedRow, setSelectedRow] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Table Categories
+  const TABLE_CATEGORIES = useMemo(() => [
+    { id: 'all', label: 'সকল টেবিল (All)', icon: '🌐' },
+    { id: 'users', label: 'ইউজার ও অ্যাক্সেস', icon: '👥', tables: ['users_auth', 'students', 'teachers', 'mentors', 'student_profiles'] },
+    { id: 'courses', label: 'কোর্স ও সিলেবাস', icon: '📚', tables: ['courses', 'course_curriculum', 'enrollments', 'lesson_progress'] },
+    { id: 'admissions', label: 'ভর্তি ও নোটিশ', icon: '🏛️', tables: ['universities', 'notices'] },
+    { id: 'exams', label: 'পরীক্ষা ও প্রশ্নব্যাংক', icon: '📝', tables: ['question_bank', 'mock_tests', 'mock_test_attempts', 'daily_tasks'] },
+    { id: 'live', label: 'লাইভ ও সাপোর্ট', icon: '💬', tables: ['live_classes', 'mentor_doubts', 'study_lounge_messages'] }
+  ], []);
+
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  const filteredTables = useMemo(() => {
+    if (activeCategory === 'all') return tables;
+    const cat = TABLE_CATEGORIES.find(c => c.id === activeCategory);
+    if (!cat || !cat.tables) return tables;
+    return tables.filter(t => cat.tables.includes(t.name));
+  }, [tables, activeCategory, TABLE_CATEGORIES]);
+
+  const handleSelectCategory = (catId) => {
+    setActiveCategory(catId);
+    const cat = TABLE_CATEGORIES.find(c => c.id === catId);
+    if (cat && cat.tables && cat.tables.length > 0) {
+      if (!cat.tables.includes(activeTable)) {
+        setActiveTable(cat.tables[0]);
+        setSearchQuery('');
+      }
+    }
+  };
+
+  const openViewModal = (row) => {
+    setSelectedRow(row);
+    setIsViewModalOpen(true);
+  };
 
   // DATA Files Studio States
   const [studioMode, setStudioMode] = useState('tables'); // 'tables' | 'data_files'
@@ -27,6 +64,39 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
   const [fileLoading, setFileLoading] = useState(false);
   const [fileSaving, setFileSaving] = useState(false);
   const [jsonError, setJsonError] = useState(null);
+
+  // SQL Runner States
+  const [sqlQuery, setSqlQuery] = useState('SELECT id, role, email, mobile, isVerified FROM users_auth;');
+  const [sqlResults, setSqlResults] = useState(null);
+  const [isExecutingSql, setIsExecutingSql] = useState(false);
+  const [sqlError, setSqlError] = useState(null);
+
+  const handleExecuteSql = async (overrideSql) => {
+    const queryToRun = overrideSql || sqlQuery;
+    if (!queryToRun || !queryToRun.trim()) return;
+    setIsExecutingSql(true);
+    setSqlError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/db/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql: queryToRun })
+      });
+      const data = await res.json();
+      setIsExecutingSql(false);
+      if (data.success) {
+        setSqlResults(data);
+        addToast(data.message || `Query returned ${data.rowCount} rows`, 'success');
+      } else {
+        setSqlError(data.error);
+        addToast(data.error || 'Failed to run SQL query', 'error');
+      }
+    } catch (err) {
+      setIsExecutingSql(false);
+      setSqlError(err.message);
+      addToast('Error running SQL: ' + err.message, 'error');
+    }
+  };
 
   const fetchDataFiles = async () => {
     try {
@@ -409,91 +479,132 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
             >
               📁 DATA Files Studio (JSON)
             </button>
+            <button
+              type="button"
+              onClick={() => setStudioMode('sql')}
+              style={{
+                padding: '0.45rem 1rem',
+                borderRadius: '8px',
+                border: studioMode === 'sql' ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                backgroundColor: studioMode === 'sql' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+                color: studioMode === 'sql' ? '#c084fc' : '#94a3b8',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer'
+              }}
+            >
+              💻 Custom SQL Runner
+            </button>
           </div>
         </div>
 
-        {studioMode === 'tables' ? (
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-teal"
-              onClick={openAddModal}
-              style={{
-                padding: '0.6rem 1.1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                fontSize: '0.85rem'
-              }}
-            >
-              <span>➕</span> Add Record
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleExportCSV}
-              disabled={rows.length === 0}
-              style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
-            >
-              📥 Export CSV
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleExportJSON}
-              disabled={rows.length === 0}
-              style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
-            >
-              📥 Export JSON
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleFormatJson}
-              disabled={fileLoading || !fileContent}
-              style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
-            >
-              ✨ Format JSON
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => loadFileContent(selectedFile)}
-              disabled={fileLoading}
-              style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
-            >
-              🔄 Reload
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleDownloadFile}
-              disabled={fileLoading || !fileContent}
-              style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
-            >
-              📥 Download
-            </button>
-            <button
-              type="button"
-              className="btn btn-teal"
-              onClick={handleSaveFileContent}
-              disabled={fileSaving || fileLoading}
-              style={{
-                padding: '0.6rem 1.2rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                fontSize: '0.85rem',
-                fontWeight: 700
-              }}
-            >
-              <span>{fileSaving ? '⏳ Saving...' : '💾 Save to File'}</span>
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <a
+            href="http://localhost:8080"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              padding: '0.6rem 1.1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              fontSize: '0.84rem',
+              backgroundColor: '#4f46e5',
+              color: '#ffffff',
+              borderRadius: '8px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)'
+            }}
+          >
+            <span>🌐</span> Open SQLite Web Studio (Port 8080) ↗
+          </a>
+
+          {studioMode === 'tables' && (
+            <>
+              <button
+                type="button"
+                className="btn btn-teal"
+                onClick={openAddModal}
+                style={{
+                  padding: '0.6rem 1.1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  fontSize: '0.85rem'
+                }}
+              >
+                <span>➕</span> Add Record
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportCSV}
+                disabled={rows.length === 0}
+                style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
+              >
+                📥 Export CSV
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportJSON}
+                disabled={rows.length === 0}
+                style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
+              >
+                📥 Export JSON
+              </button>
+            </>
+          )}
+
+          {studioMode === 'data_files' && (
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleFormatJson}
+                disabled={fileLoading || !fileContent}
+                style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
+              >
+                ✨ Format JSON
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => loadFileContent(selectedFile)}
+                disabled={fileLoading}
+                style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
+              >
+                🔄 Reload
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleDownloadFile}
+                disabled={fileLoading || !fileContent}
+                style={{ padding: '0.6rem 0.9rem', fontSize: '0.82rem' }}
+              >
+                📥 Download
+              </button>
+              <button
+                type="button"
+                className="btn btn-teal"
+                onClick={handleSaveFileContent}
+                disabled={fileSaving || fileLoading}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 700
+                }}
+              >
+                <span>{fileSaving ? '⏳ Saving...' : '💾 Save to File'}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ------------------------------------------------------------- */}
@@ -634,10 +745,239 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
       )}
 
       {/* ------------------------------------------------------------- */}
+      {/* 3. CUSTOM SQL RUNNER VIEW */}
+      {/* ------------------------------------------------------------- */}
+      {studioMode === 'sql' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{
+            backgroundColor: 'var(--card-bg, #1e293b)',
+            border: '1px solid var(--border-color, rgba(255, 255, 255, 0.1))',
+            borderRadius: '14px',
+            padding: '1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#f8fafc', fontWeight: 700 }}>
+                  💻 Interactive SQLite Query Console
+                </h3>
+                <p style={{ margin: '0.2rem 0 0 0', color: '#94a3b8', fontSize: '0.8rem' }}>
+                  Write and execute real-time SQL queries (SELECT, INSERT, UPDATE, DELETE, PRAGMA) directly on students.db.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {[
+                  { label: '👥 users_auth', q: 'SELECT id, role, email, mobile, isVerified FROM users_auth;' },
+                  { label: '🎓 students', q: 'SELECT id, name, email, mobile, academicGroup, coins, score FROM students;' },
+                  { label: '👨‍🏫 teachers', q: 'SELECT id, name, email, subject, institution FROM teachers;' },
+                  { label: '📚 courses', q: 'SELECT id, title, instructor, price, academicGroup FROM courses;' },
+                  { label: '🏛️ universities', q: 'SELECT id, name, examDate, applicationFee FROM universities;' },
+                  { label: '📑 questions', q: 'SELECT id, subject, chapter, question, correctAnswer FROM question_bank LIMIT 5;' }
+                ].map((sample, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSqlQuery(sample.q);
+                      handleExecuteSql(sample.q);
+                    }}
+                    style={{
+                      padding: '0.35rem 0.65rem',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      color: '#cbd5e1',
+                      fontSize: '0.74rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {sample.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <textarea
+                value={sqlQuery}
+                onChange={(e) => setSqlQuery(e.target.value)}
+                placeholder="Write SQL query, e.g. SELECT * FROM users_auth WHERE role = 'student';"
+                rows={5}
+                style={{
+                  width: '100%',
+                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                  fontSize: '0.9rem',
+                  lineHeight: '1.4',
+                  backgroundColor: '#030712',
+                  color: '#a7f3d0',
+                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                  borderRadius: '10px',
+                  padding: '1rem',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                Tip: Press Execute or click any quick template to inspect tables instantly.
+              </span>
+              <button
+                type="button"
+                className="btn btn-teal"
+                onClick={() => handleExecuteSql()}
+                disabled={isExecutingSql}
+                style={{
+                  padding: '0.6rem 1.4rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.88rem',
+                  backgroundColor: '#9333ea',
+                  fontWeight: 700
+                }}
+              >
+                <span>{isExecutingSql ? '⏳ Executing...' : '▶ Execute Query'}</span>
+              </button>
+            </div>
+
+            {sqlError && (
+              <div style={{
+                padding: '0.75rem 1rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                color: '#f87171',
+                fontSize: '0.85rem'
+              }}>
+                ❌ SQL Error: {sqlError}
+              </div>
+            )}
+
+            {sqlResults && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#34d399', fontWeight: 600 }}>
+                    {sqlResults.type === 'select' 
+                      ? `✅ Returned ${sqlResults.rowCount} row(s)`
+                      : `✅ Executed. ${sqlResults.changes || 0} row(s) affected.`}
+                  </span>
+                </div>
+                {sqlResults.data && sqlResults.data.length > 0 && (
+                  <div style={{
+                    maxHeight: '400px',
+                    overflow: 'auto',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px'
+                  }}>
+                    <table className="admin-table" style={{ width: '100%', fontSize: '0.8rem' }}>
+                      <thead>
+                        <tr>
+                          {Object.keys(sqlResults.data[0]).map((col) => (
+                            <th key={col} style={{ padding: '0.6rem 0.8rem' }}>{col}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sqlResults.data.map((row, rIdx) => (
+                          <tr key={rIdx}>
+                            {Object.keys(row).map((col) => (
+                              <td key={col} style={{ padding: '0.5rem 0.8rem', fontFamily: typeof row[col] === 'number' ? 'monospace' : 'inherit' }}>
+                                {row[col] === null ? <em style={{ color: '#64748b' }}>null</em> : String(row[col])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
       {/* 2. SQLITE TABLES VIEW (Default) */}
       {/* ------------------------------------------------------------- */}
       {studioMode === 'tables' && (
         <div>
+          {/* Quick Credentials Info Card */}
+          <div style={{
+            marginBottom: '1rem',
+            padding: '1rem 1.25rem',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>🔑</span>
+                <strong style={{ color: '#f8fafc', fontSize: '0.92rem' }}>সকল সিস্টেম আইডি ও পাসওয়ার্ড (System Logins & Passwords):</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                <span>🛡️ <strong>Admin:</strong> admin@edufast.com <code style={{ color: '#38bdf8', background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px' }}>admin123</code></span>
+                <span>👨‍🏫 <strong>Teacher:</strong> teacher@edufast.com <code style={{ color: '#34d399', background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px' }}>teacher123</code></span>
+                <span>🧑‍🏫 <strong>Mentor:</strong> mentor@edufast.com <code style={{ color: '#c084fc', background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px' }}>mentor123</code></span>
+                <span>🎓 <strong>Student:</strong> student@edufast.com (01823456789) <code style={{ color: '#fbbf24', background: 'rgba(0,0,0,0.3)', padding: '2px 4px', borderRadius: '4px' }}>password123</code></span>
+              </div>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+              <span style={{ background: 'rgba(99, 102, 241, 0.2)', padding: '4px 8px', borderRadius: '6px', color: '#818cf8', fontWeight: 600 }}>
+                Bcrypt & Plain Supported
+              </span>
+            </div>
+          </div>
+
+          {/* Category Tabs */}
+          <div style={{
+            display: 'flex',
+            gap: '0.4rem',
+            overflowX: 'auto',
+            paddingBottom: '0.25rem',
+            marginBottom: '0.6rem',
+            scrollbarWidth: 'thin'
+          }}>
+            {TABLE_CATEGORIES.map(cat => {
+              const isSelected = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => handleSelectCategory(cat.id)}
+                  style={{
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '8px',
+                    border: isSelected ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(15, 23, 42, 0.5)',
+                    color: isSelected ? '#34d399' : '#94a3b8',
+                    fontWeight: 700,
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Table Selection Pills */}
           <div style={{
             display: 'flex',
@@ -646,13 +986,13 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
             paddingBottom: '0.35rem',
             scrollbarWidth: 'thin'
           }}>
-            {tables.map(tab => (
+            {filteredTables.map(tab => (
               <button
                 key={tab.name}
                 type="button"
                 onClick={() => { setActiveTable(tab.name); setSearchQuery(''); }}
                 style={{
-                  padding: '0.6rem 1.1rem',
+                  padding: '0.55rem 1rem',
                   borderRadius: '12px',
                   border: activeTable === tab.name ? '1px solid #10b981' : '1px solid rgba(255, 255, 255, 0.08)',
                   backgroundColor: activeTable === tab.name ? 'rgba(16, 185, 129, 0.15)' : 'rgba(30, 41, 59, 0.7)',
@@ -695,24 +1035,42 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
         borderRadius: '12px',
         padding: '0.75rem 1rem'
       }}>
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem', flex: '1 1 300px' }}>
-          <input
-            type="text"
-            placeholder={`Search records in ${activeTable}...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              flex: 1,
-              backgroundColor: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '8px',
-              padding: '0.5rem 0.85rem',
-              color: '#ffffff',
-              fontSize: '0.82rem',
-              outline: 'none'
-            }}
-          />
-          <button type="submit" className="btn btn-teal" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem' }}>
+        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '0.5rem', flex: '1 1 320px', position: 'relative' }}>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder={`Search by ID (e.g. 18) or keyword in ${activeTable}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                padding: '0.5rem 0.85rem',
+                paddingRight: searchQuery.trim() && /^\d+$/.test(searchQuery.trim()) ? '110px' : '0.85rem',
+                color: '#ffffff',
+                fontSize: '0.82rem',
+                outline: 'none'
+              }}
+            />
+            {searchQuery.trim() && /^\d+$/.test(searchQuery.trim()) && (
+              <span style={{
+                position: 'absolute',
+                right: '8px',
+                backgroundColor: '#f59e0b',
+                color: '#000000',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                padding: '2px 7px',
+                borderRadius: '5px',
+                pointerEvents: 'none'
+              }}>
+                🎯 ID #{searchQuery.trim()}
+              </span>
+            )}
+          </div>
+          <button type="submit" className="btn btn-teal" style={{ padding: '0.5rem 1rem', fontSize: '0.82rem', fontWeight: 700 }}>
             🔍 Search
           </button>
           {searchQuery && (
@@ -780,7 +1138,7 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'rgba(30, 41, 59, 0.9)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <th style={{ padding: '12px 14px', color: '#94a3b8', fontWeight: 700, width: '110px' }}>Actions</th>
+                  <th style={{ padding: '12px 14px', color: '#94a3b8', fontWeight: 700, width: '150px' }}>Actions</th>
                   {columns.map(col => (
                     <th key={col.name} style={{ padding: '12px 14px', color: '#cbd5e1', fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {col.name}
@@ -792,18 +1150,42 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
               <tbody>
                 {rows.map((row, idx) => {
                   const pkCol = columns.find(c => c.isPk) || { name: 'id' };
-                  const rowKey = row[pkCol.name] || idx;
+                  const pkVal = row[pkCol.name];
+                  const rowKey = pkVal || idx;
+                  const isDirectIdMatch = searchQuery.trim() && (
+                    String(pkVal).toLowerCase() === searchQuery.trim().toLowerCase()
+                  );
 
                   return (
                     <tr
                       key={rowKey}
                       style={{
                         borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                        backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.015)'
+                        backgroundColor: isDirectIdMatch 
+                          ? 'rgba(245, 158, 11, 0.15)' 
+                          : (idx % 2 === 0 ? 'transparent' : 'rgba(255, 255, 255, 0.015)'),
+                        outline: isDirectIdMatch ? '2px solid #f59e0b' : 'none'
                       }}
                     >
                       <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => openViewModal(row)}
+                            title="Quick View Record"
+                            style={{
+                              backgroundColor: 'rgba(99, 102, 241, 0.18)',
+                              border: '1px solid rgba(99, 102, 241, 0.4)',
+                              color: '#818cf8',
+                              borderRadius: '6px',
+                              padding: '3px 7px',
+                              cursor: 'pointer',
+                              fontSize: '0.74rem',
+                              fontWeight: 700
+                            }}
+                          >
+                            👁️ View
+                          </button>
                           <button
                             type="button"
                             onClick={() => openEditModal(row)}
@@ -813,10 +1195,10 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
                               border: '1px solid rgba(56, 189, 248, 0.3)',
                               color: '#38bdf8',
                               borderRadius: '6px',
-                              padding: '3px 8px',
+                              padding: '3px 7px',
                               cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              fontWeight: 600
+                              fontSize: '0.74rem',
+                              fontWeight: 700
                             }}
                           >
                             ✏️ Edit
@@ -830,10 +1212,10 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
                               border: '1px solid rgba(239, 68, 68, 0.3)',
                               color: '#f87171',
                               borderRadius: '6px',
-                              padding: '3px 8px',
+                              padding: '3px 7px',
                               cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              fontWeight: 600
+                              fontSize: '0.74rem',
+                              fontWeight: 700
                             }}
                           >
                             🗑️
@@ -844,7 +1226,7 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
                       {columns.map(col => {
                         const val = row[col.name];
                         let displayVal = val === null || val === undefined ? '' : String(val);
-                        const isLong = displayVal.length > 50;
+                        const isLong = displayVal.length > 45;
 
                         return (
                           <td
@@ -859,7 +1241,33 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
                             }}
                             title={isLong ? displayVal : undefined}
                           >
-                            {col.name === 'isVerified' ? (
+                            {col.name === 'id' ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{
+                                  backgroundColor: isDirectIdMatch ? '#f59e0b' : 'rgba(99, 102, 241, 0.25)',
+                                  color: isDirectIdMatch ? '#000000' : '#a5b4fc',
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.78rem',
+                                  fontFamily: 'monospace'
+                                }}>
+                                  #{val}
+                                </span>
+                                {isDirectIdMatch && (
+                                  <span style={{
+                                    backgroundColor: '#f59e0b',
+                                    color: '#000000',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.64rem',
+                                    fontWeight: 900
+                                  }}>
+                                    MATCHED
+                                  </span>
+                                )}
+                              </div>
+                            ) : col.name === 'isVerified' ? (
                               <span style={{
                                 backgroundColor: val ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                                 color: val ? '#34d399' : '#f87171',
@@ -870,6 +1278,8 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
                               }}>
                                 {val ? 'YES' : 'NO'}
                               </span>
+                            ) : col.name.toLowerCase().includes('password') || col.name === 'otpHash' ? (
+                              <span style={{ fontFamily: 'monospace', color: '#64748b' }}>••••••••</span>
                             ) : (
                               displayVal || <span style={{ color: '#64748b' }}>NULL</span>
                             )}
@@ -1067,6 +1477,73 @@ export default function AdminDatabaseStudioTab({ addToast = () => {} }) {
                 }}
               >
                 Yes, Delete Record
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW RECORD INSPECTOR */}
+      {isViewModalOpen && selectedRow && (
+        <div className="modal-backdrop" onClick={() => setIsViewModalOpen(false)}>
+          <div
+            className="modal-content"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '680px', width: '92vw', backgroundColor: '#0f172a', border: '1px solid rgba(99, 102, 241, 0.4)', borderRadius: '16px', padding: '1.5rem' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
+              <h3 style={{ margin: 0, color: '#818cf8', fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>👁️</span> Record Inspector: <span style={{ color: '#ffffff' }}>#{selectedRow[columns.find(c => c.isPk)?.name || 'id'] || 'Record'}</span> in <span style={{ color: '#38bdf8' }}>{activeTable}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsViewModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.4rem', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem' }}>
+              {columns.map(col => {
+                const val = selectedRow[col.name];
+                return (
+                  <div key={col.name} style={{ backgroundColor: 'rgba(30, 41, 59, 0.6)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{col.name}</span>
+                      <span style={{ color: '#64748b', fontSize: '0.7rem' }}>{col.type || 'TEXT'} {col.isPk ? '(PK)' : ''}</span>
+                    </div>
+                    <div style={{ color: '#f8fafc', fontSize: '0.86rem', wordBreak: 'break-word', fontFamily: typeof val === 'number' ? 'monospace' : 'inherit' }}>
+                      {val === null || val === undefined ? (
+                        <em style={{ color: '#64748b' }}>null</em>
+                      ) : (
+                        String(val)
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsViewModalOpen(false)}
+                style={{ padding: '0.5rem 1rem', fontSize: '0.82rem' }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn-teal"
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  openEditModal(selectedRow);
+                }}
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.82rem' }}
+              >
+                ✏️ Edit This Record
               </button>
             </div>
           </div>

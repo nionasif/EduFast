@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import './Leaderboard.css';
+import api from '../../services/api';
 import { 
   getDynamicLeaderboard, 
   getStudentCoins, 
@@ -60,16 +61,27 @@ export default function Leaderboard({ user, coins: propCoins, onNavigate }) {
     let isMounted = true;
     const fetchLiveStudents = async () => {
       try {
-        const res = await fetch('http://localhost:5001/api/students/leaderboard?limit=50');
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && isMounted) {
-          setRegisteredStudents(json.data);
-          syncRegisteredStudents(json.data);
+        const res = await api.get(`/students/leaderboard?metric=${metric}&group=${groupFilter}&limit=50`);
+        const data = res.data?.data || res.data;
+        if (Array.isArray(data) && isMounted) {
+          setRegisteredStudents(data);
+          syncRegisteredStudents(data);
+          return;
         }
-      } catch (err) {
-        if (isMounted) {
-          setRegisteredStudents(getRegisteredStudents());
+      } catch (err) {}
+
+      try {
+        const fallbackRes = await api.get('/leaderboard');
+        const fallbackData = fallbackRes.data?.data || fallbackRes.data;
+        if (Array.isArray(fallbackData) && isMounted) {
+          setRegisteredStudents(fallbackData);
+          syncRegisteredStudents(fallbackData);
+          return;
         }
+      } catch {}
+
+      if (isMounted) {
+        setRegisteredStudents(getRegisteredStudents());
       }
     };
 
@@ -88,10 +100,10 @@ export default function Leaderboard({ user, coins: propCoins, onNavigate }) {
       window.removeEventListener('edufast-coins-update', handleUpdate);
       window.removeEventListener('edufast-mock-history-update', handleUpdate);
     };
-  }, []);
+  }, [metric, groupFilter]);
 
   // Compute dynamic leaderboard data (Strictly Top 10 for list, fullList for modal)
-  const { list, fullList, totalRegistered, userRank, userItem, aheadItem, gapCoins, gapScore, gapStreak } = useMemo(() => {
+  const { list, fullList, totalRegistered, userRank, userItem, aheadItem, isTiedWithAhead, gapCoins, gapScore, gapStreak } = useMemo(() => {
     return getDynamicLeaderboard(currentUser, {
       metric,
       group: groupFilter,
@@ -130,7 +142,7 @@ export default function Leaderboard({ user, coins: propCoins, onNavigate }) {
     }
     return (
       <span style={{ fontWeight: 800, color: '#ECC94B' }}>
-        🪙 {item.coins} Coins
+        🪙 {item.coins} কয়েন
       </span>
     );
   };
@@ -138,7 +150,7 @@ export default function Leaderboard({ user, coins: propCoins, onNavigate }) {
   const getMetricTitle = () => {
     if (metric === 'score') return 'মেগা মক টেস্ট পারফর্মেন্স';
     if (metric === 'streak') return 'ধারাবাহিক স্টাডি স্ট্রিক';
-    return 'সর্বোচ্চ EduCoins অর্জনকারী';
+    return 'সর্বোচ্চ Eduকয়েন অর্জনকারী';
   };
 
   return (
@@ -176,7 +188,7 @@ export default function Leaderboard({ user, coins: propCoins, onNavigate }) {
       <div className="lb-controls-row">
         <div className="lb-metric-tabs">
           {[
-            { id: 'coins', label: '🪙 EduCoins' },
+            { id: 'coins', label: '🪙 Eduকয়েন' },
             { id: 'score', label: '🏆 মক টেস্ট' },
             { id: 'streak', label: '🔥 স্টাডি স্ট্রিক' }
           ].map(tab => (
@@ -228,15 +240,21 @@ export default function Leaderboard({ user, coins: propCoins, onNavigate }) {
               <div className="lb-user-hint-text">
                 {metric === 'coins' && (
                   <span>
-                    আপনার সংগ্রহ <strong>{userItem.coins} EduCoins</strong>।{' '}
+                    আপনার সংগ্রহ <strong>{userItem.coins} Eduকয়েন</strong>।{' '}
                     {userItem.coins === 0 ? (
                       <span style={{ color: '#fed7aa' }}>
                         💡 দৈনিক AI রিভিশন প্ল্যান ও মক টেস্ট সমাধান করে কয়েন অর্জন করুন!
                       </span>
                     ) : aheadItem ? (
-                      <span style={{ color: '#fed7aa' }}>
-                        💡 <strong>#{userRank - 1}</strong> স্থানে পৌঁছাতে আর মাত্র <strong>{gapCoins} কয়েন</strong> প্রয়োজন!
-                      </span>
+                      isTiedWithAhead ? (
+                        <span style={{ color: '#fed7aa' }}>
+                          💡 আপনি <strong>#{userRank - 1}</strong> এর সাথে যৌথভাবে টাই আছেন! একক শীর্ষে পৌঁছাতে আর মাত্র <strong>১ কয়েন</strong> প্রয়োজন!
+                        </span>
+                      ) : (
+                        <span style={{ color: '#fed7aa' }}>
+                          💡 <strong>#{userRank - 1}</strong> স্থানে পৌঁছাতে আর মাত্র <strong>{gapCoins} কয়েন</strong> প্রয়োজন!
+                        </span>
+                      )
                     ) : (
                       <span style={{ color: '#86efac' }}>👑 অভিনন্দন! আপনি লিডারবোর্ডের শীর্ষে আছেন!</span>
                     )}

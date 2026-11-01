@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import api from '../../services/api';
 
 export default function EmailVerification({
   email,
@@ -48,19 +49,13 @@ export default function EmailVerification({
     setIsSending(true);
 
     try {
-      const res = await fetch('http://localhost:5001/api/auth/send-email-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          name: name || (role === 'teacher' ? 'Instructor' : 'Student')
-        })
+      const data = await api.post('/auth/send-email-otp', {
+        email: email.trim(),
+        name: name || (role === 'teacher' ? 'Instructor' : 'Student')
       });
-
-      const data = await res.json();
       setIsSending(false);
 
-      if (res.ok && data.success) {
+      if (data && data.success) {
         setOtpSent(true);
         setCountdown(60);
         addToast(
@@ -79,10 +74,11 @@ export default function EmailVerification({
     } catch (err) {
       setIsSending(false);
       console.error('Send OTP error:', err);
-      const msg = 'Network error: Cannot connect to server on port 5001.';
+      const msg = err.message || 'Network error: Cannot connect to server.';
       setErrorMsg(msg);
       addToast(msg, 'error');
     }
+
   };
 
   const handleVerifyOtp = async () => {
@@ -102,19 +98,13 @@ export default function EmailVerification({
     setIsVerifying(true);
 
     try {
-      const res = await fetch('http://localhost:5001/api/auth/verify-email-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          otp: cleanOtp
-        })
+      const data = await api.post('/auth/verify-email-otp', {
+        email: email.trim(),
+        otp: cleanOtp
       });
-
-      const data = await res.json();
       setIsVerifying(false);
 
-      if (res.ok && data.success) {
+      if (data.success) {
         setIsVerified(true);
         addToast('Email verified successfully! Registration form unlocked.', 'success');
       } else {
@@ -125,7 +115,7 @@ export default function EmailVerification({
     } catch (err) {
       setIsVerifying(false);
       console.error('Verify OTP error:', err);
-      const msg = 'Network error: Could not verify code.';
+      const msg = err.message || 'Network error: Could not verify code.';
       setErrorMsg(msg);
       addToast(msg, 'error');
     }

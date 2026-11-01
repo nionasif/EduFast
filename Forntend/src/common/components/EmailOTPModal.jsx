@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import api from '../../services/api';
 
 export default function EmailOTPModal({
   isOpen,
@@ -118,20 +119,10 @@ export default function EmailOTPModal({
     setErrorMessage('');
 
     try {
-      const response = await fetch('http://localhost:5001/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email,
-          otp: completeOtp
-        })
+      const data = await api.post('/auth/verify-otp', {
+        email: email,
+        otp: completeOtp
       });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Verification failed. Please try again.');
-      }
 
       setSuccessMessage('Email verified successfully! Activating your account...');
       if (addToast) {
@@ -161,17 +152,7 @@ export default function EmailOTPModal({
     setErrorMessage('');
 
     try {
-      const response = await fetch('http://localhost:5001/api/auth/resend-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to resend code.');
-      }
+      const data = await api.post('/auth/resend-otp', { email: email });
 
       // Reset timers and inputs
       setDigits(['', '', '', '', '', '']);

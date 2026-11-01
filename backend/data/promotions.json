@@ -1,0 +1,80 @@
+[
+  {
+    "id": "ad-1792696895608",
+    "institutionName": "আমার কলেজ",
+    "campaignTitle": "তুমি পড় তুমি গড়",
+    "tagline": "ঢাকা",
+    "badge": "🌟 Featured Partner (বিজ্ঞাপন)",
+    "logo": "🏛️",
+    "programs": [
+      "CSE",
+      "BBA",
+      "Software Engineering"
+    ],
+    "waiverText": "জিপিএ অনুযায়ী ১০০% পর্যন্ত স্কলারশিপ",
+    "targetUrl": "https://diit.edu.bd/",
+    "viewsCount": 281,
+    "clicksCount": 1,
+    "status": "active",
+    "createdAt": "2026-10-22T19:21:35.608Z"
+  },
+  {
+    "id": "ad-diit",
+    "institutionName": "Daffodil Institute of IT (DIIT)",
+    "campaignTitle": "DIIT Admission 2025: B.Sc in CSE, BBA & BTHM Program",
+    "tagline": "জাতীয় বিশ্ববিদ্যালয়ের অধিভুক্ত সেরা আইটি ও ইঞ্জিনিয়ারিং ক্যাম্পাস",
+    "badge": "🌟 Featured Partner (বিজ্ঞাপন)",
+    "logo": "🏛️",
+    "programs": [
+      "CSE (Computer Science)",
+      "BBA",
+      "BTHM"
+    ],
+    "waiverText": "জিপিএ অনুযায়ী ১০০% পর্যন্ত স্কলারশিপ সুবিধা",
+    "targetUrl": "https://diit.edu.bd",
+    "viewsCount": 1701,
+    "clicksCount": 185,
+    "status": "active",
+    "createdAt": "2025-01-10T00:00:00.000Z"
+  },
+  {
+    "id": "ad-daffodil-varsity",
+    "institutionName": "Daffodil International University (DIU)",
+    "campaignTitle": "DIU Spring 2025 Admission Open with Smart Campus Experience",
+    "tagline": "স্মার্ট গ্রিন ক্যাম্পাস, আশুলিয়া, ঢাকা",
+    "badge": "⭐ Sponsored Listing",
+    "logo": "🎓",
+    "programs": [
+      "Software Engineering",
+      "Cyber Security",
+      "Data Science",
+      "Pharmacy"
+    ],
+    "waiverText": "মুক্তিযোদ্ধা ও মেধাবী কোটায় বিশেষ ওয়েভার",
+    "targetUrl": "https://daffodilvarsity.edu.bd",
+    "viewsCount": 1261,
+    "clicksCount": 113,
+    "status": "active",
+    "createdAt": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "ad-brac-varsity",
+    "institutionName": "BRAC University",
+    "campaignTitle": "BRACU Undergraduate Admission 2025",
+    "tagline": "বিশ্বমানের শিক্ষা ও গ্লোবাল ক্যারিয়ারের নিশ্চয়তা",
+    "badge": "⭐ Sponsored Listing",
+    "logo": "🏛️",
+    "programs": [
+      "Computer Science & Eng (CSE)",
+      "Architecture",
+      "Economics",
+      "Law"
+    ],
+    "waiverText": "Merit Scholarship based on HSC Result",
+    "targetUrl": "https://www.bracu.ac.bd",
+    "viewsCount": 1121,
+    "clicksCount": 96,
+    "status": "active",
+    "createdAt": "2025-01-20T00:00:00.000Z"
+  }
+]

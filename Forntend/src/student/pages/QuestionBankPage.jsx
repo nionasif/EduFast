@@ -1,12 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BookOpen, Search, Download, CheckCircle2, XCircle, 
   HelpCircle, ChevronDown, ChevronUp, RefreshCw, FileText, Check
 } from 'lucide-react';
-import { getQuestionBank } from '../../data/mockData';
+import api from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function QuestionBankPage({ onStartMockTest }) {
-  const [questionPapers, setQuestionPapers] = useState(() => getQuestionBank());
+  const { language } = useLanguage();
+  const [questionPapers, setQuestionPapers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVarsity, setSelectedVarsity] = useState('All');
   const [selectedSubject, setSelectedSubject] = useState('All');
@@ -17,9 +20,29 @@ export default function QuestionBankPage({ onStartMockTest }) {
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const [downloadSuccess, setDownloadSuccess] = useState(null);
 
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    api.get('/data/question-bank')
+      .then(res => {
+        if (isMounted) {
+          const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+          setQuestionPapers(list);
+          setIsLoading(false);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load question papers:', err.message);
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => { isMounted = false; };
+  }, []);
+
   // Extract unique filter options
   const universities = useMemo(() => {
-    const list = new Set(questionPapers.map(p => p.varsity));
+    const list = new Set(questionPapers.map(p => p.varsity).filter(Boolean));
     return ['All', ...Array.from(list)];
   }, [questionPapers]);
 
@@ -142,72 +165,78 @@ Detailed Explanation: ${q.explanation}
           boxShadow: 'var(--shadow-sm)',
           marginBottom: '2rem'
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', alignItems: 'stretch' }}>
             {/* Search Input */}
-            <div style={{ gridColumn: 'span 1' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.35rem' }}>
-                সার্চ করুন (Search)
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.4rem', height: '20px', lineHeight: '20px' }}>
+                {language === 'bn' ? 'সার্চ করুন (Search)' : 'Search Questions'}
               </label>
-              <div style={{ position: 'relative' }}>
-                <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--gray-400)' }} />
+              <div style={{ position: 'relative', width: '100%' }}>
+                <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--gray-400)', pointerEvents: 'none' }} />
                 <input
                   type="text"
-                  placeholder="প্রশ্ন বা ভার্সিটি খুঁজুন..."
+                  placeholder={language === 'bn' ? 'প্রশ্ন বা ভার্সিটি খুঁজুন...' : 'Search for questions or universities...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="form-input"
-                  style={{ width: '100%', paddingLeft: '2.2rem', height: '42px', fontSize: '0.88rem' }}
+                  style={{ width: '100%', paddingLeft: '2.4rem', height: '44px', fontSize: '0.9rem', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
 
             {/* University Filter */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.35rem' }}>
-                বিশ্ববিদ্যালয়
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.4rem', height: '20px', lineHeight: '20px' }}>
+                {language === 'bn' ? 'বিশ্ববিদ্যালয় (University)' : 'University'}
               </label>
               <select
                 value={selectedVarsity}
                 onChange={(e) => setSelectedVarsity(e.target.value)}
-                className="form-input"
-                style={{ width: '100%', height: '42px', fontSize: '0.88rem', background: 'var(--white)' }}
+                className="form-select"
+                style={{ width: '100%', height: '44px', fontSize: '0.9rem' }}
               >
                 {universities.map(u => (
-                  <option key={u} value={u}>{u === 'All' ? 'সকল বিশ্ববিদ্যালয় (All)' : u}</option>
+                  <option key={u} value={u}>
+                    {u === 'All' ? (language === 'bn' ? 'সকল বিশ্ববিদ্যালয় (All)' : 'All Universities (All)') : u}
+                  </option>
                 ))}
               </select>
             </div>
 
             {/* Subject Filter */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.35rem' }}>
-                বিষয় (Subject)
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.4rem', height: '20px', lineHeight: '20px' }}>
+                {language === 'bn' ? 'বিষয় (Subject)' : 'Subject'}
               </label>
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="form-input"
-                style={{ width: '100%', height: '42px', fontSize: '0.88rem', background: 'var(--white)' }}
+                className="form-select"
+                style={{ width: '100%', height: '44px', fontSize: '0.9rem' }}
               >
                 {subjects.map(s => (
-                  <option key={s} value={s}>{s === 'All' ? 'সকল বিষয় (All)' : s}</option>
+                  <option key={s} value={s}>
+                    {s === 'All' ? (language === 'bn' ? 'সকল বিষয় (All)' : 'All Subjects (All)') : s}
+                  </option>
                 ))}
               </select>
             </div>
 
             {/* Year Filter */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.35rem' }}>
-                পরীক্ষার সাল (Year)
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: 'var(--gray-600)', marginBottom: '0.4rem', height: '20px', lineHeight: '20px' }}>
+                {language === 'bn' ? 'পরীক্ষার সাল (Exam Year)' : 'Exam Year'}
               </label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
-                className="form-input"
-                style={{ width: '100%', height: '42px', fontSize: '0.88rem', background: 'var(--white)' }}
+                className="form-select"
+                style={{ width: '100%', height: '44px', fontSize: '0.9rem' }}
               >
                 {years.map(y => (
-                  <option key={y} value={y}>{y === 'All' ? 'সকল সাল (All)' : y}</option>
+                  <option key={y} value={y}>
+                    {y === 'All' ? (language === 'bn' ? 'সকল বছর (All)' : 'All Years (All)') : y}
+                  </option>
                 ))}
               </select>
             </div>
@@ -226,7 +255,9 @@ Detailed Explanation: ${q.explanation}
             fontSize: '0.85rem'
           }}>
             <div style={{ color: 'var(--gray-600)' }}>
-              মোট প্রশ্নপত্র পাওয়া গেছে: <strong style={{ color: 'var(--primary-teal)', fontSize: '1rem' }}>{filteredPapers.length}</strong> টি
+              {language === 'bn' ? 'মোট প্রশ্নপত্র পাওয়া গেছে:' : 'Total Question Papers Found:'}{' '}
+              <strong style={{ color: 'var(--primary-teal)', fontSize: '1rem' }}>{filteredPapers.length}</strong>{' '}
+              {language === 'bn' ? 'টি' : ''}
             </div>
 
             {(selectedVarsity !== 'All' || selectedSubject !== 'All' || selectedYear !== 'All' || searchQuery) && (
@@ -238,16 +269,37 @@ Detailed Explanation: ${q.explanation}
                   setSearchQuery('');
                 }}
                 className="btn btn-secondary"
-                style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', height: '34px', color: '#e53e3e' }}
+                style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', height: '34px', color: '#e53e3e', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
               >
-                <RefreshCw style={{ width: '13px', height: '13px', marginRight: '4px' }} /> ফিল্টার রিসেট
+                <RefreshCw style={{ width: '13px', height: '13px' }} /> {language === 'bn' ? 'ফিল্টার রিসেট' : 'Reset Filters'}
               </button>
             )}
           </div>
         </div>
 
         {/* Papers List */}
-        {filteredPapers.length === 0 ? (
+        {isLoading ? (
+          <div style={{
+            backgroundColor: 'var(--white)',
+            borderRadius: 'var(--border-radius-md)',
+            padding: '4rem 1.5rem',
+            textAlign: 'center',
+            border: '1px solid var(--gray-200)'
+          }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              border: '3px solid #e2e8f0',
+              borderTopColor: 'var(--primary-teal)',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+              margin: '0 auto 1rem auto'
+            }} />
+            <p style={{ color: 'var(--gray-600)', fontWeight: 600, margin: 0 }}>
+              প্রশ্নপত্র ব্যাংক লোড হচ্ছে (Loading Question Papers)...
+            </p>
+          </div>
+        ) : filteredPapers.length === 0 ? (
           <div style={{
             backgroundColor: 'var(--white)',
             borderRadius: 'var(--border-radius-md)',

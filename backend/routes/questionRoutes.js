@@ -13,6 +13,31 @@ async function syncQuestionsFile(db) {
   }
 }
 
+// 0. GET /api/questions/subjects - Distinct subjects & filter metadata
+router.get('/api/questions/subjects', async (req, res) => {
+  try {
+    const db = getDb();
+    const subjectRows = await db.all(
+      "SELECT DISTINCT subject FROM question_bank WHERE subject IS NOT NULL AND TRIM(subject) != '' ORDER BY subject ASC"
+    );
+    const subjects = subjectRows.map(r => r.subject);
+
+    const yearRows = await db.all(
+      "SELECT DISTINCT yearTag FROM question_bank WHERE yearTag IS NOT NULL AND TRIM(yearTag) != '' ORDER BY yearTag DESC"
+    );
+    const yearTags = yearRows.map(r => r.yearTag);
+
+    return res.json({
+      success: true,
+      subjects: ['All', ...subjects],
+      yearTags: ['All', ...yearTags]
+    });
+  } catch (err) {
+    console.error('Error fetching subjects:', err.message);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve subjects.' });
+  }
+});
+
 // 1. GET /api/questions - List questions with search, subject filter, and pagination
 router.get('/api/questions', async (req, res) => {
   try {

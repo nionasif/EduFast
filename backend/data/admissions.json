@@ -1,41 +1,5 @@
 [
   {
-    "id": "univ-1792096089869",
-    "name": "DIIT",
-    "logo": "😎",
-    "description": "HI THERE ARE BOOKING OF DIIT",
-    "examDate": "December 20, 2026",
-    "deadlineDate": "2026-09-30",
-    "applicationFee": 10000000,
-    "units": [
-      {
-        "name": "CSE",
-        "group": "Science",
-        "minGpa": "10",
-        "minIndividualGpa": 3.5,
-        "subjects": "Physics, Chemistry, Math",
-        "details": "Science unit with high competition."
-      },
-      {
-        "name": "BBA",
-        "group": "Commerce",
-        "minGpa": "9",
-        "minIndividualGpa": 3,
-        "subjects": "General Subjects",
-        "details": ""
-      },
-      {
-        "name": "THM",
-        "group": "Arts",
-        "minGpa": "10",
-        "minIndividualGpa": 3,
-        "subjects": "General Subjects",
-        "details": ""
-      }
-    ],
-    "updatedAt": "2026-10-15T20:29:13.376Z"
-  },
-  {
     "id": "univ-du",
     "name": "Dhaka University (DU)",
     "logo": "🏛️",
@@ -43,6 +7,12 @@
     "deadline": "2027-01-10",
     "examDate": "February 15, 2027",
     "applicationFee": 1050,
+    "admitCardUrl": "https://admission.eis.du.ac.bd",
+    "admitCardStatus": "available",
+    "resultUrl": "https://admission.eis.du.ac.bd/index.php?act=information/result",
+    "resultStatus": "published",
+    "examCenter": "কার্জন হল ও কলা ভবন, ঢাকা বিশ্ববিদ্যালয়",
+    "reportingTime": "09:30 AM",
     "units": [
       {
         "name": "Science Unit (A Unit)",
@@ -94,6 +64,12 @@
     "deadline": "2027-01-15",
     "examDate": "February 28, 2027",
     "applicationFee": 1300,
+    "admitCardUrl": "https://www.buet.ac.bd/admission",
+    "admitCardStatus": "available",
+    "resultUrl": "https://www.buet.ac.bd/admission/result",
+    "resultStatus": "published",
+    "examCenter": "ইসিই ভবন ও সিভিল বিল্ডিং, বুয়েট",
+    "reportingTime": "09:00 AM",
     "units": [
       {
         "name": "Engineering & URP (Ka Unit)",
@@ -121,6 +97,12 @@
     "deadline": "2026-12-25",
     "examDate": "January 20, 2027",
     "applicationFee": 1000,
+    "admitCardUrl": "https://dghs.teletalk.com.bd",
+    "admitCardStatus": "available",
+    "resultUrl": "https://result.dghs.gov.bd",
+    "resultStatus": "published",
+    "examCenter": "ঢাকা কলেজ ও ইডেন মহিলা কলেজ কেন্দ্র",
+    "reportingTime": "09:15 AM",
     "units": [
       {
         "name": "MBBS & BDS Medical Unit",
@@ -140,6 +122,12 @@
     "deadline": "2027-01-20",
     "examDate": "March 05, 2027",
     "applicationFee": 950,
+    "admitCardUrl": "https://admission.iscu.ac.bd",
+    "admitCardStatus": "upcoming",
+    "resultUrl": "https://admission.iscu.ac.bd/results",
+    "resultStatus": "pending",
+    "examCenter": "চবি মূল ক্যাম্পাস, হাটহাজারী, চট্টগ্রাম",
+    "reportingTime": "09:45 AM",
     "units": [
       {
         "name": "A Unit (Science & Engineering)",
@@ -183,6 +171,12 @@
     "deadline": "2027-02-05",
     "examDate": "March 20, 2027",
     "applicationFee": 1500,
+    "admitCardUrl": "https://gstadmission.ac.bd",
+    "admitCardStatus": "upcoming",
+    "resultUrl": "https://gstadmission.ac.bd/result",
+    "resultStatus": "pending",
+    "examCenter": "বিভাগীয় গুচ্ছ আঞ্চলিক কেন্দ্রসমূহ",
+    "reportingTime": "11:00 AM",
     "units": [
       {
         "name": "A Unit (Science)",
@@ -218,6 +212,12 @@
     "deadline": "2027-01-25",
     "examDate": "March 10, 2027",
     "applicationFee": 1100,
+    "admitCardUrl": "https://admission.ru.ac.bd",
+    "admitCardStatus": "upcoming",
+    "resultUrl": "https://admission.ru.ac.bd/result",
+    "resultStatus": "pending",
+    "examCenter": "রাবি ক্যাম্পাস, মতিহার, রাজশাহী",
+    "reportingTime": "09:00 AM",
     "units": [
       {
         "name": "A Unit (Humanities)",
@@ -253,6 +253,12 @@
     "deadline": "2027-01-30",
     "examDate": "February 22, 2027",
     "applicationFee": 1100,
+    "admitCardUrl": "https://juniv-admission.org",
+    "admitCardStatus": "available",
+    "resultUrl": "https://juniv-admission.org/result",
+    "resultStatus": "pending",
+    "examCenter": "সমাজবিজ্ঞান ও নতুন কলা ভবন, জাবি",
+    "reportingTime": "08:45 AM",
     "units": [
       {
         "name": "A Unit (Mathematical & Physical Sciences)",

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   getCourses, saveCourse, deleteCourse,
-  getAdmissions, saveAdmission, deleteAdmission,
-  getLiveClasses, saveLiveClass, deleteLiveClass,
-  getQuestionBank, saveQuestionPaper, deleteQuestionPaper
+  getAdmissions, saveAdmission, deleteAdmission
 } from '../data/mockData';
+import api from '../services/api';
+import { socket } from '../socket';
 import '../admin.css';
 
 // Modular Components
@@ -14,8 +14,6 @@ import AdminLogin from './components/AdminLogin';
 import AdminCourseModal from './components/AdminCourseModal';
 import AdminCurriculumModal from './components/AdminCurriculumModal';
 import AdminUniversityModal from './components/AdminUniversityModal';
-import AdminLiveClassModal from './components/AdminLiveClassModal';
-import AdminQuestionBankModal from './components/AdminQuestionBankModal';
 import AdminStudentDetailModal from './components/AdminStudentDetailModal';
 
 // Modular Tabs
@@ -23,23 +21,15 @@ import AdminOverviewTab from './tabs/AdminOverviewTab';
 import AdminStudentsTab from './tabs/AdminStudentsTab';
 import AdminCoursesTab from './tabs/AdminCoursesTab';
 import AdminUniversitiesTab from './tabs/AdminUniversitiesTab';
-import AdminLiveClassesTab from './tabs/AdminLiveClassesTab';
-import AdminQuestionBankTab from './tabs/AdminQuestionBankTab';
-import QuestionBankManager from '../common/components/QuestionBankManager';
 import AdminAnalyticsTab from './tabs/AdminAnalyticsTab';
 import AdminNoticesTab from './tabs/AdminNoticesTab';
 import AdminSettingsTab from './tabs/AdminSettingsTab';
 import AdminDatabaseStudioTab from './tabs/AdminDatabaseStudioTab';
+import AdminPromotionsTab from './tabs/AdminPromotionsTab';
+import AdminHigherStudyTab from './tabs/AdminHigherStudyTab';
 
-const DEFAULT_ADMIN = {
-  username: 'admin',
-  email: 'admin@edufast.com',
-  password: 'admin123',
-  name: 'EduFast Administrator',
-  role: 'System Administrator'
-};
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
-const BACKEND_URL = 'http://localhost:5001';
 
 export default function AdminPortalPage({ onExitToPublic }) {
   // -------------------------------------------------------------
@@ -153,34 +143,76 @@ export default function AdminPortalPage({ onExitToPublic }) {
   const [pwdForm, setPwdForm] = useState({ current: '', newPwd: '', confirmPwd: '' });
   const [pwdMsg, setPwdMsg] = useState({ type: '', text: '' });
 
-  // Live Classes Admin State
-  const [liveClassesList, setLiveClassesList] = useState(() => getLiveClasses());
-  const [isLiveModalOpen, setIsLiveModalOpen] = useState(false);
-  const [liveForm, setLiveForm] = useState({
-    title: '', instructor: '', instructorTitle: '', group: 'Science',
-    duration: '90 Minutes', status: 'Upcoming', streamUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    overview: '', registeredCount: 250
-  });
 
-  // Question Bank Admin State
-  const [questionBankList, setQuestionBankList] = useState(() => getQuestionBank());
-  const [isQbModalOpen, setIsQbModalOpen] = useState(false);
-  const [qbForm, setQbForm] = useState({
-    varsity: 'BUET', examName: 'BUET Engineering Admission Test', year: '2024',
-    group: 'Science', subject: 'Physics', questionsCount: 20, totalMarks: 200,
-    pdfUrl: '', overview: ''
-  });
 
   // External data update synchronization
   useEffect(() => {
     const handleUpdate = () => {
       setCourses(getCourses());
       setAdmissions(getAdmissions());
-      setLiveClassesList(getLiveClasses());
-      setQuestionBankList(getQuestionBank());
     };
     window.addEventListener('edufast-data-update', handleUpdate);
     return () => window.removeEventListener('edufast-data-update', handleUpdate);
+  }, []);
+
+  // Real-time socket event listeners for course updates, teacher submissions, and approvals
+  useEffect(() => {
+    const handleNewCourse = (newCourse) => {
+      if (!newCourse || !newCourse.id) return;
+      const isApproved = (newCourse.isApproved === 1 || newCourse.isApproved === true || newCourse.isApproved === '1');
+      const formatted = {
+        ...newCourse,
+        isApproved,
+        status: newCourse.status || (isApproved ? 'Approved' : 'Pending')
+      };
+      setCourses(prev => {
+        const idx = prev.findIndex(c => String(c.id) === String(newCourse.id));
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], ...formatted };
+          return updated;
+        }
+        return [formatted, ...prev];
+      });
+    };
+
+    const handleStatusUpdate = (data) => {
+      if (!data || !data.courseId) return;
+      setCourses(prev => prev.map(c => {
+        if (String(c.id) === String(data.courseId)) {
+          return {
+            ...c,
+            isApproved: data.isApproved,
+            status: data.status,
+            approvedAt: data.isApproved ? new Date().toISOString() : null
+          };
+        }
+        return c;
+      }));
+    };
+
+    const handleDeleteCourse = (data) => {
+      if (!data || !data.id) return;
+      setCourses(prev => prev.filter(c => String(c.id) !== String(data.id)));
+    };
+
+    socket.on('course:new', handleNewCourse);
+    socket.on('course:update', handleNewCourse);
+    socket.on('admin:course_pending', (payload) => {
+      if (payload?.course) handleNewCourse(payload.course);
+    });
+    socket.on('course:status_updated', handleStatusUpdate);
+    socket.on('course:approval_changed', handleStatusUpdate);
+    socket.on('course:deleted', handleDeleteCourse);
+
+    return () => {
+      socket.off('course:new', handleNewCourse);
+      socket.off('course:update', handleNewCourse);
+      socket.off('admin:course_pending');
+      socket.off('course:status_updated', handleStatusUpdate);
+      socket.off('course:approval_changed', handleStatusUpdate);
+      socket.off('course:deleted', handleDeleteCourse);
+    };
   }, []);
 
   // Fetch backend data on mount
@@ -205,6 +237,33 @@ export default function AdminPortalPage({ onExitToPublic }) {
             localStorage.setItem('edufast_dynamic_admissions', JSON.stringify(univJson.data));
           }
         }
+
+        const noticeRes = await fetch(`${BACKEND_URL}/api/notices`);
+        if (noticeRes.ok) {
+          const noticeJson = await noticeRes.json();
+          const list = Array.isArray(noticeJson?.data) 
+            ? noticeJson.data 
+            : Array.isArray(noticeJson) ? noticeJson : [];
+          setNotices(list);
+          localStorage.setItem('edufast_admin_notices', JSON.stringify(list));
+        }
+
+        const coursesRes = await fetch(`${BACKEND_URL}/api/admin/courses`);
+        if (coursesRes.ok) {
+          const coursesJson = await coursesRes.json();
+          if (coursesJson.success && Array.isArray(coursesJson.data)) {
+            const normalized = coursesJson.data.map(c => {
+              const isApproved = (c.isApproved === 1 || c.isApproved === true || c.isApproved === '1');
+              return {
+                ...c,
+                isApproved,
+                status: c.status || (isApproved ? 'Approved' : 'Pending')
+              };
+            });
+            setCourses(normalized);
+            localStorage.setItem('edufast_dynamic_courses', JSON.stringify(normalized));
+          }
+        }
       } catch {
         setBackendLive(false);
       } finally {
@@ -217,32 +276,44 @@ export default function AdminPortalPage({ onExitToPublic }) {
   }, [isAuthenticated]);
 
   // Login handler
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
 
-    setTimeout(() => {
-      const storedPwd = localStorage.getItem('edufast_custom_admin_pwd') || DEFAULT_ADMIN.password;
-      const isValidUser = (loginForm.username === DEFAULT_ADMIN.username || loginForm.username === DEFAULT_ADMIN.email);
-      const isValidPass = (loginForm.password === storedPwd);
+    try {
+      const res = await api.post('/auth/login', {
+        email: loginForm.username.trim(),
+        password: loginForm.password,
+        role: 'admin'
+      });
 
-      if (isValidUser && isValidPass) {
-        const userObj = {
-          name: DEFAULT_ADMIN.name,
-          username: DEFAULT_ADMIN.username,
-          role: DEFAULT_ADMIN.role,
+      const data = res.data || res;
+      if (data && (data.token || data.user || data.success)) {
+        const adminObj = {
+          name: data.user?.name || 'EduFast Administrator',
+          username: data.user?.email || loginForm.username,
+          email: data.user?.email || loginForm.username,
+          role: 'System Administrator',
+          token: data.token,
           loginTime: new Date().toISOString()
         };
-        localStorage.setItem('edufast_admin_session', JSON.stringify(userObj));
-        setAdminUser(userObj);
+        localStorage.setItem('edufast_admin_session', JSON.stringify(adminObj));
+        if (data.token) {
+          localStorage.setItem('edufast_token', data.token);
+        }
+        setAdminUser(adminObj);
         setIsAuthenticated(true);
-        setIsLoggingIn(false);
       } else {
-        setLoginError('Invalid Administrator credentials! Verify username & password.');
-        setIsLoggingIn(false);
+        setLoginError(data?.error || data?.message || 'Invalid Administrator credentials!');
       }
-    }, 400);
+    } catch (err) {
+      console.error('Admin login error:', err);
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Invalid Administrator credentials!';
+      setLoginError(msg);
+    } finally {
+      setIsLoggingIn(false);
+    }
   };
 
   const handleLogout = () => {
@@ -316,11 +387,12 @@ export default function AdminPortalPage({ onExitToPublic }) {
 
     // Sync with backend SQLite
     try {
-      await fetch(`http://localhost:5001/api/admin/courses/${course.id}/approval`, {
+      await fetch(`${BACKEND_URL}/api/admin/courses/${course.id}/approval`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isApproved: nextApproved })
       });
+
     } catch (e) {
       console.warn('Backend approval sync notice:', e.message);
     }
@@ -421,58 +493,7 @@ export default function AdminPortalPage({ onExitToPublic }) {
     });
   };
 
-  // Live classes admin handlers
-  const handleSaveLiveClassAdmin = (e) => {
-    e.preventDefault();
-    const newSession = {
-      ...liveForm,
-      id: `live-${Date.now()}`,
-      scheduledAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString()
-    };
-    const updated = saveLiveClass(newSession);
-    setLiveClassesList(updated);
-    setIsLiveModalOpen(false);
-    setLiveForm({
-      title: '', instructor: '', instructorTitle: '', group: 'Science',
-      duration: '90 Minutes', status: 'Upcoming', streamUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-      overview: '', registeredCount: 250
-    });
-  };
 
-  const handleDeleteLiveClassAdmin = (id) => {
-    if (window.confirm('Delete this live class?')) {
-      const updated = deleteLiveClass(id);
-      setLiveClassesList(updated);
-    }
-  };
-
-  // Question bank admin handlers
-  const handleSaveQbAdmin = (e) => {
-    e.preventDefault();
-    const newPaper = {
-      ...qbForm,
-      id: `qb-${Date.now()}`,
-      questions: [
-        {
-          id: 1,
-          question: `Sample problem for ${qbForm.examName} (${qbForm.subject})`,
-          options: ['Option A', 'Option B', 'Option C', 'Option D'],
-          correctIndex: 0,
-          explanation: 'Standard admission benchmark solution provided by senior faculty.'
-        }
-      ]
-    };
-    const updated = saveQuestionPaper(newPaper);
-    setQuestionBankList(updated);
-    setIsQbModalOpen(false);
-  };
-
-  const handleDeleteQbAdmin = (id) => {
-    if (window.confirm('Delete this question paper archive?')) {
-      const updated = deleteQuestionPaper(id);
-      setQuestionBankList(updated);
-    }
-  };
 
   const handleDeleteStudent = async (id) => {
     try {
@@ -555,8 +576,6 @@ export default function AdminPortalPage({ onExitToPublic }) {
         totalStudentsCount={totalCount}
         coursesCount={courses.length}
         universitiesCount={admissions.length}
-        liveClassesCount={liveClassesList.length}
-        questionBankCount={questionBankList.length}
         noticesCount={notices.length}
         adminUser={adminUser}
         handleLogout={handleLogout}
@@ -628,20 +647,7 @@ export default function AdminPortalPage({ onExitToPublic }) {
             />
           )}
 
-          {activeTab === 'live-classes' && (
-            <AdminLiveClassesTab
-              liveClassesList={liveClassesList}
-              setIsLiveModalOpen={setIsLiveModalOpen}
-              handleDeleteLiveClassAdmin={handleDeleteLiveClassAdmin}
-            />
-          )}
 
-          {activeTab === 'question-bank' && (
-            <QuestionBankManager
-              roleTitle="Admin Console"
-              userName={adminUser?.name || 'EduFast Admin'}
-            />
-          )}
 
           {activeTab === 'analytics' && (
             <AdminAnalyticsTab
@@ -679,6 +685,14 @@ export default function AdminPortalPage({ onExitToPublic }) {
           {activeTab === 'db-studio' && (
             <AdminDatabaseStudioTab />
           )}
+
+          {activeTab === 'promotions' && (
+            <AdminPromotionsTab />
+          )}
+
+          {activeTab === 'higher-study' && (
+            <AdminHigherStudyTab />
+          )}
         </main>
       </div>
 
@@ -711,21 +725,7 @@ export default function AdminPortalPage({ onExitToPublic }) {
         handleUnitChange={handleUnitChange}
       />
 
-      <AdminLiveClassModal
-        isOpen={isLiveModalOpen}
-        onClose={() => setIsLiveModalOpen(false)}
-        liveForm={liveForm}
-        setLiveForm={setLiveForm}
-        handleSaveLiveClassAdmin={handleSaveLiveClassAdmin}
-      />
 
-      <AdminQuestionBankModal
-        isOpen={isQbModalOpen}
-        onClose={() => setIsQbModalOpen(false)}
-        qbForm={qbForm}
-        setQbForm={setQbForm}
-        handleSaveQbAdmin={handleSaveQbAdmin}
-      />
 
       <AdminStudentDetailModal
         selectedStudent={selectedStudent}

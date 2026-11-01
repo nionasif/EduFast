@@ -1,0 +1,27 @@
+# Git & System
+.git
+.gitignore
+.DS_Store
+Thumbs.db
+
+# Node.js
+**/node_modules
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Builds & Outputs
+**/dist
+**/build
+**/.vite
+EduFast.apk
+
+# Mobile native project artifacts
+Forntend/android
+MobileApp
+
+# IDE and Environment
+.vscode
+.idea
+.env.local
+.env.*.local

@@ -1,0 +1,257 @@
+/* EduFast bKash & Nagad Payment Modal Styles */
+.payment-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  animation: fadeIn 0.2s ease-out;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+.payment-modal-card {
+  background: #ffffff;
+  border-radius: 22px;
+  width: 100%;
+  max-width: 480px;
+  max-height: min(740px, calc(100vh - 40px));
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  margin: auto;
+}
+
+.payment-modal-header {
+  padding: 1.1rem 1.4rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.payment-modal-body {
+  padding: 1.25rem 1.4rem 1.5rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.payment-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.payment-modal-body::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+.payment-modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.payment-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.payment-method-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+
+.method-btn {
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0.75rem 0.5rem;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.method-btn:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+}
+
+.method-btn.active.bkash {
+  border-color: #d12053;
+  background: #fff1f5;
+  color: #d12053;
+}
+
+.method-btn.active.nagad {
+  border-color: #f7941d;
+  background: #fff7ed;
+  color: #f7941d;
+}
+
+.method-btn.active.rocket {
+  border-color: #8c3494;
+  background: #faf5ff;
+  color: #8c3494;
+}
+
+.payment-brand-banner {
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.payment-brand-banner.bkash {
+  background: linear-gradient(135deg, #d12053 0%, #b0103f 100%);
+}
+
+.payment-brand-banner.nagad {
+  background: linear-gradient(135deg, #f7941d 0%, #d97706 100%);
+}
+
+.payment-brand-banner.rocket {
+  background: linear-gradient(135deg, #8c3494 0%, #6b21a8 100%);
+}
+
+.payment-input-group {
+  margin-bottom: 1.2rem;
+  text-align: left;
+}
+
+.payment-input-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 0.4rem;
+}
+
+.payment-input-control {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.payment-input-control:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}
+
+.payment-submit-btn {
+  width: 100%;
+  padding: 0.9rem;
+  border-radius: 12px;
+  border: none;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.payment-submit-btn:hover:not(:disabled) {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
+.payment-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.payment-submit-btn.bkash {
+  background: #d12053;
+}
+
+.payment-submit-btn.nagad {
+  background: #f7941d;
+}
+
+.payment-submit-btn.rocket {
+  background: #8c3494;
+}
+
+.otp-box-grid {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 1.2rem 0;
+}
+
+.otp-box-input {
+  width: 52px;
+  height: 58px;
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.otp-box-input:focus {
+  border-color: #0d9488;
+  background: #f0fdfa;
+}
+
+.invoice-receipt-card {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 1.25rem;
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.invoice-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.invoice-row strong {
+  color: #1e293b;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}

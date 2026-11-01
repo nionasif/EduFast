@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduFast — Smart Admission & Learning Platform (Version 2)</title>
+  <style>
+    :root {
+      --bg-body: #f1f5f9;
+      --bg-slide: #ffffff;
+      --bg-card: #f8fafc;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-body: #334155;
+      --text-muted: #64748b;
+      --accent-emerald: #059669;
+      --accent-cyan: #0284c7;
+      --accent-blue: #2563eb;
+      --accent-purple: #7c3aed;
+      --accent-amber: #d97706;
+      --accent-rose: #e11d48;
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    header.top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 28px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 800;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--accent-emerald);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .brand-badge {
+      font-size: 0.72rem;
+      background: #ecfdf5;
+      color: var(--accent-emerald);
+      border: 1px solid #a7f3d0;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+
+    .top-controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-action {
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      color: var(--text-body);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-action:hover {
+      background: #e2e8f0;
+      color: var(--text-main);
+    }
+
+    main.viewport {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+    }
+
+    .slide-wrapper {
+      width: 100%;
+      max-width: 1300px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-slide);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 40px 52px;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(8px);
+      transition: all 0.35s ease;
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      z-index: 2;
+    }
+
+    .slide-header {
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .slide-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent-emerald);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .slide-title {
+      font-size: 1.85rem;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .slide-sub {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      text-align: right;
+      max-width: 550px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; flex: 1; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; flex: 1; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; flex: 1; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+
+    .card-top-strip {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+
+    .strip-emerald { background: var(--accent-emerald); }
+    .strip-cyan { background: var(--accent-cyan); }
+    .strip-blue { background: var(--accent-blue); }
+    .strip-purple { background: var(--accent-purple); }
+    .strip-amber { background: var(--accent-amber); }
+    .strip-rose { background: var(--accent-rose); }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 10px;
+      background: #e2e8f0;
+      color: var(--text-body);
+    }
+
+    .badge-emerald { background: #ecfdf5; color: var(--accent-emerald); }
+    .badge-cyan { background: #e0f2fe; color: var(--accent-cyan); }
+    .badge-purple { background: #f3e8ff; color: var(--accent-purple); }
+    .badge-blue { background: #eff6ff; color: var(--accent-blue); }
+    .badge-amber { background: #fef3c7; color: var(--accent-amber); }
+
+    .card ul {
+      margin-left: 18px;
+      font-size: 0.88rem;
+      color: var(--text-body);
+      line-height: 1.6;
+    }
+
+    .card ul li { margin-bottom: 6px; }
+
+    footer.bottom-bar {
+      padding: 10px 28px;
+      background: #ffffff;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .btn-nav {
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-nav:hover:not(:disabled) {
+      background: var(--accent-emerald);
+      color: #fff;
+      border-color: var(--accent-emerald);
+    }
+
+    .btn-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .progress-bar-wrap {
+      flex: 1;
+      max-width: 450px;
+      margin: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-track {
+      flex: 1;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 6.6%;
+      background: var(--accent-emerald);
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+
+    .slide-counter {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      min-width: 70px;
+      text-align: right;
+    }
+
+    @media print {
+      body { overflow: visible; background: #fff; }
+      header.top-bar, footer.bottom-bar { display: none !important; }
+      main.viewport { padding: 0; }
+      .slide-wrapper { border: none; box-shadow: none; max-width: 100%; aspect-ratio: auto; }
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        page-break-after: always;
+        height: 100vh;
+        width: 100vw;
+        border-bottom: 1px solid #ccc;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="top-bar">
+    <div class="brand">
+      <div class="brand-logo">E</div>
+      <span>EduFast</span>
+      <span class="brand-badge">Version 2 • Plain English</span>
+    </div>
+    <div class="top-controls">
+      <button class="btn-action" onclick="toggleFullscreen()">⛶ Fullscreen (F)</button>
+      <button class="btn-action" onclick="window.print()">🖨️ PDF Export (P)</button>
+    </div>
+  </header>
+
+  <main class="viewport">
+    <div class="slide-wrapper">
+
+      <!-- SLIDE 1: Cover -->
+      <section class="slide active" data-slide="1">
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 1050px; margin: 0 auto; width: 100%;">
+          <div style="display: inline-block; margin-bottom: 14px;">
+            <span class="brand-badge" style="font-size: 0.85rem; padding: 4px 12px;">⭐ PROJECT PRESENTATION • VERSION 2</span>
+          </div>
+          <h1 style="font-size: 2.5rem; font-weight: 800; color: #0f172a; line-height: 1.15; margin-bottom: 10px;">
+            EduFast: Smart Admission & Learning Platform
+          </h1>
+          <p style="font-size: 1.25rem; font-weight: 600; color: #0284c7; margin-bottom: 18px;">
+            A Complete, Easy-to-Use System to Help Students Get into Their Dream University
+          </p>
+          <p style="font-size: 1rem; color: #475569; line-height: 1.6; margin-bottom: 28px;">
+            EduFast is built to solve the real daily struggles of university admission candidates in Bangladesh. From checking official board results to taking live classes, practicing mock tests, and predicting admission chances — everything is in one simple place.
+          </p>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-top: 4px solid #059669; border-radius: 12px; padding: 20px 28px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 8px;">Created & Presented By</div>
+            <div style="display: flex; gap: 40px; margin-bottom: 8px;">
+              <div>
+                <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a;">👤 Asif Hossain Khan</div>
+                <div style="font-size: 0.9rem; color: #475569;">Student ID: 210178 &nbsp;|&nbsp; System Architect</div>
+              </div>
+              <div>
+                <div style="font-size: 1.15rem; font-weight: 700; color: #0f172a;">👤 Fahim Ahmed Nizum</div>
+                <div style="font-size: 0.9rem; color: #475569;">Student ID: 210144 &nbsp;|&nbsp; Lead Developer</div>
+              </div>
+            </div>
+            <div style="font-size: 0.88rem; font-weight: 600; color: #059669;">
+              Department of Computer Science & Engineering (CSE)  |  Daffodil Institute of IT (DIIT), Dhaka  •  Session 2020-2021
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 2: Why We Built It -->
+      <section class="slide" data-slide="2">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">The Real Purpose</div>
+            <h2 class="slide-title">Why We Built EduFast: Fixing Everyday Problems</h2>
+          </div>
+          <div class="slide-sub">Simple solutions for the biggest headaches admission candidates face</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">📅 No More Missed Deadlines</div>
+            <div class="card-badge badge-emerald">All Notices in 1 Place</div>
+            <ul>
+              <li>Students currently search through 50+ messy PDF circulars from different universities.</li>
+              <li>Many miss important application deadlines or exam dates by mistake.</li>
+              <li>EduFast brings all notices into one clean page with live countdown timers.</li>
+              <li>Shows clearly: "You have 4 days left to apply for BUET".</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">✅ No More Fake GPAs</div>
+            <div class="card-badge badge-cyan">Verified Real Grades</div>
+            <ul>
+              <li>On most websites, anyone can type in a fake GPA 5.00 without proof.</li>
+              <li>This ruins mock test rankings and misleads teachers and parents.</li>
+              <li>EduFast connects directly to the official Education Board website.</li>
+              <li>Pulls your real GPA, Name, and College automatically — 100% authentic.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">🎧 No More Studying Alone</div>
+            <div class="card-badge badge-purple">Study with Friends</div>
+            <ul>
+              <li>Studying 12 to 14 hours alone in a bedroom leads to loneliness and burnout.</li>
+              <li>EduFast has 24/7 Virtual Study Rooms with quiet Lo-Fi music and timers.</li>
+              <li>Students can study together, share motivation, and earn reward points.</li>
+              <li>Makes daily study feel enjoyable and rewarding instead of painful.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 3: Board Result Scraper -->
+      <section class="slide" data-slide="3">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">First of Its Kind in Bangladesh</div>
+            <h2 class="slide-title">Instant Education Board Result Verification</h2>
+          </div>
+          <div class="slide-sub">Checks your real SSC & HSC results directly from the government website</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">🌐 How It Works (Easy 3 Steps)</div>
+            <div class="card-badge badge-emerald">Direct Government Check</div>
+            <ul>
+              <li><strong>1. Enter Your Details:</strong> Type your Roll, Registration, Board, and Year (1990 to 2026).</li>
+              <li><strong>2. Quick Security Check:</strong> A small math question appears (like 5 + 3). Solve it right on screen.</li>
+              <li><strong>3. Instant Auto-Fill:</strong> In 2 seconds, EduFast pulls your real record directly from <code>educationboardresults.gov.bd</code>.</li>
+              <li>Your full name, father's name, mother's name, college name, and exact GPA appear automatically.</li>
+              <li>Zero manual typing errors, zero fake profiles. Everything is verified.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">🛡️ Why This is a Huge Deal</div>
+            <div class="card-badge badge-cyan">100% Honest Profiles</div>
+            <ul>
+              <li><strong>Trust:</strong> Coaching centers and universities can trust that student profiles are genuine.</li>
+              <li><strong>Speed:</strong> Students don't need to fill out 10 different form fields by hand.</li>
+              <li><strong>Smart Checks:</strong> The app uses your verified GPA to tell you which universities you qualify for.</li>
+              <li><strong>History Support:</strong> Works for recent graduates as well as students from up to 37 years ago.</li>
+              <li><strong>Offline Fallback:</strong> If the government server is down, students can also type manually so no one gets stuck.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 4: University Radar -->
+      <section class="slide" data-slide="4">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Never Miss an Exam</div>
+            <h2 class="slide-title">University Admission Radar & Deadlines</h2>
+          </div>
+          <div class="slide-sub">Keep track of every public university in Bangladesh without searching all over Google</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">⏳ Live Countdown Timers</div>
+            <div class="card-badge badge-emerald">All 50+ Public Varsities</div>
+            <ul>
+              <li>Covers Dhaka University, BUET, Medical, RUET, CUET, KUET, and GST cluster.</li>
+              <li>Shows exact days, hours, and minutes left before application closes.</li>
+              <li>Displays exam date, application fee in Taka, and available seats.</li>
+              <li>Filter easily by Science, Commerce, or Arts.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">🎯 Eligibility Calculator</div>
+            <div class="card-badge badge-cyan">Am I Eligible?</div>
+            <ul>
+              <li>No more asking seniors: "Can I apply with GPA 4.50?"</li>
+              <li>EduFast compares your verified GPA against each university's rulebook automatically.</li>
+              <li>Gives you an instant green tick "You are eligible" or tells you what GPA is required.</li>
+              <li>Saves students time and prevents wasted application fees.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">🎫 Admit Cards & Results</div>
+            <div class="card-badge badge-purple">Admit Card & Results</div>
+            <ul>
+              <li>Direct link to download official university admit cards when published.</li>
+              <li>View your assigned exam center and reporting time in a clean popup.</li>
+              <li>Search merit list results by typing your admission roll.</li>
+              <li>Receive instant dashboard alerts the moment results go live.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 5: Mock Tests -->
+      <section class="slide" data-slide="5">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Practice Like the Real Test</div>
+            <h2 class="slide-title">Online Mock Tests with Real Admission Rules</h2>
+          </div>
+          <div class="slide-sub">Timed questions, negative marking, and zero chance of cheating</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">⏱️ Real Exam Experience</div>
+            <div class="card-badge badge-emerald">Just Like the Real Exam</div>
+            <ul>
+              <li>Real-time countdown timer: when time is up, the test automatically submits.</li>
+              <li>Real Negative Marking (-0.25): just like BUET and Dhaka University.</li>
+              <li>Question palette allows skipping, bookmarking, and reviewing tough questions.</li>
+              <li>Clean equations and diagrams for Physics, Chemistry, and Math.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-rose"></div>
+            <div class="card-title">🔒 Strictly Anti-Cheat</div>
+            <div class="card-badge badge-amber">Fair & Honest</div>
+            <ul>
+              <li>On many websites, students open browser inspect to see correct answers.</li>
+              <li>In EduFast, the correct answers stay locked on our server until the test is over.</li>
+              <li>No student can inspect code to cheat.</li>
+              <li>Each student gets only one official attempt per test for fair rankings.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">📊 Instant Results & Weak Points</div>
+            <div class="card-badge badge-cyan">Personal Scorecard</div>
+            <ul>
+              <li>Get your score card the second you submit.</li>
+              <li>Shows your accuracy percentage and time spent on each question.</li>
+              <li>Weakness Radar: Tells you exactly which chapters you need to revise.</li>
+              <li>National Leaderboard: See how you rank against students across Bangladesh.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 6: Study Lounge -->
+      <section class="slide" data-slide="6">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Stay Focused Together</div>
+            <h2 class="slide-title">24/7 Virtual Study Rooms with Friends</h2>
+          </div>
+          <div class="slide-sub">The best way to beat study loneliness, build daily habits, and stay productive</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">⏰ Pomodoro Focus Timer</div>
+            <div class="card-badge badge-emerald">25 Min Study / 5 Min Rest</div>
+            <ul>
+              <li>Uses the world-famous 25-minute study rule.</li>
+              <li>Focus without distractions for 25 minutes, then take a healthy 5-minute break.</li>
+              <li>Timer runs together for everyone in the room.</li>
+              <li>Gentle bell sounds notify you when it's time to study or rest.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">🎵 Calming Background Audio</div>
+            <div class="card-badge badge-cyan">No Ads, Just Focus</div>
+            <ul>
+              <li>Built-in sound player designed to help you focus:</li>
+              <li>• Lo-Fi Study Beats (Relaxing music)</li>
+              <li>• Soft Rain & Thunderstorm sounds</li>
+              <li>• Cozy Quiet Library Ambience</li>
+              <li>• Deep Focus Brainwave frequencies</li>
+              <li>Works right in your browser with simple volume sliders.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">🪙 Chat & Earn EduCoins</div>
+            <div class="card-badge badge-purple">Earn While You Study</div>
+            <ul>
+              <li>See how many other students are currently studying with you.</li>
+              <li>Quiet room chat to ask study questions or share encouragement.</li>
+              <li>Earn 5 EduCoins every time you complete a 25-minute study block.</li>
+              <li>Keeps students coming back every day to build long-term study streaks.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 7: AI Chance Predictor -->
+      <section class="slide" data-slide="7">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Honest Guidance</div>
+            <h2 class="slide-title">AI Chance Predictor: Know Where You Stand</h2>
+          </div>
+          <div class="slide-sub">Uses real data from past admission tests to give you honest probabilities</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">🤖 How the Prediction Works</div>
+            <div class="card-badge badge-cyan">89.8% Tested Accuracy</div>
+            <ul>
+              <li>Trained on 4,000 real student results from past admission seasons.</li>
+              <li>We built a Machine Learning model using Python (Random Forest with 89.8% accuracy).</li>
+              <li>You enter your SSC GPA, HSC GPA, subject grades, and your mock test scores.</li>
+              <li>The AI analyzes your data and gives you an honest percentage chance (e.g. 78% for Dhaka University, 62% for BUET).</li>
+              <li>Provides clear advice on which subjects you need to improve to raise your chances.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">📈 What Matters Most for Chances</div>
+            <div class="card-badge badge-emerald">Data-Backed Insights</div>
+            <ul>
+              <li><strong>Target University Cut-Off (35.2%):</strong> Each university has different difficulty levels.</li>
+              <li><strong>Combined GPA (13.3%):</strong> Having solid grades in both SSC & HSC is essential.</li>
+              <li><strong>Mock Test Scores (8.0%):</strong> How well you perform in full-length timed tests.</li>
+              <li><strong>Physics & Math Marks (6.9%):</strong> Critical for engineering and science faculties.</li>
+              <li><strong>Daily Study Hours (5.1%):</strong> Consistent daily study hours make a measurable difference.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 8: Study Abroad -->
+      <section class="slide" data-slide="8">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Thinking of Going Abroad?</div>
+            <h2 class="slide-title">Study Abroad Gateway & Scholarship Finder</h2>
+          </div>
+          <div class="slide-sub">Helps students find undergraduate and postgraduate programs across the world</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">🟢 Safe Choices</div>
+            <div class="card-badge badge-emerald">&gt;80% Safe Options</div>
+            <ul>
+              <li>Acceptance Chance: Over 80%.</li>
+              <li>Universities where your GPA and IELTS scores are higher than their average requirements.</li>
+              <li>Great chance of getting partial tuition discounts or merit scholarships.</li>
+              <li>Gives you peace of mind with guaranteed admission options.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">🟡 Target Choices</div>
+            <div class="card-badge badge-cyan">50%-80% Good Matches</div>
+            <ul>
+              <li>Acceptance Chance: 50% to 80%.</li>
+              <li>Universities that match your exact academic level.</li>
+              <li>Covers well-known public universities across the USA, UK, Canada, and Germany.</li>
+              <li>The primary group of universities to send strong applications to.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">🔴 Dream / Reach Options</div>
+            <div class="card-badge badge-purple">Top World Universities</div>
+            <ul>
+              <li>Top-tier prestigious world universities.</li>
+              <li>Requires high test scores, great recommendation letters, and research projects.</li>
+              <li>Shows full scholarship deadlines and research assistant opportunities.</li>
+              <li>Helps ambitious students aim for the highest global standard.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 9: Teacher Studio -->
+      <section class="slide" data-slide="9">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Made for Teachers</div>
+            <h2 class="slide-title">Teacher Studio: Live Classes Without Extra Apps</h2>
+          </div>
+          <div class="slide-sub">Teachers can broadcast live, sketch on a whiteboard, and run polls directly in Chrome</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">📡 Live Video & Drawing Whiteboard</div>
+            <div class="card-badge badge-cyan">Runs in Google Chrome</div>
+            <ul>
+              <li><strong>No Zoom or Google Meet Needed:</strong> Teachers click one button to start class directly in the browser.</li>
+              <li><strong>Digital Whiteboard:</strong> Teachers can write math equations, draw diagrams, switch colors, and erase cleanly.</li>
+              <li><strong>Instant Screen Sync:</strong> Whatever the teacher writes or draws shows up instantly on students' screens.</li>
+              <li><strong>Screen Share:</strong> Share lecture slides, PDFs, notes, or software demonstrations.</li>
+              <li><strong>Live Chat:</strong> Students can ask questions via chat while class is happening.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">📊 Instant In-Class Polls & Attendance</div>
+            <div class="card-badge badge-emerald">Engage Your Students</div>
+            <ul>
+              <li><strong>Live Multiple Choice Polls:</strong> Teachers create a quick 4-option question during class.</li>
+              <li>Students click their answer in real-time, and the teacher sees a live bar chart of results.</li>
+              <li>Great for checking if students understood a difficult concept immediately.</li>
+              <li><strong>Automatic Attendance:</strong> Shows the teacher exactly who joined and when.</li>
+              <li><strong>Easy Controls:</strong> One-click camera, microphone, and screen-sharing toggles.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10: Recordings & Curriculum -->
+      <section class="slide" data-slide="10">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Learn at Your Own Pace</div>
+            <h2 class="slide-title">Class Recordings & Course Builder</h2>
+          </div>
+          <div class="slide-sub">Never miss a lecture: watch replays, organize lessons, and take personal notes</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-blue"></div>
+            <div class="card-title">📼 On-Demand Lecture Replays</div>
+            <div class="card-badge badge-blue">Watch Anytime</div>
+            <ul>
+              <li>Classes are saved as high-quality video recordings after each live session.</li>
+              <li>Students who had internet problems or missed class can rewatch anytime.</li>
+              <li>Clean video player with pause, speed up (1.25x, 1.5x), and rewind controls.</li>
+              <li>Organized cleanly by subject: Physics, Chemistry, Math, and Biology.</li>
+              <li>Teachers can review recordings before making them visible to students.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">📚 Course Builder & In-Video Notes</div>
+            <div class="card-badge badge-purple">Organized Learning</div>
+            <ul>
+              <li><strong>Course Builder:</strong> Teachers can organize lessons into chapters and modules easily.</li>
+              <li><strong>PDF Lecture Notes:</strong> Attach formula cheat sheets and exercise questions right under each video.</li>
+              <li><strong>Personal In-Video Notebook:</strong> Students can write notes while watching, saved automatically to their account.</li>
+              <li><strong>Progress Tracking:</strong> Shows students exactly what percent of the course they've completed.</li>
+              <li>Teachers can set course fees and make special masterclasses available.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 11: Mentor Doubt Desk -->
+      <section class="slide" data-slide="11">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Help Whenever You Need It</div>
+            <h2 class="slide-title">24/7 Doubt Desk: Fast Help from Top Seniors</h2>
+          </div>
+          <div class="slide-sub">Snap a picture of any difficult problem, and get clear step-by-step solutions</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">📸 Photo OCR Reader</div>
+            <div class="card-badge badge-purple">Reads Handwritten Photos</div>
+            <ul>
+              <li>Students take a clear picture of handwritten math or science problems.</li>
+              <li>Our built-in image reader (Tesseract OCR) reads the text automatically.</li>
+              <li>No need to struggle typing complex mathematical equations by hand.</li>
+              <li>Tag questions as Urgent if you have an exam tomorrow.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-cyan"></div>
+            <div class="card-title">🎙️ Voice Notes & Steps</div>
+            <div class="card-badge badge-cyan">Voice + Written Steps</div>
+            <ul>
+              <li>Mentors can record short 60-second audio voice notes.</li>
+              <li>Explains tricky concepts in simple Bengali that is easy to understand.</li>
+              <li>Mentors can write clear step-by-step equations and draw diagrams.</li>
+              <li>Much faster and clearer than plain text messages.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">⭐ BUET & Medical Mentors</div>
+            <div class="card-badge badge-emerald">Rated by Students</div>
+            <ul>
+              <li>Solved by verified top seniors who already cracked the admission exam.</li>
+              <li>Students give solutions a 1 to 5 star rating.</li>
+              <li>Mentors build their public reputation and earn per solved doubt.</li>
+              <li>Ensures friendly, patient, and accurate guidance every time.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 12: Admin & Database Studio -->
+      <section class="slide" data-slide="12">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Easy Platform Management</div>
+            <h2 class="slide-title">Super Admin Dashboard & In-Browser Database Studio</h2>
+          </div>
+          <div class="slide-sub">Run everything smoothly with visual controls and zero monthly database hosting bills</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">⚡ Visual Database Studio (Built-In)</div>
+            <div class="card-badge badge-emerald">Zero Setup Database</div>
+            <ul>
+              <li>Admins can view and search all 16 database tables right inside the browser.</li>
+              <li><strong>Direct SQL Query Runner:</strong> Run quick searches or updates without opening complex tools.</li>
+              <li><strong>Lightning Fast:</strong> Answers queries in less than 1 millisecond.</li>
+              <li><strong>Zero Database Hosting Bills:</strong> Uses high-performance local SQLite (WAL mode).</li>
+              <li>Saves thousands of dollars each year compared to expensive cloud database servers.</li>
+              <li>Full data safety with automatic daily backups.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-amber"></div>
+            <div class="card-title">💼 Notices, Circulars & Payment Logs</div>
+            <div class="card-badge badge-amber">Simple Admin Controls</div>
+            <ul>
+              <li><strong>Publish Admission Circulars:</strong> Update application deadlines, fees, and links live.</li>
+              <li><strong>Sponsored Banners:</strong> Post banners for partner private universities and see view/click counts.</li>
+              <li><strong>Urgent Broadcast Notices:</strong> Show high-priority ticker alerts on students' dashboards.</li>
+              <li><strong>Payment History:</strong> Check bKash, Nagad, and Rocket transaction IDs and receipts.</li>
+              <li><strong>User Management:</strong> Approve new teachers, verify mentors, and keep the community safe.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 13: Routine & AI Tutor -->
+      <section class="slide" data-slide="13">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Daily Habit Building</div>
+            <h2 class="slide-title">AI Daily Study Routine, Rewards & Friendly Tutor</h2>
+          </div>
+          <div class="slide-sub">Helps students stay consistent every single day with goals and rewards</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">📅 Daily AI Study Routine</div>
+            <div class="card-badge badge-emerald">Clear Daily Checklist</div>
+            <ul>
+              <li>Wake up every morning with a clear 24-hour study plan.</li>
+              <li>Focuses on specific chapters based on your target university.</li>
+              <li>Solve daily challenge questions right from your dashboard.</li>
+              <li>Study Streak counter: Encourages you to keep your daily streak alive.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-amber"></div>
+            <div class="card-title">🪙 EduCoins & Rewards</div>
+            <div class="card-badge badge-amber">Fun Gamification</div>
+            <ul>
+              <li>Earn virtual EduCoins by completing study sessions, tasks, and tests.</li>
+              <li>Level up your student profile from Novice up to Admission Master.</li>
+              <li>National Merit Leaderboard highlights the most dedicated students in the country.</li>
+              <li>Makes daily study feel rewarding, like playing a game.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-purple"></div>
+            <div class="card-title">🤖 Friendly AI Study Buddy</div>
+            <div class="card-badge badge-purple">Bengali & English AI</div>
+            <ul>
+              <li>Always available as a floating chat button on every page.</li>
+              <li>Powered by Google Gemini and OpenAI.</li>
+              <li>Understands and speaks both natural Bengali and English.</li>
+              <li>Explains difficult math equations, science concepts, and admission rules patiently.</li>
+              <li>Like having a private tutor sitting beside you 24/7.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 14: Payments & Mobile -->
+      <section class="slide" data-slide="14">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Built for Bangladesh</div>
+            <h2 class="slide-title">Easy bKash/Nagad Payments & Ready Android App</h2>
+          </div>
+          <div class="slide-sub">Convenient mobile payments and an installable app ready for Google Play Store</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-rose"></div>
+            <div class="card-title">💳 Local Mobile Payments</div>
+            <div class="card-badge badge-rose">bKash • Nagad • Rocket</div>
+            <ul>
+              <li>Supports Bangladesh's most popular payment services: bKash, Nagad, and Rocket.</li>
+              <li>Easy 4-Step Process: Copy merchant number ➔ Send payment on mobile ➔ Paste TrxID ➔ Verified.</li>
+              <li>Instant access to Pro courses and special mock test packages.</li>
+              <li>Generates clean digital payment receipts stored safely in your profile.</li>
+              <li>Tested and verified to prevent fake transaction numbers.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-top-strip strip-blue"></div>
+            <div class="card-title">📱 Ready Android App (APK)</div>
+            <div class="card-badge badge-blue">Install on Your Phone</div>
+            <ul>
+              <li>Comes with an already compiled Android App file: <code>MobileApp/EduFast.apk</code>.</li>
+              <li>Built using modern Capacitor technology for smooth mobile performance.</li>
+              <li>Works beautifully on all Android phones with bottom navigation tabs.</li>
+              <li>Ready to upload directly to the Google Play Store with zero code changes.</li>
+              <li>Loads fast even on average 3G/4G mobile internet connections.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 15: Conclusion & Creators -->
+      <section class="slide" data-slide="15">
+        <div class="slide-header">
+          <div>
+            <div class="slide-badge">Project Summary</div>
+            <h2 class="slide-title">Everything is Built, Tested, and Ready to Use</h2>
+          </div>
+          <div class="slide-sub">A complete, genuine education platform created by students who lived this experience</div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-top-strip strip-emerald"></div>
+            <div class="card-title">📦 What We Delivered (100% Real)</div>
+            <div class="card-badge badge-emerald">100% Real & Working</div>
+            <ul>
+              <li>✓ <strong>Full Working Source Code:</strong> Node.js Express backend and React 18 frontend.</li>
+              <li>✓ <strong>Real Board Scraper:</strong> Solves live CAPTCHAs with educationboardresults.gov.bd.</li>
+              <li>✓ <strong>Native Live Classes:</strong> Video streaming, whiteboard, screen share, and polls.</li>
+              <li>✓ <strong>Trained AI Model:</strong> 89.8% accurate admission predictor with real datasets.</li>
+              <li>✓ <strong>Zero-Cost Database:</strong> Fast SQLite WAL database with 16 tables populated.</li>
+              <li>✓ <strong>Ready Android App:</strong> Compiled <code>EduFast.apk</code> ready to install.</li>
+              <li>✓ All documentation and presentations stored cleanly in 'Project info folder'.</li>
+            </ul>
+          </div>
+          <div class="card" style="background: #ecfdf5; border-color: #a7f3d0;">
+            <div class="card-top-strip strip-emerald"></div>
+            <div style="font-size: 0.8rem; font-weight: 700; color: #059669; text-transform: uppercase; margin-bottom: 12px;">Project Directors & Creators</div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a;">👤 Asif Hossain Khan</div>
+              <div style="font-size: 0.95rem; color: #334155;">Student ID: 210178 &nbsp;|&nbsp; System Architect</div>
+            </div>
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 1.25rem; font-weight: 800; color: #0f172a;">👤 Fahim Ahmed Nizum</div>
+              <div style="font-size: 0.95rem; color: #334155;">Student ID: 210144 &nbsp;|&nbsp; Lead Developer</div>
+            </div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #0284c7; margin-bottom: 4px;">
+              Daffodil Institute of IT (DIIT) • Department of CSE, Dhaka
+            </div>
+            <div style="font-size: 0.82rem; color: #64748b;">
+              Session: 2020-2021 • EduFast Official Technical Presentation (v2)
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="bottom-bar">
+    <div>
+      <button class="btn-nav" id="btnPrev" onclick="navSlide(-1)">◀ Previous</button>
+      <button class="btn-nav" id="btnNext" onclick="navSlide(1)">Next ▶</button>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="slide-counter" id="slideCounter">Slide 1 / 15</div>
+    </div>
+    <div style="font-size: 0.78rem; color: var(--text-muted);">
+      Press <kbd style="background:#f1f5f9; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; color:#0f172a;">Space</kbd> or <kbd style="background:#f1f5f9; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; color:#0f172a;">Arrows</kbd> to navigate
+    </div>
+  </footer>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const total = slides.length;
+    let current = 1;
+
+    function updateUI() {
+      slides.forEach((s, idx) => {
+        if (idx + 1 === current) s.classList.add('active');
+        else s.classList.remove('active');
+      });
+      document.getElementById('slideCounter').textContent = `Slide ${current} / ${total}`;
+      document.getElementById('progressFill').style.width = `${(current / total) * 100}%`;
+      document.getElementById('btnPrev').disabled = (current === 1);
+      document.getElementById('btnNext').disabled = (current === total);
+    }
+
+    function navSlide(dir) {
+      const target = current + dir;
+      if (target >= 1 && target <= total) {
+        current = target;
+        updateUI();
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => alert(err.message));
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        navSlide(1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        navSlide(-1);
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        window.print();
+      }
+    });
+
+    updateUI();
+  </script>
+</body>
+</html>
+

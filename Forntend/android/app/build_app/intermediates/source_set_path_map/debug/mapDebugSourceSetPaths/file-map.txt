@@ -1,0 +1,31 @@
+com.edufast.app-core-splashscreen-1.0.1-0 C:\Users\NION\.gradle\caches\8.11.1\transforms\018ab82af72abf28498c352680774637\transformed\core-splashscreen-1.0.1\res
+com.edufast.app-lifecycle-livedata-core-2.6.2-1 C:\Users\NION\.gradle\caches\8.11.1\transforms\05adf162924857da7dac6a95aad02b80\transformed\lifecycle-livedata-core-2.6.2\res
+com.edufast.app-lifecycle-viewmodel-savedstate-2.6.2-2 C:\Users\NION\.gradle\caches\8.11.1\transforms\0907c24d1bad9f139fb4683c404f7ef8\transformed\lifecycle-viewmodel-savedstate-2.6.2\res
+com.edufast.app-webkit-1.12.1-3 C:\Users\NION\.gradle\caches\8.11.1\transforms\0a887feb54fcd60eaf755abd80e5346f\transformed\webkit-1.12.1\res
+com.edufast.app-core-runtime-2.2.0-4 C:\Users\NION\.gradle\caches\8.11.1\transforms\11f148bc4d9912e4131e4a3c21d6d930\transformed\core-runtime-2.2.0\res
+com.edufast.app-annotation-experimental-1.4.1-5 C:\Users\NION\.gradle\caches\8.11.1\transforms\197959d99e39eb8d8c3c289cf88bf9bc\transformed\annotation-experimental-1.4.1\res
+com.edufast.app-lifecycle-livedata-2.6.2-6 C:\Users\NION\.gradle\caches\8.11.1\transforms\39288897ea82a30f5cf2beb4d1b5e70e\transformed\lifecycle-livedata-2.6.2\res
+com.edufast.app-core-1.13.1-7 C:\Users\NION\.gradle\caches\8.11.1\transforms\3e4541b767ac7c90237a18c1f2195bc3\transformed\core-1.13.1\res
+com.edufast.app-activity-1.9.3-8 C:\Users\NION\.gradle\caches\8.11.1\transforms\5ad70245d7ba5ded3fc8bbb2101b00ac\transformed\activity-1.9.3\res
+com.edufast.app-lifecycle-runtime-2.6.2-9 C:\Users\NION\.gradle\caches\8.11.1\transforms\61ae40af14474a1e0528b3f1a91e0997\transformed\lifecycle-runtime-2.6.2\res
+com.edufast.app-profileinstaller-1.3.1-10 C:\Users\NION\.gradle\caches\8.11.1\transforms\64453395bcbfbdac92d061e7be9a29f4\transformed\profileinstaller-1.3.1\res
+com.edufast.app-coordinatorlayout-1.2.0-11 C:\Users\NION\.gradle\caches\8.11.1\transforms\67a9e57d5bec8137f347656ed8c2161a\transformed\coordinatorlayout-1.2.0\res
+com.edufast.app-fragment-1.8.5-12 C:\Users\NION\.gradle\caches\8.11.1\transforms\7ff4df1857951528394bbbae2da149e3\transformed\fragment-1.8.5\res
+com.edufast.app-appcompat-resources-1.7.0-13 C:\Users\NION\.gradle\caches\8.11.1\transforms\9806fc1d556cef8b6515acc291340c45\transformed\appcompat-resources-1.7.0\res
+com.edufast.app-lifecycle-process-2.6.2-14 C:\Users\NION\.gradle\caches\8.11.1\transforms\ba96b8594bbfa68c5c7f9a1e94efffda\transformed\lifecycle-process-2.6.2\res
+com.edufast.app-core-ktx-1.13.1-15 C:\Users\NION\.gradle\caches\8.11.1\transforms\c75d18a3431966d1b1c473d559bca52a\transformed\core-ktx-1.13.1\res
+com.edufast.app-emoji2-1.3.0-16 C:\Users\NION\.gradle\caches\8.11.1\transforms\d126a875d9ed97f7173f68d4da046bf1\transformed\emoji2-1.3.0\res
+com.edufast.app-appcompat-1.7.0-17 C:\Users\NION\.gradle\caches\8.11.1\transforms\de13722d0f58868daee77b86b0d19af8\transformed\appcompat-1.7.0\res
+com.edufast.app-lifecycle-viewmodel-2.6.2-18 C:\Users\NION\.gradle\caches\8.11.1\transforms\e22aaab12633fd3c4016e668f5d25e38\transformed\lifecycle-viewmodel-2.6.2\res
+com.edufast.app-savedstate-1.2.1-19 C:\Users\NION\.gradle\caches\8.11.1\transforms\eb6cb3a98715f3ea0464eff788cd6c69\transformed\savedstate-1.2.1\res
+com.edufast.app-startup-runtime-1.1.1-20 C:\Users\NION\.gradle\caches\8.11.1\transforms\f4ccbf77679e610edeb2e42017549d9a\transformed\startup-runtime-1.1.1\res
+com.edufast.app-emoji2-views-helper-1.3.0-21 C:\Users\NION\.gradle\caches\8.11.1\transforms\fb3b10dc62dd6822f5ea7a1e1b786b5d\transformed\emoji2-views-helper-1.3.0\res
+com.edufast.app-pngs-22 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\build_app\generated\res\pngs\debug
+com.edufast.app-resValues-23 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\build_app\generated\res\resValues\debug
+com.edufast.app-packageDebugResources-24 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\build_app\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.edufast.app-packageDebugResources-25 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\build_app\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.edufast.app-debug-26 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\build_app\intermediates\merged_res\debug\mergeDebugResources
+com.edufast.app-debug-27 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\src\debug\res
+com.edufast.app-main-28 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\app\src\main\res
+com.edufast.app-debug-29 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\android\capacitor-cordova-android-plugins\build\intermediates\packaged_res\debug\packageDebugResources
+com.edufast.app-debug-30 D:\00.MY ALL PROJECT\00.Desktop\MY Project\00.MY NEW PROJECT\EduFast\Forntend\node_modules\@capacitor\android\capacitor\build\intermediates\packaged_res\debug\packageDebugResources

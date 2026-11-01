@@ -7,7 +7,8 @@ import {
   fetchBackendMockTests
 } from '../../data/mockData';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
 
 const SUBJECT_DEFAULTS = {
   Science: 'পদার্থবিজ্ঞান, রসায়ন, উচ্চতর গণিত, জীববিজ্ঞান',

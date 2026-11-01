@@ -4,9 +4,7 @@
 
 import { generatedMockTests } from './mockTestGenerator';
 
-const BACKEND_URL = typeof window !== 'undefined' && window.location.port === '5173'
-  ? 'http://localhost:5001'
-  : '';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 /**
  * Normalizes a question object to ensure standard shape:
@@ -164,6 +162,7 @@ export const saveMockTest = (newTest, creator = null) => {
     const stored = localStorage.getItem('edufast_dynamic_mock_tests');
     const custom = stored ? JSON.parse(stored) : [];
     const index = custom.findIndex(t => t.id === formattedTest.id);
+    const isNew = index < 0;
     let updated;
     if (index >= 0) {
       updated = [...custom];
@@ -173,8 +172,28 @@ export const saveMockTest = (newTest, creator = null) => {
     }
     localStorage.setItem('edufast_dynamic_mock_tests', JSON.stringify(updated));
 
+    // 🔔 Trigger real-time notification for student
+    if (isNew) {
+      try {
+        const raw = localStorage.getItem('edufast_notifications');
+        const list = raw ? JSON.parse(raw) : [];
+        const newNotif = {
+          id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          title: `🎯 নতুন মক টেস্ট: "${formattedTest.title}"`,
+          text: `নতুন ${formattedTest.subject || 'এডমিশন'} মডেল টেস্ট শুরু হয়েছে (${formattedTest.totalQuestions || formattedTest.questions?.length || 25}টি প্রশ্ন, ${formattedTest.duration || 30} মিনিট)। এখনই অংশগ্রহণ করুন!`,
+          category: 'mock_test',
+          time: 'এইমাত্র (Just now)',
+          timestamp: Date.now(),
+          read: false,
+          link: 'mocktest'
+        };
+        localStorage.setItem('edufast_notifications', JSON.stringify([newNotif, ...list]));
+        window.dispatchEvent(new CustomEvent('edufast-notification-added', { detail: newNotif }));
+      } catch {}
+    }
+
     window.dispatchEvent(new CustomEvent('edufast-mock-tests-update', { detail: { test: formattedTest } }));
-    window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'mock_tests', action: 'save' } }));
+    window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'mock_tests', action: 'save', test: formattedTest } }));
 
     // Live Sync with backend DATA/mockTests.json file
     fetch(`${BACKEND_URL}/api/data/mock-tests`, {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle2, AlertTriangle, ShieldCheck, ShieldAlert, BookOpen, Clock, FileText, Eye, Film, RefreshCw } from 'lucide-react';
+import { formatYouTubeEmbedUrl, isYouTubeUrl } from '../../services/videoHelper';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
 
 export default function AdminCurriculumModal({
   isOpen,
@@ -283,12 +285,24 @@ export default function AdminCurriculumModal({
                 ✕ প্লেয়ার বন্ধ করুন
               </button>
             </div>
-            <video
-              src={getFullVideoUrl(activeVideo.videoUrl)}
-              controls
-              autoPlay
-              style={{ width: '100%', maxHeight: '280px', borderRadius: '8px', objectFit: 'contain', background: '#111827' }}
-            />
+            {isYouTubeUrl(activeVideo.videoUrl) ? (
+              <div style={{ position: 'relative', width: '100%', paddingTop: '50%', borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
+                <iframe
+                  src={formatYouTubeEmbedUrl(activeVideo.videoUrl, true)}
+                  title={activeVideo.title}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <video
+                src={getFullVideoUrl(activeVideo.videoUrl)}
+                controls
+                autoPlay
+                style={{ width: '100%', maxHeight: '280px', borderRadius: '8px', objectFit: 'contain', background: '#111827' }}
+              />
+            )}
           </div>
         )}
 
@@ -385,9 +399,9 @@ export default function AdminCurriculumModal({
                             <span>⏱️ {les.duration || '20:00'}</span>
                             <span>•</span>
                             <span style={{
-                              color: les.videoSourceType === 'local' || (les.videoUrl && les.videoUrl.startsWith('/uploads')) ? '#34d399' : '#38bdf8'
+                              color: les.videoSourceType === 'local' || (les.videoUrl && les.videoUrl.startsWith('/uploads')) ? '#34d399' : isYouTubeUrl(les.videoUrl) ? '#fbbf24' : '#38bdf8'
                             }}>
-                              {les.videoSourceType === 'local' || (les.videoUrl && les.videoUrl.startsWith('/uploads')) ? '📁 শিক্ষক কর্তৃক পিসি থেকে আপলোডকৃত' : '🔗 অনলাইন ভিডিও'}
+                              {les.videoSourceType === 'local' || (les.videoUrl && les.videoUrl.startsWith('/uploads')) ? '📁 পিসি থেকে সরাসরি আপলোড' : isYouTubeUrl(les.videoUrl) ? '▶️ YouTube (EduFast কাস্টম প্লেয়ার)' : '🔗 অনলাইন ভিডিও'}
                             </span>
                             {les.sheetUrl && (
                               <>

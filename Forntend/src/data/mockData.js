@@ -1,12 +1,14 @@
 // Data store for EduFast Platform
 import { generatedMockTests } from './mockTestGenerator';
+
+const BACKEND_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 // Production Clean State: Zero Hardcoded Dummy Data
 // All content is dynamically created & managed via respective Admin, Teacher, Mentor, and Student portals.
 
 // One-time cache scrubber for legacy demo data stored in previous browser sessions
 if (typeof window !== 'undefined') {
   try {
-    const CLEAN_VERSION_KEY = 'edufast_clean_v6_with_admissions';
+    const CLEAN_VERSION_KEY = 'edufast_clean_v7_zero_demo';
     if (!localStorage.getItem(CLEAN_VERSION_KEY)) {
       // 1. Remove legacy demo student session
       const studentSession = localStorage.getItem('edufast_student_session');
@@ -63,10 +65,50 @@ if (typeof window !== 'undefined') {
       }
       localStorage.setItem(CLEAN_VERSION_KEY, 'true');
     }
+
+    // 5. Purge any legacy demo courses cached in localStorage
+    const CLEAN_COURSES_KEY = 'edufast_clean_v8_purge_demo_courses';
+    if (!localStorage.getItem(CLEAN_COURSES_KEY)) {
+      localStorage.setItem('edufast_dynamic_courses', JSON.stringify([]));
+      const studentSession = localStorage.getItem('edufast_student_session');
+      if (studentSession) {
+        try {
+          const parsed = JSON.parse(studentSession);
+          if (parsed && Array.isArray(parsed.purchasedCourses)) {
+            parsed.purchasedCourses = [];
+            localStorage.setItem('edufast_student_session', JSON.stringify(parsed));
+          }
+        } catch (e) {}
+      }
+      localStorage.setItem(CLEAN_COURSES_KEY, 'true');
+    }
   } catch (e) {
     console.warn('Cache purge error:', e);
   }
 }
+
+// Helper: Get unique canonical key for deduplicating student records
+export const getCanonicalStudentKey = (s) => {
+  if (!s) return '';
+  const email = (s.email || '').trim().toLowerCase();
+  if (email) return `email:${email}`;
+
+  const mobile = (s.mobile || '').trim();
+  if (mobile) return `mobile:${mobile}`;
+
+  const dbId = s.dbId ? String(s.dbId) : '';
+  if (dbId) return `id:${dbId}`;
+
+  const id = s.id ? String(s.id) : '';
+  if (id && !id.startsWith('student-') && !id.startsWith('stu-')) return `id:${id}`;
+
+  const name = (s.name || '').trim().toLowerCase();
+  if (name && name !== 'student' && name !== 'শিক্ষার্থী' && name !== 'anonymous aspirant') {
+    return `name:${name}`;
+  }
+
+  return id ? `id:${id}` : '';
+};
 
 // Registered students live store & synchronization
 export const getRegisteredStudents = () => {
@@ -75,7 +117,19 @@ export const getRegisteredStudents = () => {
     const raw = localStorage.getItem('edufast_registered_students');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        // Purge duplicates on load
+        const seen = new Set();
+        const cleaned = [];
+        for (const item of parsed) {
+          const key = getCanonicalStudentKey(item);
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            cleaned.push(item);
+          }
+        }
+        return cleaned;
+      }
     }
   } catch (e) {}
   return [];
@@ -85,12 +139,18 @@ export const registerStudentInLocalStore = (student) => {
   if (typeof window === 'undefined' || !student) return;
   try {
     const list = getRegisteredStudents();
-    const identifier = student.email || student.mobile || student.id || student.name;
-    const existingIndex = list.findIndex(s => 
-      (s.email && student.email && s.email.toLowerCase() === student.email.toLowerCase()) ||
-      (s.id && student.id && String(s.id) === String(student.id)) ||
-      (s.mobile && student.mobile && s.mobile === student.mobile)
-    );
+    const cleanKey = getCanonicalStudentKey(student);
+    const sName = (student.name || '').trim().toLowerCase();
+
+    const existingIndex = list.findIndex(s => {
+      const k = getCanonicalStudentKey(s);
+      if (cleanKey && k && cleanKey === k) return true;
+      if (s.email && student.email && s.email.toLowerCase() === student.email.toLowerCase()) return true;
+      if (s.id && student.id && String(s.id) === String(student.id)) return true;
+      if (s.dbId && student.dbId && String(s.dbId) === String(student.dbId)) return true;
+      if (s.name && sName && s.name.trim().toLowerCase() === sName && sName !== 'student') return true;
+      return false;
+    });
 
     const group = student.academicGroup || student.group || 'Science';
     let avatar = student.avatar;
@@ -108,7 +168,7 @@ export const registerStudentInLocalStore = (student) => {
     }
 
     const formatted = {
-      id: student.id || identifier,
+      id: student.id || student.email || identifier,
       name: student.name || 'শিক্ষার্থী',
       email: student.email || '',
       mobile: student.mobile || '',
@@ -141,30 +201,57 @@ export const syncRegisteredStudents = (serverStudents) => {
     const localList = getRegisteredStudents();
     const map = new Map();
 
-    serverStudents.forEach(s => {
-      const key = (s.email || s.id || s.name).toLowerCase();
-      map.set(key, {
+    const addOrMerge = (s) => {
+      if (!s) return;
+      const key = getCanonicalStudentKey(s);
+      if (!key) return;
+
+      const group = s.group || s.academicGroup || 'Science';
+      let avatar = s.avatar;
+      if (!avatar) {
+        if (group === 'Science') avatar = '👨‍🔬';
+        else if (group === 'Commerce') avatar = '👨‍💼';
+        else avatar = '👩‍🎓';
+      }
+
+      let target = s.target;
+      if (!target) {
+        if (group === 'Science') target = 'BUET / Medical / DU A-Unit';
+        else if (group === 'Commerce') target = 'DU C-Unit & IBA';
+        else target = 'DU B-Unit (Law)';
+      }
+
+      const sName = (s.name || '').trim().toLowerCase();
+      // Check if already present by name
+      const existingEntry = Array.from(map.entries()).find(([k, item]) => 
+        k === key || (item.name && (item.name || '').trim().toLowerCase() === sName && sName !== 'student')
+      );
+
+      const formatted = {
         id: s.id,
-        dbId: s.dbId,
-        name: s.name,
-        email: s.email,
-        group: s.group || 'Science',
-        avatar: s.avatar || (s.group === 'Commerce' ? '👨‍💼' : s.group === 'Humanities' || s.group === 'Arts' ? '👩‍🎓' : '👨‍🔬'),
-        target: s.target || (s.group === 'Commerce' ? 'DU C-Unit & IBA' : s.group === 'Humanities' || s.group === 'Arts' ? 'DU B-Unit (Law)' : 'BUET / Medical / DU A-Unit'),
-        coins: Number(s.coins) || 0,
+        dbId: s.dbId || (typeof s.id === 'number' ? s.id : undefined),
+        name: s.name || 'শিক্ষার্থী',
+        email: s.email || '',
+        group,
+        avatar,
+        target,
+        coins: Number(s.coins) || 100,
         score: Number(s.score) || 0.0,
         streak: Number(s.streak) || 0,
-        college: s.college || 'Bangladesh',
+        college: s.college || s.hscCollege || s.sscSchool || 'Bangladesh',
         createdAt: s.createdAt || new Date().toISOString()
-      });
-    });
+      };
 
-    localList.forEach(s => {
-      const key = (s.email || s.id || s.name).toLowerCase();
-      if (!map.has(key)) {
-        map.set(key, s);
+      if (existingEntry) {
+        const [oldKey, oldVal] = existingEntry;
+        map.set(oldKey, { ...oldVal, ...formatted, coins: Math.max(oldVal.coins || 0, formatted.coins || 0) });
+      } else {
+        map.set(key, formatted);
       }
-    });
+    };
+
+    serverStudents.forEach(s => addOrMerge(s));
+    localList.forEach(s => addOrMerge(s));
 
     const merged = Array.from(map.values());
     localStorage.setItem('edufast_registered_students', JSON.stringify(merged));
@@ -210,27 +297,27 @@ export const DEFAULT_USER = {
 // 2. TEACHER PROFILE TEMPLATE (Full Comprehensive Baseline)
 // ==========================================
 export const DEFAULT_TEACHER = {
-  id: "teacher-default",
-  name: "Dr. Mahfuzur Rahman",
-  email: "teacher@edufast.com",
-  mobile: "01711111111",
-  fathersName: "Md. Abdur Rahim",
-  dob: "1988-06-15",
-  group: "Science",
-  wing: "Science",
-  subject: "Higher Mathematics",
-  institution: "BUET / Notre Dame College",
-  qualification: "Ph.D in Applied Mathematics (BUET)",
-  experience: "8+ Years",
-  designation: "Senior Lead Instructor",
-  department: "Senior Lead Instructor, Science Wing",
-  bio: "Lead Higher Mathematics & Engineering admission instructor with 8+ years of dedicated mentoring experience.",
+  id: "",
+  name: "",
+  email: "",
+  mobile: "",
+  fathersName: "",
+  dob: "",
+  group: "",
+  wing: "",
+  subject: "",
+  institution: "",
+  qualification: "",
+  experience: "",
+  designation: "",
+  department: "",
+  bio: "",
   avatar: null,
-  rating: 4.9,
-  studentsCount: 2450,
-  coursesCount: 6,
-  liveHours: 120,
-  isVerified: true
+  rating: 0,
+  studentsCount: 0,
+  coursesCount: 0,
+  liveHours: 0,
+  isVerified: false
 };
 
 export const getTeacherProfile = () => {
@@ -279,7 +366,7 @@ export const getTeacherRecordings = () => {
 
 export const fetchRecordingsFromBackend = async () => {
   try {
-    const res = await fetch('http://localhost:5001/api/data/recordings');
+    const res = await fetch(`${BACKEND_BASE}/api/data/recordings`);
     if (res.ok) {
       const result = await res.json();
       if (result.success && Array.isArray(result.data)) {
@@ -310,7 +397,7 @@ export const saveTeacherRecording = (recording) => {
   window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'recordings', action: 'save' } }));
 
   // Live Sync with backend DATA/recordings.json file
-  fetch('http://localhost:5001/api/data/recordings', {
+  fetch(`${BACKEND_BASE}/api/data/recordings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(formattedRec)
@@ -327,7 +414,7 @@ export const deleteTeacherRecording = (recordingId) => {
   window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'recordings', action: 'delete' } }));
 
   // Live Delete from backend DATA/recordings.json file
-  fetch(`http://localhost:5001/api/data/recordings/${encodeURIComponent(recordingId)}`, {
+  fetch(`${BACKEND_BASE}/api/data/recordings/${encodeURIComponent(recordingId)}`, {
     method: 'DELETE'
   }).catch(err => console.warn('Backend recording delete notice:', err.message));
 
@@ -387,8 +474,24 @@ export const getCourseCurriculum = (courseId, courseTitle = "Masterclass") => {
   try {
     const customKey = `edufast_curriculum_${courseId}`;
     const stored = localStorage.getItem(customKey);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch {}
+
+  // Also check dynamic courses store in localStorage
+  try {
+    const raw = localStorage.getItem('edufast_dynamic_courses');
+    if (raw) {
+      const courses = JSON.parse(raw);
+      const matched = courses.find(c => String(c.id) === String(courseId));
+      if (matched && Array.isArray(matched.modules) && matched.modules.length > 0) {
+        return matched.modules;
+      }
+    }
+  } catch {}
+
   return [];
 };
 
@@ -452,22 +555,35 @@ export const claimDoubt = (doubtId, mentorName) => {
 
 export const resolveDoubt = (doubtId, solutionData) => {
   const current = getDoubtsQueue();
+  let resolvedItem = null;
   const updated = current.map(d => {
     if (d.id === doubtId) {
-      return {
+      resolvedItem = {
         ...d,
         status: "resolved",
+        claimedBy: solutionData.solvedBy || d.claimedBy || "Duty Mentor",
         solution: {
           ...solutionData,
           resolvedAt: "Just now"
         }
       };
+      return resolvedItem;
     }
     return d;
   });
   if (typeof window !== 'undefined') {
     localStorage.setItem('edufast_doubts_queue', JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'doubts_queue', action: 'resolve' } }));
+    window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'doubts_queue', action: 'resolve', doubt: resolvedItem } }));
+    
+    // 🔔 Auto-create high priority notification for student in portal
+    if (resolvedItem) {
+      addNotification({
+        title: `ডাউট সমাধান: "${resolvedItem.subject || 'বিষয়'}" 💡`,
+        text: `মেন্টর ${solutionData.solvedBy || 'মেন্টর'} আপনার প্রশ্নের সমাধান দিয়েছেন: "${(solutionData.text || '').slice(0, 90)}..."`,
+        category: 'doubt_solution',
+        link: 'dashboard'
+      });
+    }
   }
   return updated;
 };
@@ -493,15 +609,33 @@ export const escalateDoubt = (doubtId, reason) => {
 
 export const rateDoubtSolution = (doubtId, stars) => {
   const current = getDoubtsQueue();
+  const existingDoubt = current.find(d => String(d.id) === String(doubtId));
+  if (existingDoubt && Number(existingDoubt.rating) > 0) {
+    // 🔒 প্রতিটা প্রশ্নে রেটিং একবারই গ্রহণযোগ্য
+    return current;
+  }
+
+  let ratedDoubt = null;
   const updated = current.map(d => {
-    if (d.id === doubtId) {
-      return { ...d, rating: stars };
+    if (String(d.id) === String(doubtId)) {
+      ratedDoubt = { ...d, rating: stars };
+      return ratedDoubt;
     }
     return d;
   });
   if (typeof window !== 'undefined') {
     localStorage.setItem('edufast_doubts_queue', JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('edufast-data-update', { detail: { type: 'doubts_queue', action: 'rate' } }));
+    window.dispatchEvent(new CustomEvent('edufast-data-update', { 
+      detail: { type: 'doubts_queue', action: 'rate', doubtId, rating: stars, doubt: ratedDoubt } 
+    }));
+
+    // Live Sync rating with backend SQLite database
+    const backendUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SOCKET_URL) || 'http://localhost:5000';
+    fetch(`${backendUrl}/api/doubts/${encodeURIComponent(doubtId)}/rate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating: stars })
+    }).catch(err => console.warn('Backend rate sync notice:', err.message));
   }
   return updated;
 };
@@ -542,14 +676,18 @@ export const saveMentorProfile = (profile) => {
 // ==========================================
 
 export const getStudentCoins = (user) => {
-  if (typeof window === 'undefined') return 0;
+  if (typeof window === 'undefined') return 100;
   const userKey = user?.email || user?.id || 'default';
   const stored = localStorage.getItem(`edufast_student_coins_${userKey}`);
   if (stored !== null) {
     const parsed = parseInt(stored, 10);
-    if (!isNaN(parsed)) return parsed;
+    if (!isNaN(parsed) && parsed > 0) return parsed;
   }
-  return 0; // Fresh new student starts with 0 EduCoins
+  // Fresh new student starts with 100 Welcome EduCoins!
+  try {
+    localStorage.setItem(`edufast_student_coins_${userKey}`, '100');
+  } catch (e) {}
+  return 100;
 };
 
 export const updateStudentCoins = (user, delta) => {
@@ -575,7 +713,7 @@ export const updateStudentCoins = (user, delta) => {
 
   // Live Sync with Backend SQLite Database
   if (user?.email || user?.id) {
-    fetch('http://localhost:5001/api/students/update-stats', {
+    fetch(`${BACKEND_BASE}/api/students/update-stats`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -595,17 +733,25 @@ export const updateStudentCoins = (user, delta) => {
 
 export const getStudentMockStats = (user) => {
   if (typeof window === 'undefined') return { totalTests: 0, avgAccuracy: 0, lastAccuracy: 0 };
-  const userKey = user?.email || user?.id || 'default';
+  const keysToTry = [
+    user?.email ? `edufast_student_mock_history_${user.email.toLowerCase()}` : null,
+    user?.email ? `edufast_student_mock_history_${user.email}` : null,
+    user?.id ? `edufast_student_mock_history_${user.id}` : null,
+    'edufast_student_mock_history_default'
+  ].filter(Boolean);
+
   try {
-    const saved = localStorage.getItem(`edufast_student_mock_history_${userKey}`);
-    if (saved) {
-      const history = JSON.parse(saved);
-      if (Array.isArray(history) && history.length > 0) {
-        const totalTests = history.length;
-        const totalPct = history.reduce((acc, h) => acc + (Number(h.percentage) || 0), 0);
-        const avgAccuracy = Number((totalPct / totalTests).toFixed(1));
-        const lastAccuracy = Number(history[history.length - 1].percentage) || 0;
-        return { totalTests, avgAccuracy, lastAccuracy };
+    for (const key of keysToTry) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const history = JSON.parse(saved);
+        if (Array.isArray(history) && history.length > 0) {
+          const totalTests = history.length;
+          const totalPct = history.reduce((acc, h) => acc + (Number(h.percentage) || 0), 0);
+          const avgAccuracy = Number((totalPct / totalTests).toFixed(1));
+          const lastAccuracy = Number(history[history.length - 1].percentage) || 0;
+          return { totalTests, avgAccuracy, lastAccuracy };
+        }
       }
     }
   } catch (e) {
@@ -713,7 +859,7 @@ export const recordStudentMockTestResult = (user, resultData) => {
 
     // Live Sync score with Backend SQLite Database
     if (user?.email || user?.id) {
-      fetch('http://localhost:5001/api/students/update-stats', {
+      fetch(`${BACKEND_BASE}/api/students/update-stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -724,7 +870,7 @@ export const recordStudentMockTestResult = (user, resultData) => {
       }).catch(() => {});
 
       // Live Sync one-time attempt with Backend SQLite Database
-      fetch('http://localhost:5001/api/mock-tests/attempt', {
+      fetch(`${BACKEND_BASE}/api/mock-tests/attempt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -751,7 +897,7 @@ export const fetchBackendMockAttempts = async (user) => {
     if (user.id) params.append('userId', String(user.id));
     if (user.email) params.append('email', String(user.email));
 
-    const res = await fetch(`http://localhost:5001/api/mock-tests/attempts?${params.toString()}`);
+    const res = await fetch(`${BACKEND_BASE}/api/mock-tests/attempts?${params.toString()}`);
     if (!res.ok) return getStudentMockSubmissions(user);
     const data = await res.json();
     if (data && data.success && Array.isArray(data.attempts)) {
@@ -819,6 +965,7 @@ export const getDynamicLeaderboard = (currentUser, {
 
   const activeUser = {
     id: currentUser?.email || currentUser?.id || 'current-student',
+    dbId: currentUser?.id,
     email: currentUser?.email || '',
     name: currentUser?.name || 'আপনার প্রোফাইল',
     avatar: currentUser?.avatar || (currentUser?.group === 'Commerce' ? '👨‍💼' : currentUser?.group === 'Humanities' || currentUser?.group === 'Arts' ? '👩‍🎓' : '👨‍🔬'),
@@ -831,29 +978,66 @@ export const getDynamicLeaderboard = (currentUser, {
     location: 'Bangladesh'
   };
 
+  // Helper: check if a peer in database matches current logged-in user
+  const isCurrentUserMatch = (p) => {
+    if (!p || !currentUser) return false;
+    const pEmail = (p.email || '').trim().toLowerCase();
+    const uEmail = (currentUser.email || '').trim().toLowerCase();
+    if (pEmail && uEmail && pEmail === uEmail) return true;
+
+    const pDbId = p.dbId ? String(p.dbId) : '';
+    const uId = currentUser.id ? String(currentUser.id) : '';
+    if (pDbId && uId && pDbId === uId) return true;
+
+    const pId = p.id ? String(p.id) : '';
+    if (pId && uId && (pId === uId || pId === `student-${uId}` || `student-${pId}` === uId)) return true;
+
+    const pName = (p.name || '').trim().toLowerCase();
+    const uName = (currentUser.name || '').trim().toLowerCase();
+    if (pName && uName && pName === uName && pName !== 'student' && pName !== 'anonymous aspirant' && pName !== 'শিক্ষার্থী') {
+      return true;
+    }
+
+    return false;
+  };
+
+  const activeCanonicalKey = getCanonicalStudentKey(activeUser) || `email:${(activeUser.email || 'active').toLowerCase()}`;
+
   // Real registered students source (from props / server / local store)
   const peersSource = (registeredStudents && registeredStudents.length > 0)
     ? registeredStudents
     : getRegisteredStudents();
 
-  // Merge, deduplicate and ensure current user is accurately represented
+  // Merge & strictly deduplicate into single Map
   const studentMap = new Map();
+  let currentUserMerged = false;
 
-  // 1. Add all registered students
   peersSource.forEach(p => {
     if (!p) return;
-    const pEmail = (p.email || '').trim().toLowerCase();
-    const pId = p.id ? String(p.id) : '';
-    const key = pEmail || pId || (p.name || 'student').toLowerCase();
+    const isCurrent = isCurrentUserMatch(p);
 
-    // Check if this student is actually the current logged-in user
-    const isCurrent = (currentUser?.email && pEmail && currentUser.email.toLowerCase() === pEmail) ||
-                      (currentUser?.id && p.dbId && String(currentUser.id) === String(p.dbId)) ||
-                      (currentUser?.id && pId && String(currentUser.id) === pId);
+    if (isCurrent) {
+      currentUserMerged = true;
+      studentMap.set(activeCanonicalKey, {
+        ...p,
+        ...activeUser,
+        coins: userCoins,
+        score: mockStats.avgAccuracy || 0,
+        streak: userStreak,
+        isCurrentUser: true
+      });
+      return;
+    }
 
-    const peerCoins = isCurrent ? userCoins : (getStudentCoins(p) || Number(p.coins) || 0);
-    const peerScore = isCurrent ? (mockStats.avgAccuracy || 0) : (Number(p.score) || 0);
-    const peerStreak = isCurrent ? userStreak : (getStudentStreak(p) || Number(p.streak) || 0);
+    const key = getCanonicalStudentKey(p);
+    if (!key) return;
+
+    // Check if peer already exists by canonical key or exact name
+    const pName = (p.name || '').trim().toLowerCase();
+    const alreadyExists = Array.from(studentMap.values()).some(existing => 
+      !existing.isCurrentUser && pName && pName !== 'student' && (existing.name || '').trim().toLowerCase() === pName
+    );
+    if (alreadyExists) return;
 
     const peerGroup = p.group || p.academicGroup || 'Science';
     let peerAvatar = p.avatar;
@@ -878,17 +1062,18 @@ export const getDynamicLeaderboard = (currentUser, {
       avatar: peerAvatar,
       group: peerGroup,
       target: peerTarget,
-      score: peerScore,
-      coins: peerCoins,
-      streak: peerStreak,
-      isCurrentUser: isCurrent,
+      score: Number(p.score) || 0,
+      coins: getStudentCoins(p) || Number(p.coins) || 100,
+      streak: getStudentStreak(p) || Number(p.streak) || 0,
+      isCurrentUser: false,
       location: p.location || 'Bangladesh'
     });
   });
 
-  // 2. Ensure current logged-in student is included
-  const activeKey = (activeUser.email || activeUser.id || activeUser.name).toLowerCase();
-  studentMap.set(activeKey, activeUser);
+  // If active user wasn't matched in peersSource, add active user now (only once!)
+  if (!currentUserMerged) {
+    studentMap.set(activeCanonicalKey, activeUser);
+  }
 
   let list = Array.from(studentMap.values());
 
@@ -927,14 +1112,25 @@ export const getDynamicLeaderboard = (currentUser, {
   let gapCoins = 0;
   let gapScore = 0;
   let gapStreak = 0;
+  let isTiedWithAhead = false;
 
   if (aheadItem && userItem) {
-    gapCoins = Math.max(1, (aheadItem.coins || 0) - (userItem.coins || 0));
-    gapScore = Math.max(0.1, Number(((aheadItem.score || 0) - (userItem.score || 0)).toFixed(1)));
-    gapStreak = Math.max(1, (aheadItem.streak || 0) - (userItem.streak || 0));
+    const diffCoins = (aheadItem.coins || 0) - (userItem.coins || 0);
+    if (diffCoins === 0) {
+      isTiedWithAhead = true;
+      gapCoins = 1;
+    } else {
+      gapCoins = Math.max(1, diffCoins);
+    }
+
+    const diffScore = Number(((aheadItem.score || 0) - (userItem.score || 0)).toFixed(1));
+    gapScore = diffScore <= 0 ? 0.5 : diffScore;
+
+    const diffStreak = (aheadItem.streak || 0) - (userItem.streak || 0);
+    gapStreak = diffStreak <= 0 ? 1 : diffStreak;
   }
 
-  // STRICT TOP 10: "নতুন স্টুডেন্ট যত জন এড হবে তাদের ভিতরে শুধু টপ 10 জন এর টাই দেখাবে"
+  // STRICT TOP 10: Platform live Top 10 learners
   const top10List = rankedList.slice(0, 10);
 
   return {
@@ -944,6 +1140,7 @@ export const getDynamicLeaderboard = (currentUser, {
     userRank: userItem ? userItem.rank : null,
     userItem,
     aheadItem,
+    isTiedWithAhead,
     gapCoins,
     gapScore,
     gapStreak
@@ -1215,6 +1412,21 @@ export const completeDailyTask = (user, taskId, customCoins = null) => {
   let newCoins = getStudentCoins(user);
   if (delta > 0) {
     newCoins = updateStudentCoins(user, delta);
+  }
+
+  // Live background sync with backend SQLite database
+  if (user?.email) {
+    try {
+      fetch(`${BACKEND_BASE}/api/student/daily-tasks/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          taskId: taskId,
+          coinsAwarded: delta
+        })
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   window.dispatchEvent(new CustomEvent('edufast-focus-plan-update', { 

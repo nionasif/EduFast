@@ -26,6 +26,11 @@ export class ErrorBoundary extends React.Component {
     window.location.href = '/';
   };
 
+  handleGoHome = () => {
+    this.setState({ hasError: false, error: null });
+    window.location.href = '/home';
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -46,10 +51,16 @@ export class ErrorBoundary extends React.Component {
                 🔄 রিলোড করুন (Reload)
               </button>
               <button
+                onClick={this.handleGoHome}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all cursor-pointer shadow-lg shadow-blue-600/30"
+              >
+                🏠 হোম পেজে যান (Home)
+              </button>
+              <button
                 onClick={this.handleReset}
                 className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 font-medium rounded-xl transition-all cursor-pointer"
               >
-                🧹 ক্যাশ ক্লিয়ার করুন (Reset)
+                🧹 রিসেট (Reset)
               </button>
             </div>
           </div>

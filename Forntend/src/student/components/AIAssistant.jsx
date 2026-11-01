@@ -1,20 +1,127 @@
 import { useState, useEffect, useRef } from 'react';
-import { getAdmissions, getCourses, submitDoubt, getDoubtsQueue, rateDoubtSolution } from '../../data/mockData';
+import { getAdmissions, getCourses } from '../../data/mockData';
 import { 
-  MessageSquare, X, Send, Sparkles, UserCheck, ShieldCheck, 
-  Bot, Star, Award, GraduationCap, ArrowRight, HelpCircle
+  MessageSquare, X, Send, Sparkles, 
+  Bot, Award, GraduationCap, ArrowRight, HelpCircle
 } from 'lucide-react';
 import './unifiedAssistant.css';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
+// ---------------------------------------------------------------------------
+// Formatting Helpers for Clean, Structured Academic & Math Display
+// ---------------------------------------------------------------------------
+const cleanMathAndLatex = (str) => {
+  if (!str) return '';
+  return str
+    .replace(/\\mathbf\{([^}]+)\}/g, '$1')
+    .replace(/\\textbf\{([^}]+)\}/g, '$1')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1 / $2)')
+    .replace(/\$\$([^\$]+)\$\$/g, '$1')
+    .replace(/\$([^\$]+)\$/g, '$1')
+    .replace(/\\implies/g, '⇒')
+    .replace(/\\times/g, '×')
+    .replace(/\\div/g, '÷')
+    .replace(/\\pm/g, '±')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\alpha/g, 'α')
+    .replace(/\\beta/g, 'β')
+    .replace(/\\theta/g, 'θ')
+    .replace(/\\pi/g, 'π')
+    .replace(/\\le/g, '≤')
+    .replace(/\\ge/g, '≥');
+};
+
+const renderInlineFormatted = (rawText) => {
+  if (!rawText) return null;
+  const cleaned = cleanMathAndLatex(rawText);
+
+  // Split by bold (**...**) and inline code (`...`)
+  const parts = cleaned.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={idx} className="ai-highlight-bold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={idx} className="ai-inline-code">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
+};
+
+const renderFormattedMessage = (text, sender) => {
+  if (sender === 'user') return text;
+  if (!text) return '';
+
+  const lines = text.split('\n');
+  return (
+    <div className="ai-formatted-message">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="ai-line-gap" />;
+        }
+
+        if (trimmed === '---' || trimmed === '***') {
+          return <hr key={idx} className="ai-divider" />;
+        }
+
+        // Headings (#, ##, ###)
+        if (trimmed.startsWith('#')) {
+          const headingText = trimmed.replace(/^#+\s*/, '');
+          return (
+            <div key={idx} className="ai-formatted-heading">
+              {renderInlineFormatted(headingText)}
+            </div>
+          );
+        }
+
+        // Numbered list / steps (e.g. "1. ", "১. ", "1) ", "১) ")
+        const stepMatch = trimmed.match(/^([0-9]+|[০-৯]+)[\.\)]\s*(.*)$/);
+        if (stepMatch) {
+          const numberBadge = stepMatch[1];
+          const content = stepMatch[2];
+          return (
+            <div key={idx} className="ai-formatted-step">
+              <span className="ai-step-badge">{numberBadge}</span>
+              <span className="ai-step-text">{renderInlineFormatted(content)}</span>
+            </div>
+          );
+        }
+
+        // Bullet points (*, -, •)
+        if (/^[\*\-•]\s+/.test(trimmed)) {
+          const content = trimmed.replace(/^[\*\-•]\s+/, '');
+          return (
+            <div key={idx} className="ai-formatted-bullet">
+              <span className="ai-bullet-dot" />
+              <span className="ai-bullet-text">{renderInlineFormatted(content)}</span>
+            </div>
+          );
+        }
+
+        // Regular paragraph line
+        return (
+          <div key={idx} className="ai-formatted-text-line">
+            {renderInlineFormatted(trimmed)}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export default function AIAssistant({ user, onOpenLogin }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('ai'); // 'ai' | 'mentor'
 
   // Ref for auto-scrolling
   const aiChatEndRef = useRef(null);
-  const mentorChatEndRef = useRef(null);
 
   // ---------------------------------------------------------------------------
   // 1. AI Assistant State & Handlers
@@ -32,7 +139,6 @@ export default function AIAssistant({ user, onOpenLogin }) {
   const [aiInputText, setAiInputText] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
 
-
   const suggestPrompts = [
     { label: '🏆 Am I BUET eligible?', query: 'BUET eligibility' },
     { label: '🎓 Dhaka University units', query: 'DU admission units' },
@@ -40,109 +146,27 @@ export default function AIAssistant({ user, onOpenLogin }) {
     { label: '📚 Study materials', query: 'Recommend courses' }
   ];
 
-  // ---------------------------------------------------------------------------
-  // 2. 24/7 Live Mentor Doubt Solver State & Handlers (Only for Authenticated Students)
-  // ---------------------------------------------------------------------------
-  const [activeSubject, setActiveSubject] = useState('Physics');
-  const [mentorInputQuery, setMentorInputQuery] = useState('');
-  const [isMentorTyping, setIsMentorTyping] = useState(false);
-  const [activeDoubtId, setActiveDoubtId] = useState(null);
-  const [ratedDoubtIds, setRatedDoubtIds] = useState([]);
-  const [mentorChatHistory, setMentorChatHistory] = useState([
-    {
-      id: 1,
-      sender: 'mentor',
-      mentorName: 'EduFast Academic Squad (BUET/DMC Panel)',
-      text: 'আসসালামু আলাইকুম! ফিজিক্স, কেমিস্ট্রি, ম্যাথ বা বায়োলজির যেকোনো কঠিন সমস্যা বা অ্যাডমিশন ডাউট এখানে লিখে পাঠাও। আমাদের ২৪/৭ মেন্টর প্যানেল দ্রুত স্টেপ-বাই-স্টেপ সমাধান দেবে।',
-      time: 'Just now'
-    }
-  ]);
-
-  const quickMentorPrompts = [
-    { subject: 'Physics', text: 'প্রাসের গতিতে সর্বাধিক উচ্চতায় মোট শক্তি কত?' },
-    { subject: 'Math', text: '∫ e^x (sin x + cos x) dx এর সরাসরি শর্টকাট কি?' },
-    { subject: 'Chemistry', text: 'KMnO4 এ Mn এর জারণ সংখ্যা কিভাবে বের করব?' },
-    { subject: 'English', text: 'Admission এ Inversion of Verbs এর নিয়মগুলো কি?' }
-  ];
-
   // Auto scroll effect
   useEffect(() => {
-    if (activeTab === 'ai' && aiChatEndRef.current) {
+    if (aiChatEndRef.current) {
       aiChatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    } else if (activeTab === 'mentor' && mentorChatEndRef.current) {
-      mentorChatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [aiMessages, isAiTyping, mentorChatHistory, isMentorTyping, activeTab]);
+  }, [aiMessages, isAiTyping]);
 
   // Handle external open events
   useEffect(() => {
-    const handleOpenMentor = () => {
+    const handleOpen = () => {
       setIsOpen(true);
-      if (user) {
-        setActiveTab('mentor');
-      } else {
-        setActiveTab('ai');
-        setAiMessages(prev => [
-          ...prev,
-          {
-            id: Date.now(),
-            sender: 'bot',
-            text: `🔒 **২৪/৭ লাইভ মেন্টর সলভার** সুবিধাটি শুধুমাত্র লগইনকৃত শিক্ষার্থীদের জন্য সংরক্ষিত।\n\nসরাসরি বুয়েট ও মেডিকেল মেন্টরদের সহায়তা পেতে অনুগ্রহ করে স্টুডেন্ট অ্যাকাউন্টে লগইন করুন।`,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isLoginPrompt: true
-          }
-        ]);
-      }
     };
 
-    const handleOpenAi = () => {
-      setIsOpen(true);
-      setActiveTab('ai');
-    };
-
-    window.addEventListener('open-mentor-chat', handleOpenMentor);
-    window.addEventListener('open-ai-chat', handleOpenAi);
-
-    // Listen for live mentor portal resolutions
-    const handleDataUpdate = (e) => {
-      if (e.detail?.type === 'doubts_queue' && e.detail?.action === 'resolve') {
-        const queue = getDoubtsQueue();
-        const latestResolved = queue.find(q => q.status === 'resolved' && q.id === activeDoubtId);
-        if (latestResolved && latestResolved.solution) {
-          setMentorChatHistory(prev => {
-            if (prev.some(m => m.id === latestResolved.id)) return prev;
-            return [
-              ...prev,
-              {
-                id: latestResolved.id,
-                sender: 'mentor',
-                mentorName: latestResolved.claimedBy || 'EduFast Mentor',
-                text: latestResolved.solution.text,
-                hasVoiceNote: latestResolved.solution.voiceNote,
-                time: latestResolved.solution.resolvedAt || 'Just now',
-                needsRating: true,
-                doubtId: latestResolved.id
-              }
-            ];
-          });
-        }
-      }
-    };
-    window.addEventListener('edufast-data-update', handleDataUpdate);
+    window.addEventListener('open-mentor-chat', handleOpen);
+    window.addEventListener('open-ai-chat', handleOpen);
 
     return () => {
-      window.removeEventListener('open-mentor-chat', handleOpenMentor);
-      window.removeEventListener('open-ai-chat', handleOpenAi);
-      window.removeEventListener('edufast-data-update', handleDataUpdate);
+      window.removeEventListener('open-mentor-chat', handleOpen);
+      window.removeEventListener('open-ai-chat', handleOpen);
     };
-  }, [user, activeDoubtId]);
-
-  // If user signs out while on mentor tab, revert to AI tab
-  useEffect(() => {
-    if (!user && activeTab === 'mentor') {
-      setActiveTab('ai');
-    }
-  }, [user, activeTab]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // AI Query Handler
@@ -181,15 +205,13 @@ export default function AIAssistant({ user, onOpenLogin }) {
 
       if (res.ok) {
         const data = await res.json();
-        if (data && data.reply) {
+        if (data.reply) {
           setAiMessages(prev => [
             ...prev,
             {
               id: Date.now() + 1,
               sender: 'bot',
               text: data.reply,
-              source: data.source || 'openai',
-              isUnconfigured: data.configured === false,
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             }
           ]);
@@ -197,160 +219,57 @@ export default function AIAssistant({ user, onOpenLogin }) {
           return;
         }
       }
-    } catch (err) {
-      console.warn('EduFast AI Backend call failed, using local engine fallback:', err?.message || err);
+    } catch {
+      // Backend unavailable or network error -> smooth fallback to instant offline intelligent engine
     }
 
-    // 2. Seamless Local Fallback Response Engine
+    // 2. Fallback intelligent response logic
     setTimeout(() => {
-      const responseText = generateAIResponse(query.trim());
+      const botResponse = generateLocalAiResponse(query);
       setAiMessages(prev => [
         ...prev,
         {
           id: Date.now() + 1,
           sender: 'bot',
-          text: responseText,
+          text: botResponse,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
       setIsAiTyping(false);
-    }, 450);
+    }, 700);
   };
 
-  const generateAIResponse = (query) => {
+  const generateLocalAiResponse = (query) => {
     const q = query.toLowerCase();
-    const currentAdmissions = getAdmissions();
-    const currentCourses = getCourses();
+    const admissions = getAdmissions();
+    const courses = getCourses();
 
-    // Specific university eligibility check
-    const matchedUniv = currentAdmissions.find(univ => 
-      q.includes(univ.name.toLowerCase()) || 
-      (univ.id && q.includes(univ.id.toLowerCase()))
-    );
-
-    if (matchedUniv) {
-      if (!user) {
-        return `🏛️ **${matchedUniv.name}**\nভর্তি পরীক্ষা: **${matchedUniv.examDate}** (ফি: ৳${matchedUniv.applicationFee})।\n\n💡 আপনার এসএসসি ও এইচএসসি জিপিএ দিয়ে স্বয়ংক্রিয়ভাবে যোগ্যতা যাচাই করতে দয়া করে লগইন করুন।`;
-      }
-      const sscGpa = user.ssc?.gpa ? Number(user.ssc.gpa) : 0;
-      const hscGpa = user.hsc?.gpa ? Number(user.hsc.gpa) : 0;
-      const combined = sscGpa + hscGpa;
-      const userGroup = user.group || 'Science';
-
-      const eligibleUnits = (matchedUniv.units || []).filter(unit => {
-        return (!unit.group || unit.group === userGroup) && combined >= (unit.minGpa || 0);
-      });
-
-      if (eligibleUnits.length > 0) {
-        return `🎉 অভিনন্দন **${user.name}**! **${matchedUniv.name}**-এ আপনার বর্তমান গ্রুপ (${userGroup}) এবং মোট জিপিএ (${combined.toFixed(2)}) অনুযায়ী আপনি আবেদনযোগ্য ইউনিটসমূহ: **${eligibleUnits.map(u => u.name).join(', ')}**।\nভর্তি পরীক্ষা: **${matchedUniv.examDate}**।`;
-      } else {
-        return `⚠️ **${matchedUniv.name}**-এর বর্তমান ইউনিটগুলোর জন্য ন্যূনতম জিপিএ শর্ত পূরণ হয়নি। আপনার গ্রুপ: ${userGroup}, মোট জিপিএ: ${combined.toFixed(2)}।`;
-      }
+    if (q.includes('buet') || q.includes('বুয়েট') || q.includes('engineering')) {
+      const buet = admissions.find(a => a.university.toLowerCase().includes('buet')) || {
+        eligibility: 'HSC SSC মোট GPA ৯.০০+, এবং ফিজিক্স, কেমিস্ট্রি ও উচ্চতর গণিতে জিপিএ ৫.০০ আবশ্যক।'
+      };
+      return `🏛 **BUET অ্যাডমিশন তথ্য ও যোগ্যতা:**\n\n${buet.eligibility}\n\n• প্রিলিমিনারি পরীক্ষা: ১০০ নম্বরের MCQ\n• ফাইনাল পরীক্ষা: ৪০০ নম্বরের লিখিত (Written)\n\nসেরা প্রস্তুতির জন্য আমাদের 'Engineering Admission Masterclass' কোর্সটি দেখতে পারো।`;
     }
 
-    // Generic BUET / DU lookup
-    if (q.includes('buet') || q.includes('engineering')) {
-      return `🏛️ **BUET Admission Requirements:**\nসাধারণত এসএসসি ও এইচএসসি উভয় পরীক্ষায় বিজ্ঞান বিভাগ থেকে জিপিএ ৫.০০ এবং পদার্থ, রসায়ন, গণিত ও ইংরেজিতে নির্ধারিত নম্বর আবশ্যক। Circulars মেন্যুতে বিস্তারিত সার্কুলার পাওয়া যাবে।`;
-    }
-    if (q.includes('du') || q.includes('dhaka')) {
-      return `🏛️ **ঢাকা বিশ্ববিদ্যালয় (DU) অ্যাডমিশন:**\nক ইউনিট (বিজ্ঞান), খ ইউনিট (মানবিক) ও গ ইউনিট (ব্যবসায় শিক্ষা)। বিস্তারিত বিষয় ও ইউনিট ডেডলাইন অ্যাডমিশন সেকশনে রিয়েলটাইমে রয়েছে।`;
+    if (q.includes('dhaka university') || q.includes('ঢাবি') || q.includes('du')) {
+      return `🏛 **ঢাকা বিশ্ববিদ্যালয় (DU) ইউনিট তথ্য:**\n\n• **বিজ্ঞান ইউনিট (A Unit):** বিজ্ঞান বিভাগের জন্য (Physics, Chemistry, Math/Bio)\n• **কলা, আইন ও সামাজিক বিজ্ঞান ইউনিট (B Unit):** বাংলা, ইংরেজি ও সাধারণ জ্ঞান\n• **ব্যবসায় শিক্ষা ইউনিট (C Unit):** হিসাববিজ্ঞান, ব্যবসায় সংগঠন ও ফিন্যান্স\n\nন্যূনতম যোগ্যতা: বিজ্ঞান ইউনিটের জন্য মোট GPA ৮.০০ (SSC ও HSC আলাদাভাবে ন্যূনতম ৩.৫)।`;
     }
 
-    // Deadlines
-    if (q.includes('deadline') || q.includes('countdown') || q.includes('exam') || q.includes('when') || q.includes('তারিখ')) {
-      if (currentAdmissions.length === 0) {
-        return `⏳ বর্তমানে কোনো অ্যাক্টিভ সার্কুলার নেই। অ্যাডমিন নতুন সার্কুলার প্রকাশ করলে এখানে স্বয়ংক্রিয়ভাবে দেখতে পাবেন।`;
-      }
-      const list = currentAdmissions.map(univ => `• **${univ.name}**: পরীক্ষা ${univ.examDate} (ফি: ৳${univ.applicationFee})`).join('\n');
-      return `⏳ **আসন্ন বিশ্ববিদ্যালয় ভর্তি পরীক্ষার সময়সূচী:**\n\n${list}\n\nঅ্যাডমিশন পেজে রিয়েলটাইম কাউন্টডাউন টাইমার দেখতে পাবেন!`;
+    if (q.includes('deadline') || q.includes('তারিখ') || q.includes('সময়')) {
+      const upcoming = admissions.slice(0, 3).map(a => `• **${a.university}**: আবেদন শেষ ${a.deadline || 'শিঘ্রই প্রকাশিত হবে'}`).join('\n');
+      return `⏳ **আসন্ন অ্যাডমিশন ডেডলাইন ও সার্কুলার:**\n\n${upcoming}\n\nড্যাশবোর্ডের অ্যাডমিশন কার্ডে প্রতিটি বিশ্ববিদ্যালয়ের লাইভ কাউন্টডাউন টাইমার দেখে নিতে পারো।`;
     }
 
-    // Course recommendation
-    if (q.includes('course') || q.includes('recommend') || q.includes('study') || q.includes('কোর্স')) {
-      const userGroup = user ? user.group : 'Science';
-      const courses = currentCourses.filter(c => !c.group || c.group === userGroup);
-      if (courses.length === 0) {
-        return `📚 আপনার গ্রুপের জন্য এই মুহূর্তে নতুন মাস্টারক্লাস কোর্স শিডিউল হচ্ছে। শীঘ্রই কোর্স হাবে প্রদর্শিত হবে।`;
-      }
-      const list = courses.map(c => `• **${c.title}** - ইন্সট্রাক্টর: ${c.instructor} (৳${c.discountedPrice})`).join('\n');
-      return `📚 **${userGroup} বিভাগের সেরা রিকমেন্ডেড কোর্সসমূহ:**\n\n${list}\n\nকোর্স হাব থেকে সরাসরি এনরোল করে ক্লাস শুরু করতে পারেন!`;
+    if (q.includes('course') || q.includes('কোর্স') || q.includes('study material')) {
+      const topCourses = courses.slice(0, 2).map(c => `• **${c.title}** (${c.level}) - ৳${c.price}`).join('\n');
+      return `📚 **সেরা রিকমেন্ডেড অ্যাডমিশন কোর্সসমূহ:**\n\n${topCourses}\n\nড্যাশবোর্ড থেকে কোর্সে এনরোল করে লাইভ ক্লাস ও পূর্ণাঙ্গ টেস্ট সিরিজে অংশ নিতে পারবে।`;
     }
 
-    // Greetings
     if (q.includes('hello') || q.includes('hi') || q.includes('সালাম') || q.includes('assalamu')) {
       return `আসসালামু আলাইকুম! বিশ্ববিদ্যালয় ভর্তি প্রস্তুতি, সার্কুলার ডেডলাইন, যোগ্যতা যাচাই বা রিকমেন্ডেড স্টাডি মেটেরিয়াল সম্পর্কে যেকোনো প্রশ্ন করতে পারেন।`;
     }
 
     return `আপনার প্রশ্নটি পেয়েছি: "${query}"। আমি বিশ্ববিদ্যালয় ভর্তি পরীক্ষার যোগ্যতা, ডেডলাইন কাউন্টডাউন ও সেরা কোর্স রিকমেন্ড করতে প্রস্তুত। নির্দিষ্ট কোনো বিশ্ববিদ্যালয়ের তথ্য জানতে চান?`;
-  };
-
-  // ---------------------------------------------------------------------------
-  // Live Mentor Doubt Solver Handlers
-  // ---------------------------------------------------------------------------
-  const handleRating = (msgId, stars) => {
-    rateDoubtSolution(msgId, stars);
-    setRatedDoubtIds(prev => [...prev, msgId]);
-  };
-
-  const handleSendMentorQuery = (textToSend) => {
-    const query = textToSend || mentorInputQuery;
-    if (!query.trim()) return;
-
-    const doubtId = "dbt-" + Date.now();
-    setActiveDoubtId(doubtId);
-
-    const studentName = user?.name || "Student";
-
-    // Submit to shared doubts queue
-    submitDoubt({
-      id: doubtId,
-      studentName: studentName,
-      studentAvatar: "👨‍🎓",
-      subject: activeSubject,
-      topic: `${activeSubject} Doubt Query`,
-      question: query.trim(),
-      priority: "high"
-    });
-
-    const userMessage = {
-      id: Date.now(),
-      sender: 'user',
-      text: query.trim(),
-      time: 'Just now'
-    };
-
-    setMentorChatHistory(prev => [...prev, userMessage]);
-    if (!textToSend) setMentorInputQuery('');
-    setIsMentorTyping(true);
-
-    // Simulate smart mentor response
-    setTimeout(() => {
-      let mentorResponseText = '';
-      const qLower = query.toLowerCase();
-
-      if (qLower.includes('প্রাস') || qLower.includes('উচ্চতা') || activeSubject === 'Physics') {
-        mentorResponseText = `**প্রাসের গতি ও শক্তি বিশ্লেষণ:**\n১. সর্বাধিক উচ্চতায় অনুভূমিক বেগ v_x = v₀ cos θ এবং উল্লম্ব বেগ v_y = 0।\n২. গতিশক্তি E_k = ½ m (v₀ cos θ)² = ½ m v₀² cos² θ\n৩. বিভব শক্তি E_p = ½ m v₀² sin² θ\n৪. মোট শক্তি E = E_k + E_p = ½ m v₀² (সর্বদা সংরক্ষিত থাকে)।`;
-      } else if (qLower.includes('শর্টকাট') || activeSubject === 'Math') {
-        mentorResponseText = `**স্ট্যান্ডার্ড ইন্টিগ্রেশন শর্টকাট:**\nফর্মুলা: ∫ e^x [f(x) + f'(x)] dx = e^x • f(x) + c\nএখানে f(x) = sin x, যার অন্তরজ f'(x) = cos x।\nসুতরাং সরাসরি উত্তর: **e^x sin x + c**`;
-      } else if (qLower.includes('kmno4') || activeSubject === 'Chemistry') {
-        mentorResponseText = `**KMnO4 এ Mn এর জারণ সংখ্যা নির্ণয়:**\nধরি Mn এর জারণ সংখ্যা x।\nK এর জারণ সংখ্যা = +1, O এর জারণ সংখ্যা = -2\n(+1) + x + 4(-2) = 0 => x - 7 = 0 => x = +7\nঅতএব, Mn এর জারণ সংখ্যা **+7**।`;
-      } else {
-        mentorResponseText = `**ডাউট সমাধান ও নির্দেশনা:**\nতোমার প্রশ্নটি EduFast 24/7 মেন্টর সেন্ট্রাল ডেস্কে জমা হয়েছে। ডিউটি মেন্টর (বুয়েট/ডিএমসি প্যানেল) সমাধানটি ভেরিফাই করে নোট যুক্ত করেছেন। কোনো লাইনে বুঝতে সমস্যা হলে নিচে রেটিং দিন বা রি-আস্ক করুন।`;
-      }
-
-      setMentorChatHistory(prev => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'mentor',
-          mentorName: 'Engr. Rakibul Hasan (BUET CSE)',
-          text: mentorResponseText,
-          hasVoiceNote: true,
-          time: 'Just now'
-        }
-      ]);
-      setIsMentorTyping(false);
-    }, 1100);
   };
 
   return (
@@ -365,12 +284,10 @@ export default function AIAssistant({ user, onOpenLogin }) {
           aria-label="Open EduFast Assistant"
         >
           <div className="unified-assistant-bubble-icon">
-            {user ? '💬' : '🤖'}
+            🤖
             <span className="unified-assistant-live-pulse" />
           </div>
-          <span>
-            {user ? 'EduFast AI • ২৪/৭ মেন্টর' : 'EduFast AI Assistant'}
-          </span>
+          <span className="unified-assistant-bubble-label">EduFast AI</span>
         </button>
       )}
 
@@ -382,21 +299,15 @@ export default function AIAssistant({ user, onOpenLogin }) {
           <div className="unified-assistant-header">
             <div className="unified-assistant-header-left">
               <div className="unified-assistant-header-avatar">
-                {activeTab === 'mentor' && user ? '👨‍🏫' : '🤖'}
+                🤖
               </div>
               <div>
                 <h3 className="unified-assistant-header-title">
-                  {user 
-                    ? (activeTab === 'mentor' ? '২৪/৭ লাইভ মেন্টর সলভার' : 'EduFast AI Assistant') 
-                    : 'EduFast AI Assistant'
-                  }
+                  EduFast AI Assistant
                 </h3>
                 <div className="unified-assistant-header-sub">
                   <span style={{ width: 7, height: 7, backgroundColor: '#34d399', borderRadius: '50%', display: 'inline-block' }} />
-                  {user 
-                    ? (activeTab === 'mentor' ? 'বুয়েট • ডিএমসি • ঢাবি মেন্টর প্যানেল অনলাইন' : 'অ্যাডমিশন ও ক্যারিয়ার গাইড') 
-                    : 'অ্যাডমিশন এক্সপার্ট • অনলাইন'
-                  }
+                  {user ? 'অ্যাডমিশন ও ক্যারিয়ার গাইড • অনলাইন' : 'অ্যাডমিশন এক্সপার্ট • অনলাইন'}
                 </div>
               </div>
             </div>
@@ -413,286 +324,112 @@ export default function AIAssistant({ user, onOpenLogin }) {
             </div>
           </div>
 
-          {/* Tab Switcher: Rendered ONLY when student is logged in */}
-          {user && (
-            <div className="unified-assistant-tabs">
-              <button
-                type="button"
-                className={`unified-assistant-tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
-                onClick={() => setActiveTab('ai')}
+          {/* Messages Area */}
+          <div className="unified-assistant-messages">
+            {aiMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`assistant-msg-row ${msg.sender === 'user' ? 'user' : 'bot'}`}
               >
-                <span>🤖 EduFast AI</span>
-              </button>
-              <button
-                type="button"
-                className={`unified-assistant-tab-btn ${activeTab === 'mentor' ? 'active' : ''}`}
-                onClick={() => setActiveTab('mentor')}
-              >
-                <span>👨‍🏫 ২৪/৭ লাইভ মেন্টর</span>
-                <span className="live-mentor-badge-indicator">
-                  <span style={{ width: 5, height: 5, backgroundColor: '#10b981', borderRadius: '50%' }} />
-                  Live
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* ================================================================= */}
-          {/* TAB 1: EDUFAST AI ASSISTANT VIEW                                  */}
-          {/* ================================================================= */}
-          {activeTab === 'ai' && (
-            <>
-              {/* Messages Area */}
-              <div className="unified-assistant-messages">
-                {aiMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`assistant-msg-row ${msg.sender === 'user' ? 'user' : 'bot'}`}
-                  >
-                    {msg.sender === 'bot' && (
-                      <span className="assistant-sender-tag bot">
-                        <Bot style={{ width: 12, height: 12 }} /> EduFast AI ✨
-                      </span>
-                    )}
-
-                    <div className={`assistant-bubble ${msg.sender === 'user' ? 'user' : 'bot'}`}>
-                      {msg.text}
-
-
-                      {msg.isLoginPrompt && onOpenLogin && (
-                        <div style={{ marginTop: '0.75rem' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsOpen(false);
-                              onOpenLogin();
-                            }}
-                            style={{
-                              backgroundColor: 'var(--primary-teal, #0d9488)',
-                              color: '#ffffff',
-                              border: 'none',
-                              borderRadius: '8px',
-                              padding: '0.45rem 0.9rem',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px'
-                            }}
-                          >
-                            স্টুডেন্ট লগইন করুন <ArrowRight style={{ width: 13, height: 13 }} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <span className="assistant-msg-time">{msg.time}</span>
-                  </div>
-                ))}
-
-                {isAiTyping && (
-                  <div className="assistant-typing-box">
-                    <Sparkles style={{ width: 13, height: 13, color: '#0d9488' }} />
-                    <span>EduFast AI লিখছে...</span>
-                    <div className="assistant-typing-dots">
-                      <span className="assistant-typing-dot" />
-                      <span className="assistant-typing-dot" />
-                      <span className="assistant-typing-dot" />
-                    </div>
-                  </div>
+                {msg.sender === 'bot' && (
+                  <span className="assistant-sender-tag bot">
+                    <Sparkles style={{ width: 12, height: 12 }} /> EduFast AI
+                  </span>
                 )}
 
-                <div ref={aiChatEndRef} />
-              </div>
+                <div className={`assistant-bubble ${msg.sender === 'user' ? 'user' : 'bot'}`}>
+                  {renderFormattedMessage(msg.text, msg.sender)}
 
-              {/* Quick AI Prompts */}
-              <div className="unified-quick-prompts">
-                <span style={{ fontSize: '0.68rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                  কুইক সাজেশন:
-                </span>
-                {suggestPrompts.map((prompt, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => handleSendAI(prompt.query)}
-                    className="unified-prompt-btn"
-                  >
-                    {prompt.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Footer Input */}
-              <div className="unified-assistant-footer">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendAI();
-                  }}
-                  className="unified-input-form"
-                >
-                  <input
-                    type="text"
-                    placeholder="বিশ্ববিদ্যালয় অ্যাডমিশন বা যোগ্যতা নিয়ে প্রশ্ন করুন..."
-                    value={aiInputText}
-                    onChange={(e) => setAiInputText(e.target.value)}
-                    className="unified-input-field"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!aiInputText.trim() || isAiTyping}
-                    className="unified-send-btn"
-                    aria-label="Send AI question"
-                  >
-                    <Send style={{ width: 14, height: 14 }} />
-                  </button>
-                </form>
-              </div>
-            </>
-          )}
-
-          {/* ================================================================= */}
-          {/* TAB 2: 24/7 LIVE MENTOR SOLVER VIEW (Only for logged in students) */}
-          {/* ================================================================= */}
-          {activeTab === 'mentor' && user && (
-            <>
-              {/* Subject Selector Bar */}
-              <div className="mentor-subjects-bar">
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
-                  বিষয়:
-                </span>
-                {['Physics', 'Chemistry', 'Math', 'English'].map((subj) => (
-                  <button
-                    key={subj}
-                    type="button"
-                    onClick={() => setActiveSubject(subj)}
-                    className={`mentor-subj-pill ${activeSubject === subj ? 'active' : ''}`}
-                  >
-                    {subj}
-                  </button>
-                ))}
-              </div>
-
-              {/* Messages Area */}
-              <div className="unified-assistant-messages">
-                <div className="mentor-status-banner">
-                  <ShieldCheck style={{ width: 16, height: 16, color: '#10b981', flexShrink: 0 }} />
-                  <span>
-                    <strong>লাইভ প্যানেল:</strong> ইঞ্জিনিয়ারিং ও মেডিকেল মেন্টররা অনলাইনে আছেন।
-                  </span>
+                  {msg.isLoginPrompt && onOpenLogin && (
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsOpen(false);
+                          onOpenLogin();
+                        }}
+                        style={{
+                          backgroundColor: 'var(--primary-teal, #0d9488)',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '0.45rem 0.9rem',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}
+                      >
+                        স্টুডেন্ট লগইন করুন <ArrowRight style={{ width: 13, height: 13 }} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {mentorChatHistory.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`assistant-msg-row ${msg.sender === 'user' ? 'user' : 'mentor'}`}
-                  >
-                    {msg.sender === 'mentor' && (
-                      <span className="assistant-sender-tag mentor">
-                        <UserCheck style={{ width: 12, height: 12 }} /> {msg.mentorName}
-                      </span>
-                    )}
-
-                    <div className={`assistant-bubble ${msg.sender === 'user' ? 'user' : 'mentor'}`}>
-                      {msg.text}
-
-                      {msg.hasVoiceNote && (
-                        <div className="mentor-voice-note">
-                          <span className="mentor-voice-play-icon">▶</span>
-                          <span>অডিও ব্যাখ্যা সংযুক্ত (0:45s)</span>
-                        </div>
-                      )}
-
-                      {msg.sender === 'mentor' && msg.id !== 1 && (
-                        <div className="mentor-rating-box">
-                          <span>রেটিং দিন:</span>
-                          <div className="mentor-stars-group">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <button
-                                key={star}
-                                type="button"
-                                onClick={() => handleRating(msg.id, star)}
-                                className={`mentor-star-btn ${
-                                  ratedDoubtIds.includes(msg.id) ? 'rated' : 'unrated'
-                                }`}
-                                aria-label={`Rate ${star} stars`}
-                              >
-                                ★
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <span className="assistant-msg-time">{msg.time}</span>
-                  </div>
-                ))}
-
-                {isMentorTyping && (
-                  <div className="assistant-typing-box">
-                    <Sparkles style={{ width: 13, height: 13, color: '#10b981' }} />
-                    <span>মেন্টর সমাধান প্রস্তুত করছেন...</span>
-                    <div className="assistant-typing-dots">
-                      <span className="assistant-typing-dot" />
-                      <span className="assistant-typing-dot" />
-                      <span className="assistant-typing-dot" />
-                    </div>
-                  </div>
-                )}
-
-                <div ref={mentorChatEndRef} />
+                <span className="assistant-msg-time">{msg.time}</span>
               </div>
+            ))}
 
-              {/* Quick Subject Prompts */}
-              <div className="unified-quick-prompts">
-                <span style={{ fontSize: '0.68rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                  কুইক প্রশ্ন:
-                </span>
-                {quickMentorPrompts
-                  .filter((p) => p.subject === activeSubject)
-                  .map((prompt, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => handleSendMentorQuery(prompt.text)}
-                      className="unified-prompt-btn"
-                    >
-                      {prompt.text}
-                    </button>
-                  ))}
+            {isAiTyping && (
+              <div className="assistant-typing-box">
+                <Sparkles style={{ width: 13, height: 13, color: '#0d9488' }} />
+                <span>EduFast AI লিখছে...</span>
+                <div className="assistant-typing-dots">
+                  <span className="assistant-typing-dot" />
+                  <span className="assistant-typing-dot" />
+                  <span className="assistant-typing-dot" />
+                </div>
               </div>
+            )}
 
-              {/* Footer Input */}
-              <div className="unified-assistant-footer">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMentorQuery();
-                  }}
-                  className="unified-input-form"
-                >
-                  <input
-                    type="text"
-                    placeholder={`${activeSubject} এর প্রশ্ন বা সমীকরণ লিখুন...`}
-                    value={mentorInputQuery}
-                    onChange={(e) => setMentorInputQuery(e.target.value)}
-                    className="unified-input-field"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!mentorInputQuery.trim() || isMentorTyping}
-                    className="unified-send-btn"
-                    aria-label="Send doubt to mentor"
-                  >
-                    <Send style={{ width: 14, height: 14 }} />
-                  </button>
-                </form>
-              </div>
-            </>
-          )}
+            <div ref={aiChatEndRef} />
+          </div>
 
+          {/* Quick AI Prompts */}
+          <div className="unified-quick-prompts">
+            <span style={{ fontSize: '0.68rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+              কুইক সাজেশন:
+            </span>
+            {suggestPrompts.map((prompt, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleSendAI(prompt.query)}
+                className="unified-prompt-btn"
+              >
+                {prompt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Footer Input */}
+          <div className="unified-assistant-footer">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendAI();
+              }}
+              className="unified-input-form"
+            >
+              <input
+                type="text"
+                placeholder="বিশ্ববিদ্যালয় অ্যাডমিশন বা যোগ্যতা নিয়ে প্রশ্ন করুন..."
+                value={aiInputText}
+                onChange={(e) => setAiInputText(e.target.value)}
+                className="unified-input-field"
+              />
+              <button
+                type="submit"
+                disabled={!aiInputText.trim() || isAiTyping}
+                className="unified-send-btn"
+                aria-label="Send AI question"
+              >
+                <Send style={{ width: 14, height: 14 }} />
+              </button>
+            </form>
+          </div>
 
         </div>
       )}

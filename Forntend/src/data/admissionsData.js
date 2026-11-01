@@ -2,7 +2,7 @@
 // ADMISSIONS DATA STORE (DATA/admissions.json)
 // ==========================================
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 export const defaultAdmissions = [
   {
@@ -13,6 +13,12 @@ export const defaultAdmissions = [
     deadline: '2027-01-10',
     examDate: 'February 15, 2027',
     applicationFee: 1050,
+    admitCardUrl: 'https://admission.eis.du.ac.bd',
+    admitCardStatus: 'available',
+    resultUrl: 'https://admission.eis.du.ac.bd/index.php?act=information/result',
+    resultStatus: 'published',
+    examCenter: 'কার্জন হল ও কলা ভবন, ঢাকা বিশ্ববিদ্যালয়',
+    reportingTime: '09:30 AM',
     units: [
       { name: 'Science Unit (A Unit)', group: 'Science', minGpa: 8.0, minIndividualGpa: 3.5, subjects: 'Physics, Chemistry, Math/Biology', details: 'বিজ্ঞান অনুষদ, জীববিজ্ঞান ও ফার্মেসি অনুষদ' },
       { name: 'Arts, Law & Social Science Unit (B Unit)', group: 'Arts', minGpa: 7.5, minIndividualGpa: 3.0, subjects: 'Bangla, English, General Knowledge', details: 'কলা, আইন ও সামাজিক বিজ্ঞান অনুষদভুক্ত সকল বিভাগ' },
@@ -29,6 +35,12 @@ export const defaultAdmissions = [
     deadline: '2027-01-15',
     examDate: 'February 28, 2027',
     applicationFee: 1300,
+    admitCardUrl: 'https://www.buet.ac.bd/admission',
+    admitCardStatus: 'available',
+    resultUrl: 'https://www.buet.ac.bd/admission/result',
+    resultStatus: 'published',
+    examCenter: 'ইসিই ভবন ও সিভিল বিল্ডিং, বুয়েট',
+    reportingTime: '09:00 AM',
     units: [
       { name: 'Engineering & URP (Ka Unit)', group: 'Science', minGpa: 10.0, minIndividualGpa: 5.0, subjects: 'Physics, Chemistry, Higher Math (PCM GPA 5.00)', details: 'সিভিল, ইইই, সিএসই, মেকানিক্যাল অনুষদ' },
       { name: 'Architecture (Kha Unit)', group: 'Science', minGpa: 10.0, minIndividualGpa: 5.0, subjects: 'Physics, Chemistry, Math, Freehand Drawing', details: 'স্থাপত্য অনুষদ' }
@@ -42,6 +54,12 @@ export const defaultAdmissions = [
     deadline: '2026-12-25',
     examDate: 'January 20, 2027',
     applicationFee: 1000,
+    admitCardUrl: 'https://dghs.teletalk.com.bd',
+    admitCardStatus: 'available',
+    resultUrl: 'https://result.dghs.gov.bd',
+    resultStatus: 'published',
+    examCenter: 'ঢাকা কলেজ ও ইডেন মহিলা কলেজ কেন্দ্র',
+    reportingTime: '09:15 AM',
     units: [
       { name: 'MBBS & BDS Medical Unit', group: 'Science', minGpa: 9.0, minIndividualGpa: 4.0, subjects: 'Biology (Min GPA 4.0), Chemistry, Physics, English, GK', details: 'সরকারি ও বেসরকারি মেডিকেল এবং ডেন্টাল কলেজসমূহ' }
     ]
@@ -54,6 +72,12 @@ export const defaultAdmissions = [
     deadline: '2027-01-20',
     examDate: 'March 05, 2027',
     applicationFee: 950,
+    admitCardUrl: 'https://admission.iscu.ac.bd',
+    admitCardStatus: 'upcoming',
+    resultUrl: 'https://admission.iscu.ac.bd/results',
+    resultStatus: 'pending',
+    examCenter: 'চবি মূল ক্যাম্পাস, হাটহাজারী, চট্টগ্রাম',
+    reportingTime: '09:45 AM',
     units: [
       { name: 'A Unit (Science & Engineering)', group: 'Science', minGpa: 8.0, minIndividualGpa: 3.5, subjects: 'Physics, Chemistry, Math, Biology', details: 'বিজ্ঞান ও ইঞ্জিনিয়ারিং অনুষদ' },
       { name: 'B Unit (Arts & Humanities)', group: 'Arts', minGpa: 7.5, minIndividualGpa: 3.0, subjects: 'Bangla, English, General Knowledge', details: 'কলা ও মানববিদ্যা অনুষদ' },
@@ -69,6 +93,12 @@ export const defaultAdmissions = [
     deadline: '2027-02-05',
     examDate: 'March 20, 2027',
     applicationFee: 1500,
+    admitCardUrl: 'https://gstadmission.ac.bd',
+    admitCardStatus: 'upcoming',
+    resultUrl: 'https://gstadmission.ac.bd/result',
+    resultStatus: 'pending',
+    examCenter: 'বিভাগীয় গুচ্ছ আঞ্চলিক কেন্দ্রসমূহ',
+    reportingTime: '11:00 AM',
     units: [
       { name: 'A Unit (Science)', group: 'Science', minGpa: 8.0, minIndividualGpa: 3.5, subjects: 'Physics, Chemistry, Math/Biology', details: 'গুচ্ছ বিজ্ঞান অনুষদ' },
       { name: 'B Unit (Humanities)', group: 'Arts', minGpa: 6.5, minIndividualGpa: 3.0, subjects: 'Bangla, English, General Knowledge', details: 'গুচ্ছ মানবিক অনুষদ' },
@@ -83,6 +113,12 @@ export const defaultAdmissions = [
     deadline: '2027-01-25',
     examDate: 'March 10, 2027',
     applicationFee: 1100,
+    admitCardUrl: 'https://admission.ru.ac.bd',
+    admitCardStatus: 'upcoming',
+    resultUrl: 'https://admission.ru.ac.bd/result',
+    resultStatus: 'pending',
+    examCenter: 'রাবি ক্যাম্পাস, মতিহার, রাজশাহী',
+    reportingTime: '09:00 AM',
     units: [
       { name: 'A Unit (Humanities)', group: 'Arts', minGpa: 7.0, minIndividualGpa: 3.0, subjects: 'Bangla, English, GK', details: 'কলা, আইন, সামাজিক বিজ্ঞান ও চারুকলা অনুষদ' },
       { name: 'B Unit (Business Studies)', group: 'Commerce', minGpa: 7.5, minIndividualGpa: 3.0, subjects: 'Accounting, Business Principles, English', details: 'ব্যবসায় শিক্ষা অনুষদ ও আইবিএ' },
@@ -97,6 +133,12 @@ export const defaultAdmissions = [
     deadline: '2027-01-30',
     examDate: 'February 22, 2027',
     applicationFee: 1100,
+    admitCardUrl: 'https://juniv-admission.org',
+    admitCardStatus: 'available',
+    resultUrl: 'https://juniv-admission.org/result',
+    resultStatus: 'pending',
+    examCenter: 'সমাজবিজ্ঞান ও নতুন কলা ভবন, জাবি',
+    reportingTime: '08:45 AM',
     units: [
       { name: 'A Unit (Mathematical & Physical Sciences)', group: 'Science', minGpa: 8.5, minIndividualGpa: 4.0, subjects: 'Math, Physics, Chemistry, Bangla, English', details: 'গাণিতিক ও পদার্থবিজ্ঞান অনুষদ এবং আইআইটি' },
       { name: 'B Unit (Social Sciences)', group: 'Arts', minGpa: 8.0, minIndividualGpa: 3.5, subjects: 'Bangla, English, Math, General Knowledge', details: 'সমাজবিজ্ঞান অনুষদ ও আইন অনুষদ' },

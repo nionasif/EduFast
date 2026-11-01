@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './StudentProfileModal.css';
+import api from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function StudentProfileModal({
   isOpen,
@@ -8,6 +10,7 @@ export default function StudentProfileModal({
   onUpdateUser,
   addToast
 }) {
+  const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'academic' | 'edit' | 'mentor'
   const [copiedField, setCopiedField] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -152,26 +155,22 @@ export default function StudentProfileModal({
 
     try {
       // 1. Send update request to backend database
-      const response = await fetch('http://localhost:5001/api/students/update-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: user.id,
-          email: user.email,
-          name: updatedUserObj.name,
-          fathersName: updatedUserObj.fathersName,
-          mothersName: updatedUserObj.mothersName,
-          dob: updatedUserObj.dob,
-          mobile: updatedUserObj.mobile,
-          group: updatedUserObj.group,
-          avatar: updatedUserObj.avatar,
-          ssc: updatedUserObj.ssc,
-          hsc: updatedUserObj.hsc
-        })
+      const response = await api.post('/students/update-profile', {
+        id: user.id,
+        email: user.email,
+        name: updatedUserObj.name,
+        fathersName: updatedUserObj.fathersName,
+        mothersName: updatedUserObj.mothersName,
+        dob: updatedUserObj.dob,
+        mobile: updatedUserObj.mobile,
+        group: updatedUserObj.group,
+        avatar: updatedUserObj.avatar,
+        ssc: updatedUserObj.ssc,
+        hsc: updatedUserObj.hsc
       });
 
-      const resData = await response.json();
-      const finalUser = (resData.success && resData.user) ? { ...updatedUserObj, ...resData.user } : updatedUserObj;
+      const resData = response.data;
+      const finalUser = (resData?.success && resData.user) ? { ...updatedUserObj, ...resData.user } : updatedUserObj;
 
       // 2. Persist to local session
       try {
@@ -249,6 +248,22 @@ export default function StudentProfileModal({
                     🔥 {user.streak}-Day Streak
                   </span>
                 )}
+                <span 
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('open-payment-modal', {
+                      detail: { item: { id: 'pro_monthly', title: 'Pro Admission Pass', price: 499, type: 'subscription' } }
+                    }));
+                  }}
+                  className="sp-header-tag" 
+                  style={{ 
+                    backgroundColor: user.isPremium ? 'rgba(16, 185, 129, 0.25)' : 'rgba(245, 158, 11, 0.25)', 
+                    color: user.isPremium ? '#a7f3d0' : '#fef08a',
+                    cursor: 'pointer'
+                  }}
+                  title="Click to view subscription"
+                >
+                  {user.isPremium ? '👑 Pro Member' : '⭐ Upgrade to Pro'}
+                </span>
               </div>
             </div>
           </div>
@@ -261,28 +276,28 @@ export default function StudentProfileModal({
             className={`sp-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
             onClick={() => setActiveTab('overview')}
           >
-            📋 প্রোফাইল বিবরণী
+            📋 {language === 'bn' ? 'প্রোফাইল বিবরণী' : 'Profile Overview'}
           </button>
           <button
             type="button"
             className={`sp-tab-btn ${activeTab === 'academic' ? 'active' : ''}`}
             onClick={() => setActiveTab('academic')}
           >
-            🎓 এসএসসি/এইচএসসি
+            🎓 {language === 'bn' ? 'এসএসসি/এইচএসসি' : 'Academic Records'}
           </button>
           <button
             type="button"
             className={`sp-tab-btn ${activeTab === 'edit' ? 'active' : ''}`}
             onClick={() => setActiveTab('edit')}
           >
-            ✏️ তথ্য এডিট
+            ✏️ {language === 'bn' ? 'তথ্য এডিট' : 'Edit Profile'}
           </button>
           <button
             type="button"
             className={`sp-tab-btn ${activeTab === 'mentor' ? 'active' : ''}`}
             onClick={() => setActiveTab('mentor')}
           >
-            👨‍🏫 নির্ধারিত মেন্টর
+            👨‍🏫 {language === 'bn' ? 'নির্ধারিত মেন্টর' : 'Assigned Mentor'}
           </button>
         </div>
 
@@ -814,10 +829,10 @@ export default function StudentProfileModal({
                   }}
                   onClick={() => {
                     onClose();
-                    window.dispatchEvent(new CustomEvent('open-mentor-chat'));
+                    window.dispatchEvent(new CustomEvent('open-ai-chat'));
                   }}
                 >
-                  💬 মেন্টরের সাথে সরাসরি কথা বলুন (Launch Mentor Chat)
+                  🤖 EduFast AI অ্যাসিস্ট্যান্ট (Launch AI Advisor)
                 </button>
               </div>
             </div>

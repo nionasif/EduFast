@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EduFast</string>
+    <string name="title_activity_main">EduFast</string>
+    <string name="package_name">com.edufast.app</string>
+    <string name="custom_url_scheme">com.edufast.app</string>
+</resources>

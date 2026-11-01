@@ -9,8 +9,34 @@ export const LanguageContext = createContext({
 
 // Comprehensive bidirectional phrase dictionary
 const phraseMap = [
-  // Authentication & Nav
+  // Navigation Actions & Full Phrases (High Priority)
+  ['ড্যাশবোর্ডে ফিরে যান', 'Return to Dashboard'],
+  ['ড্যাশবোর্ডে ফিরুন', 'Back to Dashboard'],
+  ['ড্যাশবোর্ডের অ্যাডমিশন কার্ডে', "On Dashboard's Admission Card"],
+  ['ড্যাশবোর্ডের', "Dashboard's"],
+  ['ড্যাশবোর্ডে', 'to Dashboard'],
   ['ড্যাশবোর্ড', 'Dashboard'],
+  ['কোর্সে ফিরে যান', 'Back to Courses'],
+  ['কোর্সের সকল তথ্য', 'All Course Details'],
+  ['কোর্সের', "Course's"],
+  ['কোর্সে', 'in Course'],
+  ['টেস্ট তালিকায় ফিরে যান', 'Back to Tests'],
+  ['পরীক্ষায় ফিরে যান', 'Back to Exam'],
+  ['পূর্ববর্তী প্রশ্নে ফিরে যান', 'Back to Previous Question'],
+  ['রিভিশন নোটস ও নিয়মাবলী', 'Revision Notes & Rules'],
+  ['রিভিশন নোটস', 'Revision Notes'],
+  ['আমার এনরোল করা কোর্স', 'My Enrolled Courses'],
+  ['সকল কোর্স এক্সপ্লোর', 'Explore All Courses'],
+  ['সকল কোর্স', 'Explore Courses'],
+  ['সকল বিশ্ববিদ্যালয় (All)', 'All Universities (All)'],
+  ['সকল বিষয় (All)', 'All Subjects (All)'],
+  ['সকল বছর (All)', 'All Years (All)'],
+  ['সকল সাল (All)', 'All Years (All)'],
+  ['ফিল্টার রিসেট', 'Reset Filters'],
+  ['মোট প্রশ্নপত্র পাওয়া গেছে:', 'Total Question Papers Found:'],
+  ['ক্লাসরুম ড্যাশবোর্ড', 'Your Classroom Dashboard'],
+
+  // Authentication & Nav
   ['কোর্স হাব', 'Course Hub'],
   ['প্রশ্নব্যাংক', 'Question Bank'],
   ['লাইভ ক্লাসেস', 'Live Classes'],
@@ -104,8 +130,38 @@ const phraseMap = [
   ['সরাসরি দেখুন', 'View Directly'],
   ['সব নোটিফিকেশন পড়া হয়েছে', 'All notifications read'],
   ['সব নোটিফিকেশন ক্লিয়ার', 'Clear all notifications'],
-  ['পাবলিক প্ল্যাটফর্ম', 'Public Platform']
+  ['পাবলিক প্ল্যাটফর্ম', 'Public Platform'],
+  ['গড় মক টেস্ট একিউরেসি', 'AVG MOCK ACCURACY'],
+  ['যোগ্য ইউনিট ম্যাচ', 'ELIGIBLE UNITS MATCH'],
+  ['এডুকয়েন্স ও স্ট্রিক', 'EDUCOINS & STREAK'],
+  ['২৪/৭ স্টাডি রুম', '24/7 STUDY ROOM'],
+  ['লাইভ বন্ধুদের সাথে যুক্ত হোন', 'Join Live Peers'],
+  ['শিক্ষার্থী সক্রিয়', 'Students Active'],
+  ['বিশ্ববিদ্যালয় ভর্তি তথ্য', 'University Admissions'],
+  ['সব সার্কুলার দেখুন', 'See All Circulars'],
+  ['রিকমেন্ডেড কোর্সেস', 'Recommended Courses'],
+  ['কোর্স হাব দেখুন', 'View Course Hub'],
+  ['এখনই এনরোল করুন', 'Enroll Now'],
+  ['সম্পূর্ণ স্টাডি প্ল্যানার খুলুন', 'Open Full Study Planner'],
+  ['আজকের পার্সোনালাইজড AI রিভিশন প্ল্যান', "Today's Personalized AI Revision Plan"],
+  ['দৈনিক অগ্রগতি', 'Daily Progress'],
+  ['অর্জিত রিওয়ার্ড', 'Earned Reward'],
+  ['সম্পন্ন', 'Completed'],
+  ['বাকি', 'Pending'],
+  ['এমএল চান্স প্রেডিকশন', 'ML Chance Prediction']
 ];
+
+// Clean up any legacy external Google Translate cookies to ensure zero external toolbar interference
+const cleanupLegacyTranslateCookies = () => {
+  if (typeof document === 'undefined') return;
+  try {
+    document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    const host = window.location.hostname;
+    if (host && host !== 'localhost') {
+      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${host};`;
+    }
+  } catch (e) {}
+};
 
 // Clean regex map
 const bnToEnMap = new Map();
@@ -115,6 +171,41 @@ phraseMap.forEach(([bn, en]) => {
   bnToEnMap.set(bn.trim(), en.trim());
   enToBnMap.set(en.trim(), bn.trim());
 });
+
+// Sort phrase entries by length descending so longer multi-word phrases match first
+const sortedBnToEn = Array.from(bnToEnMap.entries()).sort((a, b) => b[0].length - a[0].length);
+const sortedEnToBn = Array.from(enToBnMap.entries()).sort((a, b) => b[0].length - a[0].length);
+
+// Explicit key-based translations for navigation items
+const navTranslationKeys = {
+  dashboard: { en: 'Dashboard', bn: 'ড্যাশবোর্ড' },
+  studyPlanner: { en: 'Study Planner', bn: 'স্টাডি প্ল্যানার' },
+  'study-planner': { en: 'Study Planner', bn: 'স্টাডি প্ল্যানার' },
+  courses: { en: 'Course Hub', bn: 'কোর্স হাব' },
+  questionBank: { en: 'Question Bank', bn: 'প্রশ্নব্যাংক' },
+  'question-bank': { en: 'Question Bank', bn: 'প্রশ্নব্যাংক' },
+  liveClasses: { en: 'Live Classes', bn: 'লাইভ ক্লাসেস' },
+  'live-classes': { en: 'Live Classes', bn: 'লাইভ ক্লাসেস' },
+  admissions: { en: 'Admissions', bn: 'ভর্তি তথ্য' },
+  higherStudy: { en: 'Study Abroad', bn: 'উচ্চশিক্ষা ও বিদেশ' },
+  'higher-study': { en: 'Study Abroad', bn: 'উচ্চশিক্ষা ও বিদেশ' },
+  mockTests: { en: 'Mock Tests', bn: 'মক টেস্ট' },
+  mocktest: { en: 'Mock Tests', bn: 'মক টেস্ট' },
+  studyLounge: { en: 'Study Lounge', bn: 'স্টাডি লাউঞ্জ' },
+  'study-lounge': { en: 'Study Lounge', bn: 'স্টাডি লাউঞ্জ' }
+};
+
+// Helper to convert camelCase or glued words to Title Case with spaces
+const formatToTitleCase = (str) => {
+  if (!str || typeof str !== 'string') return str;
+  // If already contains spaces, capitalize each word
+  if (str.includes(' ')) {
+    return str.replace(/\b\w/g, char => char.toUpperCase());
+  }
+  // Split camelCase (e.g., mockTests -> Mock Tests, questionBank -> Question Bank)
+  const separated = str.replace(/([a-z])([A-Z])/g, '$1 $2');
+  return separated.replace(/\b\w/g, char => char.toUpperCase());
+};
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguageState] = useState(() => {
@@ -131,12 +222,23 @@ export const LanguageProvider = ({ children }) => {
     try {
       localStorage.setItem('edufast_language', validLang);
       window.dispatchEvent(new CustomEvent('edufast-language-change', { detail: validLang }));
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = validLang;
+      }
     } catch (e) {}
+    cleanupLegacyTranslateCookies();
   };
 
   const toggleLanguage = () => {
     setLanguage(language === 'bn' ? 'en' : 'bn');
   };
+
+  useEffect(() => {
+    cleanupLegacyTranslateCookies();
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = language;
+    }
+  }, [language]);
 
   useEffect(() => {
     const handleSync = (e) => {
@@ -160,18 +262,32 @@ export const LanguageProvider = ({ children }) => {
         if (bnToEnMap.has(trimmed)) {
           return text.replace(trimmed, bnToEnMap.get(trimmed));
         }
-        // Substring replacement for longer combined phrases
-        for (const [bn, en] of bnToEnMap.entries()) {
+        // Substring replacement: match longest multi-word phrases first
+        for (const [bn, en] of sortedBnToEn) {
           if (text.includes(bn)) {
             text = text.replaceAll(bn, en);
           }
         }
+        // Anti-broken diacritic cleanup: Never allow English words followed by Bengali kar/vibhakti
+        text = text.replace(/([a-zA-Z]+)ের/g, "$1's");
+        text = text.replace(/([a-zA-Z]+)ে/g, '$1');
+        text = text.replace(/([a-zA-Z]+)[\u09BE-\u09CD\u09D7]/g, '$1');
         return text;
       } else {
+        // Bengali mode: clean any hybrid glitches first
+        text = text.replace(/Dashboardে\s*ফিরুন/gi, 'ড্যাশবোর্ডে ফিরুন');
+        text = text.replace(/Dashboardে\s*ফিরে\s*যান/gi, 'ড্যাশবোর্ডে ফিরে যান');
+        text = text.replace(/Dashboardের/gi, 'ড্যাশবোর্ডের');
+        text = text.replace(/Dashboardে/gi, 'ড্যাশবোর্ডে');
+        text = text.replace(/Courseের/gi, 'কোর্সের');
+        text = text.replace(/Courseে/gi, 'কোর্সে');
+        text = text.replace(/Testের/gi, 'টেস্টের');
+        text = text.replace(/Testে/gi, 'টেস্টে');
+
         if (enToBnMap.has(trimmed)) {
           return text.replace(trimmed, enToBnMap.get(trimmed));
         }
-        for (const [en, bn] of enToBnMap.entries()) {
+        for (const [en, bn] of sortedEnToBn) {
           if (text.includes(en)) {
             text = text.replaceAll(en, bn);
           }
@@ -240,8 +356,15 @@ export const LanguageProvider = ({ children }) => {
   }, [language]);
 
   const t = (key) => {
+    if (!key) return '';
+    // 1. Check explicit nav translation keys
+    if (navTranslationKeys[key]) {
+      return navTranslationKeys[key][language] || navTranslationKeys[key].en;
+    }
+    // 2. Check language maps
     if (language === 'en') {
-      return bnToEnMap.get(key) || key;
+      if (bnToEnMap.has(key)) return bnToEnMap.get(key);
+      return formatToTitleCase(key);
     }
     return enToBnMap.get(key) || key;
   };

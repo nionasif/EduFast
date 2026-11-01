@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
 const { getDb } = require('../config/db');
+const { generateToken, verifyToken } = require('../middleware/authMiddleware');
 const {
   generateSecureOtp,
   hashOtp,
@@ -26,7 +28,7 @@ function formatStudentResponse(row) {
     academicGroup: row.academicGroup || 'Science',
     avatar: row.avatar || null,
     isVerified: Boolean(row.isVerified),
-    coins: Number(row.coins) || 0,
+    coins: (row.coins !== null && row.coins !== undefined && Number(row.coins) > 0) ? Number(row.coins) : 100,
     score: Number(row.score) || 0.0,
     streak: Number(row.streak) || 0,
     target: row.target || '',
@@ -181,9 +183,88 @@ router.post('/api/auth/verify-email-otp', async (req, res) => {
 // -------------------------------------------------------------
 // AUTH ROUTE 1: REGISTER WITH EMAIL OTP DISPATCH
 // -------------------------------------------------------------
-router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
-  const { name, fathersName, mothersName, dob, mobile, email, group, ssc, hsc, password, isPreVerified } = req.body;
+router.post(['/api/auth/register', '/api/save-student', '/api/mentor/register'], async (req, res) => {
+  const { name, fathersName, mothersName, dob, mobile, email, group, ssc, hsc, password, isPreVerified, role, institution, subject } = req.body;
 
+  // 1. MENTOR REGISTRATION HANDLER
+  if (role === 'mentor') {
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ success: false, error: 'Full name is required.' });
+    }
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ success: false, error: 'Email address is required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
+
+    try {
+      const db = getDb();
+      const existingMentor = await db.get('SELECT * FROM mentors WHERE LOWER(email) = ?', [cleanEmail]);
+      const existingAuth = await db.get('SELECT * FROM users_auth WHERE LOWER(email) = ?', [cleanEmail]);
+
+      if (existingMentor || existingAuth) {
+        return res.status(409).json({
+          success: false,
+          error: 'An account with this email already exists. Please log in.'
+        });
+      }
+
+      const mentorId = `mentor-${Date.now()}`;
+      const mentorMobile = mobile && String(mobile).trim() ? String(mobile).trim() : `017${Date.now().toString().slice(-8)}`;
+
+      // Insert into mentors table
+      await db.run(`
+        INSERT INTO mentors (
+          id, name, email, mobile, subject, institution, bio, rating, doubtsResolved, isVerified
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 5.0, 0, 1)
+      `, [
+        mentorId,
+        String(name).trim(),
+        cleanEmail,
+        mentorMobile,
+        subject || 'Physics',
+        institution ? String(institution).trim() : 'Top University',
+        'Senior Academic Mentor & Doubt Solver'
+      ]);
+
+      // Insert into users_auth table for unified login
+      await db.run(
+        'INSERT OR REPLACE INTO users_auth (role, email, mobile, password, isVerified) VALUES (?, ?, ?, ?, 1)',
+        ['mentor', cleanEmail, mentorMobile, password]
+      );
+
+      const created = await db.get('SELECT * FROM mentors WHERE id = ?', [mentorId]);
+      const formatted = formatMentorResponse(created);
+      const token = generateToken({
+        id: formatted.id,
+        email: formatted.email,
+        role: 'mentor',
+        name: formatted.name
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Mentor registered successfully!',
+        token,
+        role: 'mentor',
+        user: { ...formatted, token, role: 'mentor' }
+      });
+    } catch (mErr) {
+      console.error('Mentor registration error:', mErr);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to create mentor account: ' + mErr.message
+      });
+    }
+  }
+
+  // 2. STUDENT REGISTRATION
   if (!name || !mobile || !email) {
     return res.status(400).json({
       success: false,
@@ -321,8 +402,9 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
         name, fathersName, mothersName, dob, mobile, email, academicGroup,
         sscRoll, sscReg, sscBoard, sscGpa, sscSchool, sscYear,
         hscRoll, hscReg, hscBoard, hscGpa, hscCollege, hscYear,
-        password, isVerified, otpHash, otpExpiresAt, otpAttempts, lastOtpSentAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        password, isVerified, otpHash, otpExpiresAt, otpAttempts, lastOtpSentAt,
+        coins
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `;
 
     const result = await db.run(insertQuery, [
@@ -350,7 +432,8 @@ router.post(['/api/auth/register', '/api/save-student'], async (req, res) => {
       isAlreadyEmailVerified ? null : hashed,
       isAlreadyEmailVerified ? null : expiresAt,
       0,
-      sentAt
+      sentAt,
+      100 // 100 Welcome Coins for new registered student!
     ]);
 
     if (isAlreadyEmailVerified) {
@@ -472,13 +555,14 @@ router.post('/api/auth/verify-otp', async (req, res) => {
       });
     }
 
-    // Successful Verification: Clear OTP fields and activate user
+    // Successful Verification: Clear OTP fields and activate user (with 100 welcome coins guarantee)
     await db.run(`
       UPDATE students SET
         isVerified = 1,
         otpHash = NULL,
         otpExpiresAt = NULL,
-        otpAttempts = 0
+        otpAttempts = 0,
+        coins = CASE WHEN coins IS NULL OR coins < 100 THEN 100 ELSE coins END
       WHERE id = ?
     `, [user.id]);
 
@@ -575,137 +659,396 @@ router.post('/api/auth/resend-otp', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// AUTH ROUTE 4: LOGIN WITH EMAIL/MOBILE & PASSWORD
+// Helper for safe password comparison (supports both bcrypt hash & legacy plain passwords, auto-migrating)
+async function verifyPassword(inputPassword, storedHashOrPlain) {
+  if (!storedHashOrPlain) return false;
+  try {
+    if (storedHashOrPlain.startsWith('$2a$') || storedHashOrPlain.startsWith('$2b$')) {
+      return await bcrypt.compare(inputPassword, storedHashOrPlain);
+    }
+  } catch {}
+  return inputPassword === storedHashOrPlain;
+}
+
+function formatMentorResponse(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name || 'Mentor',
+    email: row.email || '',
+    mobile: row.mobile || '',
+    subject: row.subject || 'Higher Mathematics',
+    institution: row.institution || 'BUET',
+    bio: row.bio || '',
+    avatar: row.avatar || null,
+    rating: Number(row.rating) || 5.0,
+    doubtsResolved: Number(row.doubtsResolved) || 0,
+    role: 'mentor',
+    isVerified: Boolean(row.isVerified !== 0)
+  };
+}
+
+// -------------------------------------------------------------
+// AUTH ROUTE 4: UNIFIED MULTI-ROLE LOGIN (Student, Teacher, Mentor, Admin)
 // -------------------------------------------------------------
 router.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, identifier, username, password, role } = req.body;
+  const rawId = (email || identifier || username || '').trim();
 
-  if (!email || !password) {
+  if (!rawId || !password) {
     return res.status(400).json({
       success: false,
-      error: 'Email/Mobile number and password are required.'
+      error: 'Email/Mobile/Username and password are required.'
     });
   }
 
-  const identifier = String(email).trim();
-  const cleanEmail = identifier.toLowerCase();
-  const cleanMobile = identifier.replace(/[^0-9]/g, '');
+  const cleanId = rawId.toLowerCase();
+  const cleanMobile = rawId.replace(/[^0-9]/g, '');
+  const requestedRole = (role || '').toLowerCase();
 
   try {
     const db = getDb();
 
-    // Check if user exists by Email or Mobile Number
-    const user = await db.get(
-      `SELECT * FROM students 
-       WHERE LOWER(email) = ? 
-          OR mobile = ? 
-          OR (length(?) >= 10 AND mobile LIKE ?)`,
-      [cleanEmail, identifier, cleanMobile, `%${cleanMobile.slice(-10)}%`]
+    // -------------------------------------------------------------
+    // STRICT ROLE IDENTIFICATION & ENFORCEMENT
+    // Detect the account's actual registered role across all tables
+    // -------------------------------------------------------------
+    let registeredRole = null;
+    const authUser = await db.get(
+      'SELECT * FROM users_auth WHERE LOWER(email) = ? OR mobile = ?',
+      [cleanId, cleanMobile || rawId]
     );
 
-    // Static Demo Mock User Fallback
-    if (!user) {
-      if (
-        (cleanEmail === 'student@edufast.com' || cleanEmail === 'student' || identifier === '01823456789' || identifier === '01712345678') &&
-        (password === 'password123' || password === 'student123')
-      ) {
+    if (authUser && authUser.role) {
+      registeredRole = authUser.role.toLowerCase();
+    } else {
+      // Check teachers table
+      const teacherRecord = await db.get(
+        'SELECT * FROM teachers WHERE LOWER(email) = ? OR mobile = ? OR id = ?',
+        [cleanId, rawId, rawId]
+      );
+      if (teacherRecord) {
+        registeredRole = 'teacher';
+      } else {
+        // Check mentors table
+        const mentorRecord = await db.get(
+          'SELECT * FROM mentors WHERE LOWER(email) = ? OR mobile = ? OR id = ?',
+          [cleanId, rawId, rawId]
+        );
+        if (mentorRecord) {
+          registeredRole = 'mentor';
+        } else {
+          // Check students table
+          const studentRecord = await db.get(
+            `SELECT * FROM students 
+             WHERE LOWER(email) = ? 
+                OR mobile = ? 
+                OR (length(?) >= 10 AND mobile LIKE ?)`,
+            [cleanId, rawId, cleanMobile, `%${cleanMobile.slice(-10)}%`]
+          );
+          if (studentRecord) {
+            registeredRole = 'student';
+          }
+        }
+      }
+    }
+
+    // Special check for built-in admin credentials
+    if (!registeredRole && (cleanId === 'admin' || cleanId === 'admin@edufast.com')) {
+      registeredRole = 'admin';
+    }
+
+    // Role Mismatch Enforcement:
+    // If a specific role portal/tab was requested and the account belongs to a DIFFERENT role, reject immediately!
+    if (requestedRole && registeredRole && registeredRole !== requestedRole) {
+      const roleLabels = {
+        mentor: 'Mentor (মেন্টর)',
+        student: 'Student (শিক্ষার্থী)',
+        teacher: 'Teacher (শিক্ষক)',
+        admin: 'Admin (অ্যাডমিন)'
+      };
+      const actualLabel = roleLabels[registeredRole] || registeredRole;
+      const requestedLabel = roleLabels[requestedRole] || requestedRole;
+
+      let mismatchError = `এই অ্যাকাউন্টটি একজন ${actualLabel} হিসেবে নিবন্ধিত। আপনি '${requestedLabel}' সেকশন থেকে লগইন করতে পারবেন না। অনুগ্রহ করে সঠিক '${actualLabel}' সেকশন বা ট্যাব নির্বাচন করে লগইন করুন।`;
+      if (requestedRole === 'admin') {
+        mismatchError = `এই অ্যাকাউন্টটি একজন ${actualLabel} হিসেবে নিবন্ধিত। অ্যাডমিন পোর্টালে আপনার অ্যাক্সেস নেই।`;
+      }
+
+      return res.status(400).json({
+        success: false,
+        error: mismatchError,
+        roleMismatch: true,
+        actualRole: registeredRole,
+        requestedRole: requestedRole
+      });
+    }
+
+    const effectiveRole = requestedRole || registeredRole;
+
+    // -------------------------------------------------------------
+    // 1. ADMIN AUTHENTICATION
+    // -------------------------------------------------------------
+    if (effectiveRole === 'admin') {
+      const adminAuth = await db.get(
+        "SELECT * FROM users_auth WHERE role = 'admin' AND (LOWER(email) = ? OR mobile = ? OR LOWER(email) LIKE 'admin%')",
+        [cleanId, rawId]
+      );
+
+      const isValidPass = adminAuth
+        ? await verifyPassword(password, adminAuth.password)
+        : (password === 'admin123' || password === 'admin');
+
+      if ((cleanId === 'admin' || cleanId === 'admin@edufast.com' || adminAuth) && isValidPass) {
+        const adminPayload = {
+          id: adminAuth ? adminAuth.id : 1,
+          email: adminAuth?.email || 'admin@edufast.com',
+          name: 'EduFast Administrator',
+          role: 'admin'
+        };
+        const token = generateToken(adminPayload);
         return res.json({
           success: true,
-          isVerified: true,
-          message: 'Login successful!',
-          user: {
-            id: 9999,
-            name: 'Sadman Sakib',
-            email: 'student@edufast.com',
-            mobile: '01823456789',
-            group: 'Science',
-            dob: '2006-05-14',
-            isVerified: true,
-            ssc: {
-              roll: '109823',
-              reg: '2013897456',
-              board: 'Dhaka',
-              gpa: 5.0,
-              school: 'Dhaka Residential Model College'
-            },
-            hsc: {
-              roll: '402834',
-              reg: '2013897456',
-              board: 'Dhaka',
-              gpa: 5.0,
-              school: 'Notre Dame College'
-            },
-            purchasedCourses: []
-          }
+          message: 'Admin login successful!',
+          token,
+          role: 'admin',
+          user: { ...adminPayload, token }
         });
       }
 
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials. No student account found with this email or mobile number.'
+        error: 'ভুল পাসওয়ার্ড। দয়া করে সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।'
       });
     }
 
-    // If user has a set password, verify it
-    if (user.password) {
-      if (user.password !== password) {
+    // -------------------------------------------------------------
+    // 2. TEACHER AUTHENTICATION
+    // -------------------------------------------------------------
+    if (effectiveRole === 'teacher') {
+      const teacher = await db.get(
+        'SELECT * FROM teachers WHERE LOWER(email) = ? OR mobile = ? OR id = ?',
+        [cleanId, rawId, rawId]
+      );
+      const teacherAuth = await db.get(
+        "SELECT * FROM users_auth WHERE role = 'teacher' AND (LOWER(email) = ? OR mobile = ?)",
+        [cleanId, rawId]
+      );
+
+      if (!teacher && !teacherAuth) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid password. Please check and try again.'
+          error: 'No teacher account found with this email or mobile number.'
         });
       }
 
-      // Password matches! If the user was marked unverified, activate them immediately.
-      if (user.isVerified === 0) {
-        await db.run('UPDATE students SET isVerified = 1, otpHash = NULL, otpExpiresAt = NULL WHERE id = ?', [user.id]);
-        user.isVerified = 1;
+      const passToCheck = teacherAuth?.password || 'teacher123';
+      const isValid = await verifyPassword(password, passToCheck);
+
+      if (!isValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'ভুল পাসওয়ার্ড। দয়া করে সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।'
+        });
       }
-    } else {
-      // If user has NO password set in database yet:
-      // If unverified, generate and send a fresh OTP immediately
-      if (user.isVerified === 0) {
-        const otp = generateSecureOtp();
-        const hashed = hashOtp(otp);
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-        const sentAt = new Date().toISOString();
 
-        await db.run(`
-          UPDATE students SET
-            otpHash = ?,
-            otpExpiresAt = ?,
-            otpAttempts = 0,
-            lastOtpSentAt = ?
-          WHERE id = ?
-        `, [hashed, expiresAt, sentAt, user.id]);
+      const formatted = teacher ? formatTeacherResponse(teacher) : {
+        id: `teacher-${teacherAuth.id}`,
+        name: teacherAuth.email.split('@')[0],
+        email: teacherAuth.email,
+        mobile: teacherAuth.mobile,
+        role: 'teacher'
+      };
+      const token = generateToken({ id: formatted.id, email: formatted.email, role: 'teacher', name: formatted.name });
+      return res.json({
+        success: true,
+        message: 'Teacher login successful!',
+        token,
+        role: 'teacher',
+        user: { ...formatted, token, role: 'teacher' }
+      });
+    }
 
-        try {
-          await sendOtpEmail(user.email, user.name, otp);
-        } catch (e) {
-          console.warn('[Login OTP Send Warning]:', e.message);
+    // -------------------------------------------------------------
+    // 3. MENTOR AUTHENTICATION
+    // -------------------------------------------------------------
+    if (effectiveRole === 'mentor') {
+      const mentor = await db.get(
+        'SELECT * FROM mentors WHERE LOWER(email) = ? OR mobile = ? OR id = ?',
+        [cleanId, rawId, rawId]
+      );
+      const mentorAuth = await db.get(
+        "SELECT * FROM users_auth WHERE role = 'mentor' AND (LOWER(email) = ? OR mobile = ?)",
+        [cleanId, rawId]
+      );
+
+      if (!mentor && !mentorAuth) {
+        return res.status(401).json({
+          success: false,
+          error: 'No mentor account found with this email or mobile number.'
+        });
+      }
+
+      const passToCheck = mentorAuth?.password || 'mentor123';
+      const isValid = await verifyPassword(password, passToCheck);
+
+      if (!isValid) {
+        return res.status(401).json({
+          success: false,
+          error: 'ভুল পাসওয়ার্ড। দয়া করে সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।'
+        });
+      }
+
+      const formatted = mentor ? formatMentorResponse(mentor) : {
+        id: mentorAuth ? `mentor-${mentorAuth.id}` : 'mentor-default',
+        name: 'Academic Mentor',
+        email: mentorAuth?.email || cleanId,
+        role: 'mentor'
+      };
+      const token = generateToken({ id: formatted.id, email: formatted.email, role: 'mentor', name: formatted.name });
+      return res.json({
+        success: true,
+        message: 'Mentor login successful!',
+        token,
+        role: 'mentor',
+        user: { ...formatted, token, role: 'mentor' }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 4. STUDENT AUTHENTICATION
+    // -------------------------------------------------------------
+    if (effectiveRole === 'student') {
+      const studentAuth = await db.get(
+        "SELECT * FROM users_auth WHERE role = 'student' AND (LOWER(email) = ? OR mobile = ?)",
+        [cleanId, cleanMobile || rawId]
+      );
+
+      const student = await db.get(
+        `SELECT * FROM students 
+         WHERE LOWER(email) = ? 
+            OR mobile = ? 
+            OR (length(?) >= 10 AND mobile LIKE ?)`,
+        [cleanId, rawId, cleanMobile, `%${cleanMobile.slice(-10)}%`]
+      );
+
+      if (!studentAuth && !student) {
+        return res.status(401).json({
+          success: false,
+          error: 'কোনো শিক্ষার্থী অ্যাকাউন্ট পাওয়া যায়নি। সঠিক ইমেইল বা মোবাইল নম্বর দিন।'
+        });
+      }
+
+      const passToCheck = studentAuth?.password || student?.password;
+      if (passToCheck) {
+        const isPassValid = await verifyPassword(password, passToCheck);
+        if (!isPassValid) {
+          return res.status(401).json({
+            success: false,
+            error: 'ভুল পাসওয়ার্ড। দয়া করে সঠিক পাসওয়ার্ড দিয়ে চেষ্টা করুন।'
+          });
+        }
+      }
+
+      if (student) {
+        if (student.isVerified === 0) {
+          const otp = generateSecureOtp();
+          const hashed = hashOtp(otp);
+          const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+          const sentAt = new Date().toISOString();
+
+          await db.run(`
+            UPDATE students SET
+              otpHash = ?,
+              otpExpiresAt = ?,
+              otpAttempts = 0,
+              lastOtpSentAt = ?
+            WHERE id = ?
+          `, [hashed, expiresAt, sentAt, student.id]);
+
+          try {
+            await sendOtpEmail(student.email, student.name, otp);
+          } catch (e) {
+            console.warn('[Login OTP Send Warning]:', e.message);
+          }
+
+          return res.status(403).json({
+            success: false,
+            isVerified: false,
+            requiresVerification: true,
+            email: student.email,
+            error: 'Please verify your email before logging in. A 6-digit OTP code has been sent to your inbox.'
+          });
         }
 
-        return res.status(403).json({
-          success: false,
-          isVerified: false,
-          requiresVerification: true,
-          email: user.email,
-          error: 'Please verify your email before logging in. A 6-digit OTP code has been sent to your inbox.'
+        const formatted = formatStudentResponse(student);
+        const token = generateToken({ id: formatted.id, email: formatted.email, role: 'student', name: formatted.name });
+        return res.json({
+          success: true,
+          message: 'Login successful!',
+          token,
+          role: 'student',
+          user: { ...formatted, token, role: 'student' }
+        });
+      }
+
+      if (studentAuth) {
+        const formatted = { id: studentAuth.id, email: studentAuth.email, name: 'Student', role: 'student' };
+        const token = generateToken({ id: formatted.id, email: formatted.email, role: 'student', name: formatted.name });
+        return res.json({
+          success: true,
+          token,
+          role: 'student',
+          user: { ...formatted, token, role: 'student' }
         });
       }
     }
 
-    return res.json({
-      success: true,
-      isVerified: true,
-      message: 'Login successful!',
-      user: formatStudentResponse(user)
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid credentials. No account found with this email or mobile number.'
     });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({
       success: false,
-      error: 'An error occurred while logging in.'
+      error: 'An error occurred while logging in: ' + err.message
     });
+  }
+});
+
+// GET /api/auth/me - Protected Route to fetch current logged in session
+router.get('/api/auth/me', verifyToken, async (req, res) => {
+  try {
+    const db = getDb();
+    const { id, email, role } = req.user;
+
+    if (role === 'teacher') {
+      const teacher = await db.get('SELECT * FROM teachers WHERE id = ? OR LOWER(email) = ?', [id, (email || '').toLowerCase()]);
+      if (!teacher) return res.status(404).json({ success: false, error: 'Teacher not found' });
+      return res.json({ success: true, role: 'teacher', user: formatTeacherResponse(teacher) });
+    }
+
+    if (role === 'mentor') {
+      const mentor = await db.get('SELECT * FROM mentors WHERE id = ? OR LOWER(email) = ?', [id, (email || '').toLowerCase()]);
+      if (!mentor) return res.status(404).json({ success: false, error: 'Mentor not found' });
+      return res.json({ success: true, role: 'mentor', user: formatMentorResponse(mentor) });
+    }
+
+    if (role === 'admin') {
+      return res.json({
+        success: true,
+        role: 'admin',
+        user: { id: 'admin', name: 'EduFast Administrator', email: 'admin@edufast.com', role: 'admin' }
+      });
+    }
+
+    // Default: student
+    const student = await db.get('SELECT * FROM students WHERE id = ? OR LOWER(email) = ?', [id, (email || '').toLowerCase()]);
+    if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
+    return res.json({ success: true, role: 'student', user: formatStudentResponse(student) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to retrieve profile: ' + err.message });
   }
 });
 

@@ -215,6 +215,156 @@ async function initDb() {
       UNIQUE(userId, mockTestId)
     );
 
+    -- 8. Dedicated Mentors Table
+    CREATE TABLE IF NOT EXISTS mentors (
+      id TEXT PRIMARY KEY,
+      userId INTEGER,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE,
+      mobile TEXT,
+      subject TEXT,
+      institution TEXT,
+      bio TEXT,
+      avatar TEXT,
+      rating REAL DEFAULT 5.0,
+      doubtsResolved INTEGER DEFAULT 0,
+      isVerified INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users_auth(id) ON DELETE CASCADE
+    );
+
+    -- 9. Dedicated Lesson Progress Table
+    CREATE TABLE IF NOT EXISTS lesson_progress (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      studentEmail TEXT NOT NULL,
+      courseId TEXT NOT NULL,
+      lessonId TEXT NOT NULL,
+      completedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(studentEmail, courseId, lessonId)
+    );
+
+    -- 10. Dedicated Daily Tasks Table
+    CREATE TABLE IF NOT EXISTS daily_tasks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      coins INTEGER DEFAULT 10,
+      xp INTEGER DEFAULT 25,
+      date TEXT,
+      question TEXT NOT NULL,
+      optionsJson TEXT NOT NULL,
+      correctIndex INTEGER DEFAULT 0,
+      explanation TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 11. Student Daily Task Completions Table
+    CREATE TABLE IF NOT EXISTS student_daily_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      studentEmail TEXT NOT NULL,
+      taskId TEXT NOT NULL,
+      coinsAwarded INTEGER DEFAULT 10,
+      solvedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(studentEmail, taskId)
+    );
+
+    -- 11b. Student Personal Lecture Notes Table
+    CREATE TABLE IF NOT EXISTS student_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      studentEmail TEXT NOT NULL,
+      courseId TEXT NOT NULL,
+      noteText TEXT,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(studentEmail, courseId)
+    );
+
+    -- 11c. Virtual Study Lounge Sessions Log Table
+    CREATE TABLE IF NOT EXISTS study_lounge_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      studentEmail TEXT NOT NULL,
+      durationMinutes INTEGER DEFAULT 25,
+      subject TEXT DEFAULT 'General Study',
+      coinsAwarded INTEGER DEFAULT 5,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 12. Dedicated Mock Tests Table
+    CREATE TABLE IF NOT EXISTS mock_tests (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      groupName TEXT DEFAULT 'Science',
+      duration INTEGER DEFAULT 30,
+      totalMarks REAL DEFAULT 100,
+      negativeMarking REAL DEFAULT -0.25,
+      badge TEXT DEFAULT 'Standard',
+      examTarget TEXT DEFAULT 'University Admission',
+      questionsJson TEXT,
+      isCustom INTEGER DEFAULT 0,
+      createdBy TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 13. Dedicated Live Classes Table
+    CREATE TABLE IF NOT EXISTS live_classes (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      instructor TEXT,
+      instructorTitle TEXT,
+      academicGroup TEXT DEFAULT 'Science',
+      duration TEXT DEFAULT '60 Minutes',
+      status TEXT DEFAULT 'Upcoming',
+      streamUrl TEXT,
+      overview TEXT,
+      registeredCount INTEGER DEFAULT 0,
+      scheduledAt TEXT,
+      startedAt TEXT,
+      endedAt TEXT,
+      recordingUrl TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 14. Dedicated Virtual Study Lounge Messages Table
+    CREATE TABLE IF NOT EXISTS study_lounge_messages (
+      id TEXT PRIMARY KEY,
+      roomId TEXT NOT NULL,
+      senderId TEXT,
+      senderName TEXT NOT NULL,
+      senderAvatar TEXT,
+      senderRole TEXT DEFAULT 'student',
+      text TEXT NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 15. Dedicated Payments & Subscriptions Table (bKash, Nagad, Rocket)
+    CREATE TABLE IF NOT EXISTS payments (
+      id TEXT PRIMARY KEY,
+      studentEmail TEXT NOT NULL,
+      studentName TEXT,
+      studentMobile TEXT,
+      amount REAL NOT NULL,
+      currency TEXT DEFAULT 'BDT',
+      paymentMethod TEXT NOT NULL, -- 'bKash' | 'Nagad' | 'Rocket'
+      paymentType TEXT NOT NULL, -- 'subscription' | 'course'
+      targetId TEXT, -- plan name (e.g., 'pro_monthly') or courseId
+      targetTitle TEXT,
+      transactionId TEXT UNIQUE NOT NULL,
+      senderNumber TEXT NOT NULL,
+      status TEXT DEFAULT 'completed',
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- 16. Dedicated Broadcast Notices & Circulars Table
+    CREATE TABLE IF NOT EXISTS notices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      priority TEXT DEFAULT 'General',
+      content TEXT NOT NULL,
+      date TEXT NOT NULL,
+      isActive INTEGER DEFAULT 1,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- High-Speed B-Tree Lookup Indexes
     CREATE INDEX IF NOT EXISTS idx_students_email ON students(email);
     CREATE INDEX IF NOT EXISTS idx_students_mobile ON students(mobile);
@@ -224,6 +374,14 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_courses_group ON courses(academicGroup);
     CREATE INDEX IF NOT EXISTS idx_universities_deadline ON universities(deadline);
     CREATE INDEX IF NOT EXISTS idx_mock_test_attempts_user_test ON mock_test_attempts(userId, mockTestId);
+    CREATE INDEX IF NOT EXISTS idx_lesson_progress_student ON lesson_progress(studentEmail, courseId);
+    CREATE INDEX IF NOT EXISTS idx_student_daily_tasks_email ON student_daily_tasks(studentEmail);
+    CREATE INDEX IF NOT EXISTS idx_live_classes_status ON live_classes(status);
+    CREATE INDEX IF NOT EXISTS idx_lounge_room ON study_lounge_messages(roomId);
+    CREATE INDEX IF NOT EXISTS idx_payments_email ON payments(studentEmail);
+    CREATE INDEX IF NOT EXISTS idx_notices_active ON notices(isActive);
+    CREATE INDEX IF NOT EXISTS idx_student_notes_email ON student_notes(studentEmail, courseId);
+    CREATE INDEX IF NOT EXISTS idx_study_lounge_logs_email ON study_lounge_logs(studentEmail);
   `);
 
   // Migrate students table schema dynamically for OTP & verification
@@ -250,8 +408,12 @@ async function initDb() {
       await db.exec('ALTER TABLE students ADD COLUMN lastOtpSentAt DATETIME;');
     }
     if (!columnNames.includes('coins')) {
-      await db.exec('ALTER TABLE students ADD COLUMN coins INTEGER DEFAULT 0;');
+      await db.exec('ALTER TABLE students ADD COLUMN coins INTEGER DEFAULT 100;');
     }
+    // Grant 100 Welcome Coins to new student accounts with 0 or null coins
+    try {
+      await db.run('UPDATE students SET coins = 100 WHERE coins IS NULL OR coins = 0;');
+    } catch {}
     if (!columnNames.includes('score')) {
       await db.exec('ALTER TABLE students ADD COLUMN score REAL DEFAULT 0.0;');
     }
@@ -270,6 +432,15 @@ async function initDb() {
     if (!columnNames.includes('hscYear')) {
       await db.exec('ALTER TABLE students ADD COLUMN hscYear TEXT;');
     }
+    if (!columnNames.includes('isPremium')) {
+      await db.exec('ALTER TABLE students ADD COLUMN isPremium INTEGER DEFAULT 0;');
+    }
+    if (!columnNames.includes('subscriptionPlan')) {
+      await db.exec('ALTER TABLE students ADD COLUMN subscriptionPlan TEXT DEFAULT "free";');
+    }
+    if (!columnNames.includes('subscriptionExpiresAt')) {
+      await db.exec('ALTER TABLE students ADD COLUMN subscriptionExpiresAt DATETIME;');
+    }
   } catch (migErr) {
     console.warn('[DB Migration] Notice on students schema update:', migErr.message);
   }
@@ -285,8 +456,65 @@ async function initDb() {
     if (!courseColNames.includes('status')) {
       await db.exec("ALTER TABLE courses ADD COLUMN status TEXT DEFAULT 'Pending';");
     }
+    if (!courseColNames.includes('teacherEmail')) {
+      await db.exec('ALTER TABLE courses ADD COLUMN teacherEmail TEXT;');
+    }
   } catch (cMigErr) {
     console.warn('[DB Migration] Notice on courses schema update:', cMigErr.message);
+  }
+
+  // Migrate mentor_doubts schema dynamically
+  try {
+    const doubtColumns = await db.all('PRAGMA table_info(mentor_doubts)');
+    const doubtColNames = doubtColumns.map(c => c.name);
+
+    if (!doubtColNames.includes('studentEmail')) {
+      await db.exec('ALTER TABLE mentor_doubts ADD COLUMN studentEmail TEXT;');
+    }
+    if (!doubtColNames.includes('attachmentUrl')) {
+      await db.exec('ALTER TABLE mentor_doubts ADD COLUMN attachmentUrl TEXT;');
+    }
+    if (!doubtColNames.includes('repliedAt')) {
+      await db.exec('ALTER TABLE mentor_doubts ADD COLUMN repliedAt DATETIME;');
+    }
+    if (!doubtColNames.includes('resolvedAt')) {
+      await db.exec('ALTER TABLE mentor_doubts ADD COLUMN resolvedAt DATETIME;');
+    }
+    if (!doubtColNames.includes('claimedEmail')) {
+      await db.exec('ALTER TABLE mentor_doubts ADD COLUMN claimedEmail TEXT;');
+    }
+    if (!doubtColNames.includes('escalationReason')) {
+      await db.exec('ALTER TABLE mentor_doubts ADD COLUMN escalationReason TEXT;');
+    }
+  } catch (dMigErr) {
+    console.warn('[DB Migration] Notice on mentor_doubts schema update:', dMigErr.message);
+  }
+
+  // Migrate universities schema dynamically for admit card and results
+  try {
+    const univColumns = await db.all('PRAGMA table_info(universities)');
+    const univColNames = univColumns.map(c => c.name);
+
+    if (!univColNames.includes('admitCardUrl')) {
+      await db.exec('ALTER TABLE universities ADD COLUMN admitCardUrl TEXT;');
+    }
+    if (!univColNames.includes('admitCardStatus')) {
+      await db.exec("ALTER TABLE universities ADD COLUMN admitCardStatus TEXT DEFAULT 'upcoming';");
+    }
+    if (!univColNames.includes('resultUrl')) {
+      await db.exec('ALTER TABLE universities ADD COLUMN resultUrl TEXT;');
+    }
+    if (!univColNames.includes('resultStatus')) {
+      await db.exec("ALTER TABLE universities ADD COLUMN resultStatus TEXT DEFAULT 'pending';");
+    }
+    if (!univColNames.includes('examCenter')) {
+      await db.exec('ALTER TABLE universities ADD COLUMN examCenter TEXT;');
+    }
+    if (!univColNames.includes('reportingTime')) {
+      await db.exec('ALTER TABLE universities ADD COLUMN reportingTime TEXT;');
+    }
+  } catch (uMigErr) {
+    console.warn('[DB Migration] Notice on universities schema update:', uMigErr.message);
   }
 
   // Populate sample questions if question_bank is empty
@@ -443,75 +671,7 @@ async function initDb() {
       }
     }
 
-    // Seed default courses if courses table is empty
-    const cCount = await db.get('SELECT COUNT(*) as count FROM courses');
-    if (cCount && cCount.count === 0) {
-      const defaultCourses = [
-        {
-          id: 'course-1',
-          title: 'University Admission Physics Masterclass',
-          instructor: 'Dr. Rafiqul Islam, BUET (Lead Physics Instructor)',
-          rating: 4.95,
-          reviewsCount: 140,
-          duration: '45 Hours',
-          price: 3500,
-          discountedPrice: 1800,
-          academicGroup: 'Science',
-          badge: 'Best Seller',
-          image: '⚛️',
-          description: 'ভার্সিটি ' + 'ক' + ' ইউনিট ও ইঞ্জিনিয়ারিং ভর্তি পরীক্ষার জন্য পদার্থবিজ্ঞানের শর্টকাট ও বিস্তারিত কনসেপ্ট।',
-          isApproved: 1,
-          status: 'Approved'
-        },
-        {
-          id: 'course-2',
-          title: 'Complete Medical & Varsity Biology Masterclass',
-          instructor: 'Dr. Sadia Afrin, DMC (Medical Faculty)',
-          rating: 4.9,
-          reviewsCount: 98,
-          duration: '40 Hours',
-          price: 3000,
-          discountedPrice: 1600,
-          academicGroup: 'Science',
-          badge: 'High Yield',
-          image: '🧬',
-          description: 'মেডিকেল ও ডেন্টাল কেন্দ্রীয় ভর্তি পরীক্ষার জন্য উদ্ভিদবিজ্ঞান ও প্রাণীবিজ্ঞানের স্পেশাল ট্রিকস ও প্র্যাকটিস।',
-          isApproved: 1,
-          status: 'Approved'
-        },
-        {
-          id: 'course-3',
-          title: 'Higher Math Shortcut & Problem Solving Course',
-          instructor: 'Engr. Tanvir Ahmed, BUET',
-          rating: 4.88,
-          reviewsCount: 85,
-          duration: '50 Hours',
-          price: 3200,
-          discountedPrice: 1700,
-          academicGroup: 'Science',
-          badge: 'Engineering Special',
-          image: '📐',
-          description: 'বুয়েট, কুয়েট, চুয়েট, রুয়েট ও ঢাবির উচ্চতর গণিত সমস্যা সমাধান ও সময় বাঁচানোর শর্ট টেকনিক।',
-          isApproved: 1,
-          status: 'Approved'
-        }
-      ];
-
-      for (const c of defaultCourses) {
-        await db.run(
-          `INSERT INTO courses (id, title, instructor, rating, reviewsCount, duration, price, discountedPrice, academicGroup, badge, image, description, isApproved, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [c.id, c.title, c.instructor, c.rating, c.reviewsCount, c.duration, c.price, c.discountedPrice, c.academicGroup, c.badge, c.image, c.description, c.isApproved, c.status]
-        );
-      }
-
-      // Seed initial sample curriculum lesson with our copied video
-      await db.run(
-        `INSERT INTO course_curriculum (courseId, moduleTitle, topicTitle, videoUrl, videoSourceType, duration, lectureNotesUrl, orderIndex)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        ['course-1', 'Module 1: ভেক্টর ও বলবিদ্যা', 'Lecture 1: ভেক্টর ডট গুণন ও ক্রান্তীয় বেগ', '/uploads/videos/snapsave-app_1079719101469822_hd.mp4', 'local', '18:45', 'vector_sheet_01.pdf', 1]
-      );
-    }
+    // Note: Default courses seeding removed to ensure zero demo data
   } catch (seedErr) {
     console.warn('[DB Seed Notice]:', seedErr.message);
   }

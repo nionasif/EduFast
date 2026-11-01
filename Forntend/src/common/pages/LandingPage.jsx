@@ -1,13 +1,26 @@
 import { useState, useEffect } from 'react';
+import api from '../../services/api';
 import { getAdmissions, getCourses } from '../../data/mockData';
 import CountdownTimer from '../components/CountdownTimer';
 import GPACalculator from '../../student/components/GPACalculator';
+import SponsoredPartnerBanner from '../components/SponsoredPartnerBanner';
 
 export default function LandingPage({ onNavigate, onOpenLogin, currentUser }) {
   const [admissions, setAdmissions] = useState(getAdmissions);
   const [courses, setCourses] = useState(getCourses);
 
   useEffect(() => {
+    // Fetch live admissions & courses from database
+    api.get('/universities').then(res => {
+      const data = res.data?.data || res.data;
+      if (Array.isArray(data) && data.length > 0) setAdmissions(data);
+    }).catch(() => {});
+
+    api.get('/courses').then(res => {
+      const data = res.data?.data || res.data;
+      if (Array.isArray(data) && data.length > 0) setCourses(data);
+    }).catch(() => {});
+
     const handleUpdate = () => {
       setAdmissions(getAdmissions());
       setCourses(getCourses());
@@ -17,9 +30,9 @@ export default function LandingPage({ onNavigate, onOpenLogin, currentUser }) {
   }, []);
 
   // Take first 3 admissions and 3 courses for landing previews
-  const admissionsPreview = admissions.slice(0, 3);
-  const coursesPreview = courses
-    .filter(c => c.isApproved === true || c.status === 'Approved')
+  const admissionsPreview = (Array.isArray(admissions) ? admissions : []).slice(0, 3);
+  const coursesPreview = (Array.isArray(courses) ? courses : [])
+    .filter(c => c && (c.isApproved === true || c.status === 'Approved' || c.isApproved === 1 || c.isApproved === '1' || c.isApproved === undefined))
     .slice(0, 3);
 
   return (
@@ -127,6 +140,11 @@ export default function LandingPage({ onNavigate, onOpenLogin, currentUser }) {
         <GPACalculator />
       </section>
 
+      {/* Sponsored Partner University Ad Banner */}
+      <section className="container" style={{ paddingTop: '1.25rem', paddingBottom: 0 }}>
+        <SponsoredPartnerBanner />
+      </section>
+
       {/* Main Two-Column Layout */}
       <div className="two-col-layout container">
         {/* Left Column: University Admissions */}
@@ -161,7 +179,7 @@ export default function LandingPage({ onNavigate, onOpenLogin, currentUser }) {
                   </div>
                   <div className="admission-detail-item">
                     <span className="detail-label">Total Units</span>
-                    <span className="detail-val">{univ.units.length} Admission Units</span>
+                    <span className="detail-val">{Array.isArray(univ.units) ? univ.units.length : (univ.units ? 1 : 0)} Admission Units</span>
                   </div>
                 </div>
 
@@ -170,7 +188,7 @@ export default function LandingPage({ onNavigate, onOpenLogin, currentUser }) {
                     <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--gray-500)', display: 'block', marginBottom: '0.2rem' }}>
                       Application Deadline
                     </span>
-                    <CountdownTimer deadline={univ.deadline} />
+                    <CountdownTimer deadline={univ.deadline || univ.deadlineDate || ''} />
                   </div>
                   <button
                     className="btn btn-secondary"

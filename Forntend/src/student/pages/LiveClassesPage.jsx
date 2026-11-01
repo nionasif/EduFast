@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Radio, Calendar, Clock, Users, Bell, BellCheck, Play, Send, 
-  Hand, MessageSquare, Award, X, Video, FileText, Download, Trash2
+  Hand, MessageSquare, Award, X, Video, FileText, Download, Trash2,
+  Volume2, VolumeX, Maximize2, Minimize2
 } from 'lucide-react';
 import { getLiveClasses, fetchLiveClassesFromBackend, getTeacherRecordings, fetchRecordingsFromBackend, deleteTeacherRecording } from '../../data/mockData';
 import { socket } from '../../socket';
+import api, { getCustomServerUrl } from '../../services/api';
+import { createStudentViewer } from '../../services/liveWebRTC';
+import { formatYouTubeEmbedUrl, isYouTubeUrl } from '../../services/videoHelper';
 
 export default function LiveClassesPage() {
   const [pageMode, setPageMode] = useState('live'); // 'live' | 'recordings'
@@ -12,6 +16,7 @@ export default function LiveClassesPage() {
   const [recordings, setRecordings] = useState(() => getTeacherRecordings());
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [activeRecordingForPlayer, setActiveRecordingForPlayer] = useState(null);
+  const [videoPlaybackError, setVideoPlaybackError] = useState(false);
   const [reminders, setReminders] = useState(() => {
     try {
       const stored = localStorage.getItem('edufast_live_reminders');
@@ -30,13 +35,22 @@ export default function LiveClassesPage() {
     }
   });
 
-  // Active live room state
+  // Active live room state (Only set if Sir is actively LIVE)
   const [activeSession, setActiveSession] = useState(() => {
     const list = getLiveClasses();
     const liveOne = list.find(s => (s.status || '').toUpperCase() === 'LIVE');
-    return liveOne || list[0] || null;
+    return liveOne || null;
   });
   const [isInLiveRoom, setIsInLiveRoom] = useState(false);
+
+  // Security Guard: Student can only be inside live room if Sir is actively LIVE
+  useEffect(() => {
+    if (isInLiveRoom) {
+      if (!activeSession || (activeSession.status || '').toUpperCase() !== 'LIVE') {
+        setIsInLiveRoom(false);
+      }
+    }
+  }, [isInLiveRoom, activeSession?.status]);
 
   // Real-Time Classroom Stage State
   const [teacherMode, setTeacherMode] = useState('whiteboard'); // 'whiteboard' | 'slides'
@@ -46,6 +60,124 @@ export default function LiveClassesPage() {
     isScreenSharing: false,
     teacherName: 'ইন্সট্রাক্টর'
   });
+
+  // WebRTC Live Stream Receiver for Student
+  const [remoteStream, setRemoteStream] = useState(null);
+  const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
+  const [isStudentAudioMuted, setIsStudentAudioMuted] = useState(false);
+  const [isCamEnlarged, setIsCamEnlarged] = useState(false);
+
+  // Fullscreen state & ref for the live room container
+  const liveRoomRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = liveRoomRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen && el.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+  }, []);
+
+  // Sync isFullscreen state with browser fullscreen events
+  useEffect(() => {
+    const onFSChange = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      if (fs) {
+        setIsChatOpen(false); // ফুলস্ক্রিনে গেলে গুগল মিটের মতো চ্যাট বাই-ডিফল্ট হাইড থাকবে যাতে পুরো স্ক্রিন জুড়ে ক্লাস দেখা যায়
+      } else {
+        setIsChatOpen(true);  // ফুলস্ক্রিন থেকে বের হলে আবার স্বাভাবিক চ্যাট ওপেন হবে
+      }
+    };
+    document.addEventListener('fullscreenchange', onFSChange);
+    return () => document.removeEventListener('fullscreenchange', onFSChange);
+  }, []);
+
+  // Connect to Sir's live WebRTC broadcast and register in room whenever student is in the live room
+  useEffect(() => {
+    if (!isInLiveRoom || !activeSession || (activeSession.status || '').toUpperCase() !== 'LIVE') {
+      setRemoteStream(null);
+      return;
+    }
+
+    // Register student presence in live room with backend
+    socket.emit('class:join_room', {
+      sessionId: activeSession.id,
+      studentName: studentUser?.name || 'শিক্ষার্থী',
+      studentId: studentUser?.id || studentUser?.email || 'student'
+    });
+
+    const viewer = createStudentViewer({
+      socket,
+      sessionId: activeSession.id,
+      studentName: studentUser?.name || 'শিক্ষার্থী',
+      onRemoteStream: (stream) => {
+        setRemoteStream(stream);
+      }
+    });
+
+    // Request stream from teacher
+    viewer.requestStream();
+
+    const handleWebRTCSignal = (data) => {
+      viewer.handleSignal(data);
+    };
+
+    const handleTeacherReady = () => {
+      console.log('[WebRTC Student] Teacher announced ready, requesting stream');
+      viewer.requestStream();
+    };
+
+    socket.on('webrtc:signal', handleWebRTCSignal);
+    socket.on('class:teacher_ready', handleTeacherReady);
+
+    // Heartbeat: retry request if remoteStream has not arrived within 2.5s (up to 5 attempts)
+    let retryCount = 0;
+    const retryInterval = setInterval(() => {
+      if (!viewer.getStream() || viewer.getStream().getTracks().length === 0) {
+        retryCount++;
+        if (retryCount <= 5) {
+          viewer.requestStream();
+        }
+      } else {
+        clearInterval(retryInterval);
+      }
+    }, 2500);
+
+    return () => {
+      clearInterval(retryInterval);
+      socket.off('webrtc:signal', handleWebRTCSignal);
+      socket.off('class:teacher_ready', handleTeacherReady);
+      viewer.cleanup();
+      setRemoteStream(null);
+      socket.emit('class:leave_room', { sessionId: activeSession.id });
+    };
+  }, [isInLiveRoom, activeSession?.id, activeSession?.status]);
+
+  // Keep remoteVideoRef and remoteAudioRef attached and playing
+  useEffect(() => {
+    if (remoteStream) {
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.play().catch(() => {
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.muted = true;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+        });
+      }
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStream) {
+        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.play().catch(() => {});
+      }
+    }
+  }, [remoteStream, teacherMedia.isCamOn]);
+
   const [activePoll, setActivePoll] = useState(null);
   const [hasVotedPoll, setHasVotedPoll] = useState(false);
   const [selectedPollOption, setSelectedPollOption] = useState(null);
@@ -80,10 +212,18 @@ export default function LiveClassesPage() {
       }
     });
 
-    // Check active class from REST API
-    fetch('http://localhost:5001/api/live/active')
-      .then(res => res.json())
-      .then(data => {
+    // Fetch live classes and active class from REST API
+    api.get('/live/classes')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          setLiveSessions(res.data.data);
+        }
+      })
+      .catch(() => {});
+
+    api.get('/live/active')
+      .then(res => {
+        const data = res.data;
         if (data && data.success && data.activeLiveClass && (data.activeLiveClass.status || '').toUpperCase() === 'LIVE') {
           const active = data.activeLiveClass;
           setActiveSession(active);
@@ -94,6 +234,7 @@ export default function LiveClassesPage() {
         }
       })
       .catch(() => {});
+
 
     // Also ask Socket if connected
     try {
@@ -140,22 +281,12 @@ export default function LiveClassesPage() {
           try { localStorage.setItem('edufast_live_classes', JSON.stringify(updated)); } catch (e) {}
           return updated;
         });
-        if (session.recording) {
-          setRecordings(prev => {
-            const exists = prev.find(r => r.id === session.recording.id);
-            const updated = exists ? prev.map(r => r.id === session.recording.id ? { ...r, ...session.recording } : r) : [session.recording, ...prev];
-            try { localStorage.setItem('edufast_teacher_recordings', JSON.stringify(updated)); } catch (e) {}
-            return updated;
-          });
-        }
-        fetchRecordingsFromBackend().then(recs => {
-          if (recs && Array.isArray(recs)) setRecordings(recs);
-        });
+
+        // Do not auto-add recording. Teacher will upload from their PC.
         if (activeSession && String(activeSession.id) === String(session.id)) {
           setIsInLiveRoom(false);
           setActiveSession(null);
-          setPageMode('recordings');
-          alert('আজকের লাইভ ক্লাস সমাপ্ত হয়েছে। এটি স্বয়ংক্রিয়ভাবে রেকর্ডেড ক্লাস ট্যাবে যুক্ত হয়েছে!');
+          alert('আজকের লাইভ ক্লাস সমাপ্ত হয়েছে। শিক্ষক তার পিসি থেকে রেকর্ডিং আপলোড করলে আপনি তা রেকর্ডেড ক্লাস আর্কাইভে দেখতে পাবেন।');
         }
       }
     };
@@ -184,6 +315,7 @@ export default function LiveClassesPage() {
     window.addEventListener('storage', handleDataUpdate);
     socket.on('class:status_change', handleSocketStatusChange);
     socket.on('recording:new', handleNewRecording);
+    socket.on('recording:update', handleNewRecording);
     socket.on('recording:deleted', handleDeletedRecording);
 
     // Listen to real-time whiteboard drawing from teacher
@@ -254,11 +386,18 @@ export default function LiveClassesPage() {
       setActivePoll(null);
     };
 
+    const handleViewerCount = (data) => {
+      if (data && typeof data.count === 'number') {
+        setViewerCount(data.count);
+      }
+    };
+
     socket.on('class:draw_stroke', handleDrawStroke);
     socket.on('class:clear_board', handleClearCanvas);
     socket.on('chat:new_message', handleIncomingMessage);
     socket.on('class:mode_change', handleModeChange);
     socket.on('class:media_status', handleMediaStatus);
+    socket.on('class:viewer_count', handleViewerCount);
     socket.on('poll:new', handlePoll);
     socket.on('poll:vote_update', handlePollUpdate);
     socket.on('poll:resolved', handlePollResolved);
@@ -272,25 +411,35 @@ export default function LiveClassesPage() {
       socket.off('chat:new_message', handleIncomingMessage);
       socket.off('class:mode_change', handleModeChange);
       socket.off('class:media_status', handleMediaStatus);
+      socket.off('class:viewer_count', handleViewerCount);
       socket.off('poll:new', handlePoll);
       socket.off('poll:vote_update', handlePollUpdate);
       socket.off('poll:resolved', handlePollResolved);
       socket.off('recording:new', handleNewRecording);
+      socket.off('recording:update', handleNewRecording);
       socket.off('recording:deleted', handleDeletedRecording);
     };
   }, [activeSession]);
 
-  // Resize canvas when classroom opens
+  // Resize canvas when classroom opens, fullscreen changes or chat is toggled
   useEffect(() => {
     if (isInLiveRoom && teacherMode === 'whiteboard' && studentWhiteboardRef.current) {
-      const canvas = studentWhiteboardRef.current;
-      const ctx = canvas.getContext('2d');
-      canvas.width = canvas.parentElement?.clientWidth || 720;
-      canvas.height = canvas.parentElement?.clientHeight || 460;
-      ctx.fillStyle = '#1a202c';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const timer = setTimeout(() => {
+        const canvas = studentWhiteboardRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const parentW = canvas.parentElement?.clientWidth || 720;
+        const parentH = canvas.parentElement?.clientHeight || 460;
+        if (parentW > 0 && parentH > 0) {
+          canvas.width = parentW;
+          canvas.height = parentH;
+          ctx.fillStyle = '#1a202c';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }, 60);
+      return () => clearTimeout(timer);
     }
-  }, [isInLiveRoom, teacherMode]);
+  }, [isInLiveRoom, teacherMode, isFullscreen, isChatOpen]);
 
   useEffect(() => {
     if (isInLiveRoom) {
@@ -367,6 +516,11 @@ export default function LiveClassesPage() {
 
   // Check if any session is actively live right now
   const currentlyLiveSession = liveSessions.find(s => (s.status || '').toUpperCase() === 'LIVE');
+
+  const handleOpenRecordingPlayer = (rec) => {
+    setVideoPlaybackError(false);
+    setActiveRecordingForPlayer(rec);
+  };
 
   return (
     <div style={{ backgroundColor: 'var(--bg-light)', minHeight: '100vh', paddingBottom: '4rem' }}>
@@ -516,27 +670,80 @@ export default function LiveClassesPage() {
           </div>
         )}
 
+        {/* 🕒 INFORMATIVE BANNER: When no teacher is currently live */}
+        {!currentlyLiveSession && !isInLiveRoom && pageMode === 'live' && (
+          <div style={{
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: 'var(--border-radius-md)',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '2rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                backgroundColor: '#edf2f7',
+                color: '#718096',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Clock style={{ width: '22px', height: '22px' }} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#718096', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  ● বর্তমানে কোনো শিক্ষক লাইভে নেই
+                </span>
+                <h3 style={{ margin: '0.2rem 0 0.1rem 0', fontSize: '1.15rem', color: 'var(--text-charcoal)', fontWeight: 800 }}>
+                  শিক্ষক লাইভ ক্লাস শুরু করলেই এখানে সক্রিয় জয়েন বাটন দেখতে পাবেন
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: 'var(--gray-600)' }}>
+                  স্যার লাইভে না আসা পর্যন্ত লাইভ ক্লাসে প্রবেশ করা যাবে না। আপনি নিচের শিডিউল থেকে রিমাইন্ডার সেট করে রাখতে পারেন।
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Live Classroom Container (When Open) */}
         {isInLiveRoom && activeSession && (
-          <div style={{
-            backgroundColor: 'var(--white)',
-            borderRadius: 'var(--border-radius-lg)',
-            border: '2px solid var(--primary-teal)',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
-            overflow: 'hidden',
-            marginBottom: '2.5rem'
-          }}>
+          <div
+            ref={liveRoomRef}
+            style={{
+              backgroundColor: '#090d16',
+              borderRadius: isFullscreen ? '0' : 'var(--border-radius-lg)',
+              border: isFullscreen ? 'none' : '2px solid var(--primary-teal)',
+              boxShadow: isFullscreen ? 'none' : '0 20px 25px -5px rgba(0,0,0,0.2)',
+              overflow: 'hidden',
+              marginBottom: isFullscreen ? '0' : '2.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              height: isFullscreen ? '100vh' : 'auto',
+              maxHeight: isFullscreen ? '100vh' : 'none',
+              width: isFullscreen ? '100vw' : '100%',
+              boxSizing: 'border-box'
+            }}
+          >
             {/* Live Room Top Bar */}
             <div style={{
               backgroundColor: '#0f172a',
-              padding: '1rem 1.5rem',
+              padding: isFullscreen ? '0.65rem 1.25rem' : '0.85rem 1.25rem',
               borderBottom: '1px solid #1e293b',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
-              gap: '1rem',
-              color: '#fff'
+              gap: '0.75rem',
+              color: '#fff',
+              flexShrink: 0
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <span style={{
@@ -579,6 +786,55 @@ export default function LiveClassesPage() {
                   <strong style={{ color: '#48bb78' }}>{viewerCount}</strong> জন সহপাঠী লাইভ
                 </div>
 
+                {/* Chat Toggle Button (Topbar) */}
+                <button
+                  onClick={() => setIsChatOpen(!isChatOpen)}
+                  title={isChatOpen ? 'চ্যাট বন্ধ করুন (Hide Chat)' : 'চ্যাট খুলুন (Show Chat)'}
+                  style={{
+                    padding: '0.35rem 0.85rem',
+                    fontSize: '0.8rem',
+                    backgroundColor: isChatOpen ? '#0d9488' : '#334155',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <MessageSquare style={{ width: '14px', height: '14px' }} />
+                  {isChatOpen ? 'চ্যাট বন্ধ' : '💬 চ্যাট'}
+                </button>
+
+                {/* Fullscreen Toggle Button */}
+                <button
+                  onClick={toggleFullscreen}
+                  title={isFullscreen ? 'সাধারণ ভিউতে ফিরুন' : 'ফুলস্ক্রিনে দেখুন'}
+                  style={{
+                    padding: '0.35rem 0.85rem',
+                    fontSize: '0.8rem',
+                    backgroundColor: isFullscreen ? '#0d9488' : '#1e3a5f',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontWeight: 600,
+                    transition: 'background 0.2s ease',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {isFullscreen
+                    ? <><Minimize2 style={{ width: '14px', height: '14px' }} /> সাধারণ ভিউ</>
+                    : <><Maximize2 style={{ width: '14px', height: '14px' }} /> ফুলস্ক্রিন</>}
+                </button>
+
                 <button
                   onClick={() => setIsInLiveRoom(false)}
                   className="btn btn-secondary"
@@ -590,7 +846,18 @@ export default function LiveClassesPage() {
             </div>
 
             {/* Video, Whiteboard & Chat Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 2fr) minmax(300px, 1fr)', minHeight: '520px' }}>
+            <div 
+              className="live-room-grid" 
+              style={{ 
+                display: 'grid', 
+                gridTemplateColumns: isChatOpen ? 'minmax(0, 1fr) 340px' : '1fr', 
+                flex: 1,
+                minHeight: 0,
+                height: isFullscreen ? '100%' : '560px',
+                maxHeight: isFullscreen ? '100%' : 'none',
+                overflow: 'hidden'
+              }}
+            >
               {/* Stage Container */}
               <div style={{
                 background: '#090d16',
@@ -599,18 +866,22 @@ export default function LiveClassesPage() {
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                borderRight: '1px solid #1e293b'
+                borderRight: isChatOpen ? '1px solid #1e293b' : 'none',
+                height: '100%',
+                minHeight: 0,
+                overflow: 'hidden'
               }}>
                 {/* Stage Header Info */}
                 <div style={{
-                  padding: '0.6rem 1rem',
+                  padding: '0.5rem 1rem',
                   backgroundColor: 'rgba(15, 23, 42, 0.9)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   fontSize: '0.78rem',
                   borderBottom: '1px solid #1e293b',
-                  zIndex: 2
+                  zIndex: 2,
+                  flexShrink: 0
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                     <span style={{ backgroundColor: 'var(--primary-teal)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
@@ -637,7 +908,7 @@ export default function LiveClassesPage() {
                 </div>
 
                 {/* Main Visual Display (Whiteboard or Slides) */}
-                <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minHeight: '420px', backgroundColor: '#1a202c' }}>
+                <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', backgroundColor: '#1a202c' }}>
                   {teacherMode === 'whiteboard' ? (
                     <canvas
                       ref={studentWhiteboardRef}
@@ -690,70 +961,248 @@ export default function LiveClassesPage() {
                     </div>
                   )}
 
-                  {/* Floating Teacher Webcam & Audio Wave Overlay */}
+                  {/* Floating Teacher Webcam & Audio Overlay */}
                   <div style={{
                     position: 'absolute',
                     bottom: '1rem',
                     right: '1rem',
-                    width: '180px',
+                    width: isCamEnlarged ? '320px' : '200px',
+                    height: isCamEnlarged ? '200px' : '130px',
                     backgroundColor: '#0f172a',
                     borderRadius: '10px',
                     border: '2px solid var(--primary-teal)',
-                    padding: '0.65rem',
-                    boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
-                    zIndex: 10
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                    zIndex: 10,
+                    transition: 'all 0.25s ease'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
-                      <div style={{
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--primary-teal)',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: '1rem'
-                      }}>
-                        👨‍🏫
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
-                          {teacherMedia.teacherName || activeSession.instructor}
-                        </div>
-                        <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>ইন্সট্রাক্টর</span>
-                      </div>
-                    </div>
+                    {/* Background Audio Player for Student */}
+                    <audio
+                      ref={(el) => {
+                        remoteAudioRef.current = el;
+                        if (el && remoteStream && el.srcObject !== remoteStream) {
+                          el.srcObject = remoteStream;
+                          el.play().catch(() => {});
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      muted={isStudentAudioMuted}
+                      style={{ display: 'none' }}
+                    />
 
-                    {/* Animated Audio Waveform when Mic is on */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      backgroundColor: 'rgba(255,255,255,0.05)',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '4px'
-                    }}>
-                      <span style={{ fontSize: '0.68rem', color: teacherMedia.isMicOn ? '#48bb78' : '#e53e3e', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          width: '6px',
-                          height: '6px',
-                          borderRadius: '50%',
-                          backgroundColor: teacherMedia.isMicOn ? '#48bb78' : '#e53e3e'
-                        }} />
-                        {teacherMedia.isMicOn ? 'কথা বলছেন (Live Audio)' : 'মাইক বন্ধ'}
-                      </span>
+                    {remoteStream && teacherMedia.isCamOn !== false ? (
+                      <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#000' }}>
+                        <video
+                          ref={(el) => {
+                            remoteVideoRef.current = el;
+                            if (el && remoteStream && el.srcObject !== remoteStream) {
+                              el.srcObject = remoteStream;
+                              el.play().catch(() => {
+                                el.muted = true;
+                                el.play().catch(() => {});
+                              });
+                            }
+                          }}
+                          autoPlay
+                          playsInline
+                          muted={isStudentAudioMuted}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block'
+                          }}
+                        />
 
-                      {teacherMedia.isMicOn && (
-                        <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', height: '12px' }}>
-                          <span style={{ width: '2px', height: '10px', backgroundColor: '#48bb78', animation: 'pulse 0.5s infinite' }} />
-                          <span style={{ width: '2px', height: '14px', backgroundColor: '#48bb78', animation: 'pulse 0.8s infinite' }} />
-                          <span style={{ width: '2px', height: '8px', backgroundColor: '#48bb78', animation: 'pulse 0.6s infinite' }} />
+                        {/* Top Badges */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '6px',
+                          left: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          zIndex: 2
+                        }}>
+                          <span style={{
+                            backgroundColor: '#e53e3e',
+                            color: '#fff',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            padding: '0.12rem 0.45rem',
+                            borderRadius: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#fff' }} />
+                            LIVE
+                          </span>
                         </div>
-                      )}
-                    </div>
+
+                        {/* Top Right Controls (Mute/Unmute sound & Enlarge) */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '6px',
+                          right: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          zIndex: 2
+                        }}>
+                          <button
+                            onClick={() => {
+                              const nextMuted = !isStudentAudioMuted;
+                              setIsStudentAudioMuted(nextMuted);
+                              if (remoteVideoRef.current) remoteVideoRef.current.muted = nextMuted;
+                              if (remoteAudioRef.current) remoteAudioRef.current.muted = nextMuted;
+                            }}
+                            title={isStudentAudioMuted ? 'সাউন্ড অন করুন (Unmute)' : 'সাউন্ড মিউট করুন (Mute)'}
+                            style={{
+                              backgroundColor: isStudentAudioMuted ? '#e53e3e' : 'rgba(0,0,0,0.6)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              width: '22px',
+                              height: '22px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isStudentAudioMuted ? <VolumeX style={{ width: '12px', height: '12px' }} /> : <Volume2 style={{ width: '12px', height: '12px' }} />}
+                          </button>
+
+                          <button
+                            onClick={() => setIsCamEnlarged(!isCamEnlarged)}
+                            title={isCamEnlarged ? 'ছোট ভিউ (Minimize)' : 'বড় ভিউ (Enlarge)'}
+                            style={{
+                              backgroundColor: 'rgba(0,0,0,0.6)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              width: '22px',
+                              height: '22px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isCamEnlarged ? <Minimize2 style={{ width: '12px', height: '12px' }} /> : <Maximize2 style={{ width: '12px', height: '12px' }} />}
+                          </button>
+                        </div>
+
+                        {/* Bottom Gradient with Teacher Name & Mic Status */}
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          padding: '4px 8px',
+                          background: 'linear-gradient(transparent, rgba(15, 23, 42, 0.95))',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          zIndex: 2
+                        }}>
+                          <span style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 700, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                            {teacherMedia.teacherName || activeSession.instructor}
+                          </span>
+                          <span style={{
+                            fontSize: '0.65rem',
+                            color: teacherMedia.isMicOn ? '#48bb78' : '#e53e3e',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: teacherMedia.isMicOn ? '#48bb78' : '#e53e3e' }} />
+                            {teacherMedia.isMicOn ? 'Live Audio' : 'Muted'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '0.75rem', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{
+                              width: '34px',
+                              height: '34px',
+                              borderRadius: '50%',
+                              backgroundColor: 'var(--primary-teal)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '0.95rem'
+                            }}>
+                              👨‍🏫
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '0.76rem', fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+                                {teacherMedia.teacherName || activeSession.instructor}
+                              </div>
+                              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>ইন্সট্রাক্টর</span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              const nextMuted = !isStudentAudioMuted;
+                              setIsStudentAudioMuted(nextMuted);
+                              if (remoteAudioRef.current) remoteAudioRef.current.muted = nextMuted;
+                            }}
+                            title={isStudentAudioMuted ? 'সাউন্ড অন করুন (Unmute)' : 'সাউন্ড মিউট করুন (Mute)'}
+                            style={{
+                              backgroundColor: isStudentAudioMuted ? '#e53e3e' : '#2d3748',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              width: '24px',
+                              height: '24px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {isStudentAudioMuted ? <VolumeX style={{ width: '13px', height: '13px' }} /> : <Volume2 style={{ width: '13px', height: '13px' }} />}
+                          </button>
+                        </div>
+
+                        {/* Animated Audio Waveform when Mic is on */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: 'rgba(255,255,255,0.06)',
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '4px'
+                        }}>
+                          <span style={{ fontSize: '0.66rem', color: teacherMedia.isMicOn ? '#48bb78' : '#e53e3e', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              backgroundColor: teacherMedia.isMicOn ? '#48bb78' : '#e53e3e'
+                            }} />
+                            {teacherMedia.isMicOn ? 'কথা বলছেন (Live Audio)' : 'মাইক বন্ধ'}
+                          </span>
+
+                          {teacherMedia.isMicOn && (
+                            <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', height: '12px' }}>
+                              <span style={{ width: '2px', height: '10px', backgroundColor: '#48bb78', animation: 'pulse 0.5s infinite' }} />
+                              <span style={{ width: '2px', height: '14px', backgroundColor: '#48bb78', animation: 'pulse 0.8s infinite' }} />
+                              <span style={{ width: '2px', height: '8px', backgroundColor: '#48bb78', animation: 'pulse 0.6s infinite' }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Floating Reactions */}
@@ -773,13 +1222,14 @@ export default function LiveClassesPage() {
                 <div style={{
                   backgroundColor: 'rgba(15, 23, 42, 0.95)',
                   backdropFilter: 'blur(8px)',
-                  padding: '0.75rem 1.25rem',
+                  padding: '0.55rem 1.25rem',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   flexWrap: 'wrap',
                   gap: '0.5rem',
-                  borderTop: '1px solid #1e293b'
+                  borderTop: '1px solid #1e293b',
+                  flexShrink: 0
                 }}>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button
@@ -820,6 +1270,29 @@ export default function LiveClassesPage() {
                         </button>
                       ))}
                     </div>
+
+                    {/* Google Meet style Chat Toggle Button */}
+                    <button
+                      onClick={() => setIsChatOpen(!isChatOpen)}
+                      className="btn"
+                      style={{
+                        padding: '0.45rem 0.9rem',
+                        fontSize: '0.82rem',
+                        backgroundColor: isChatOpen ? 'var(--primary-teal)' : 'rgba(255,255,255,0.15)',
+                        color: '#fff',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontWeight: 600,
+                        borderRadius: '20px',
+                        cursor: 'pointer'
+                      }}
+                      title={isChatOpen ? 'চ্যাট বক্স হাইড করুন' : 'লাইভ চ্যাট খুলুন'}
+                    >
+                      <MessageSquare style={{ width: '14px', height: '14px' }} />
+                      {isChatOpen ? 'চ্যাট বন্ধ' : '💬 চ্যাট'}
+                    </button>
                   </div>
 
                   <span style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -832,26 +1305,47 @@ export default function LiveClassesPage() {
               <div style={{
                 backgroundColor: 'var(--white)',
                 borderLeft: '1px solid var(--gray-200)',
-                display: 'flex',
+                display: isChatOpen ? 'flex' : 'none',
                 flexDirection: 'column',
-                minHeight: '520px'
+                height: '100%',
+                minHeight: 0,
+                overflow: 'hidden'
               }}>
                 <div style={{
-                  padding: '0.85rem 1rem',
+                  padding: '0.65rem 1rem',
                   borderBottom: '1px solid var(--gray-200)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   fontSize: '0.85rem',
                   fontWeight: 700,
-                  color: 'var(--text-charcoal)'
+                  color: 'var(--text-charcoal)',
+                  flexShrink: 0
                 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <MessageSquare style={{ width: '15px', height: '15px', color: 'var(--primary-teal)' }} /> লাইভ চ্যাট ফিড
                   </span>
-                  <span style={{ fontSize: '0.72rem', backgroundColor: '#e6fffa', color: '#276749', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
-                    সক্রিয়
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.72rem', backgroundColor: '#e6fffa', color: '#276749', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                      সক্রিয়
+                    </span>
+                    <button
+                      onClick={() => setIsChatOpen(false)}
+                      title="চ্যাট বন্ধ করুন"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: 'var(--gray-600)'
+                      }}
+                    >
+                      <X style={{ width: '16px', height: '16px' }} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Active Quiz Poll Card (When Teacher Broadcasts Poll) */}
@@ -927,7 +1421,7 @@ export default function LiveClassesPage() {
                 )}
 
                 {/* Messages List */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {messages.length === 0 && (
                     <div style={{ textAlign: 'center', color: 'var(--gray-400)', padding: '2.5rem 1rem', fontSize: '0.85rem' }}>
                       <p style={{ margin: 0 }}>এখনো কোনো চ্যাট বার্তা নেই।</p>
@@ -958,7 +1452,7 @@ export default function LiveClassesPage() {
                 </div>
 
                 {/* Send form */}
-                <form onSubmit={handleSendMessage} style={{ padding: '0.75rem', borderTop: '1px solid var(--gray-200)', display: 'flex', gap: '0.5rem' }}>
+                <form onSubmit={handleSendMessage} style={{ padding: '0.65rem 0.75rem', borderTop: '1px solid var(--gray-200)', display: 'flex', gap: '0.5rem', flexShrink: 0, backgroundColor: 'var(--white)' }}>
                   <input
                     type="text"
                     placeholder="প্রশ্ন করুন বা মন্তব্য লিখুন..."
@@ -1125,18 +1619,61 @@ export default function LiveClassesPage() {
 
                   {/* Bottom Actions */}
                   <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--gray-200)' }}>
-                    <button
-                      onClick={() => {
-                        setActiveSession(session);
-                        setIsInLiveRoom(true);
-                        window.scrollTo({ top: 120, behavior: 'smooth' });
-                      }}
-                      className="btn btn-primary"
-                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.6rem 1rem', fontSize: '0.85rem' }}
-                    >
-                      <Play style={{ width: '14px', height: '14px' }} />
-                      লাইভ ক্লাসে যোগ দিন
-                    </button>
+                    {isLiveNow ? (
+                      <button
+                        onClick={() => {
+                          setActiveSession(session);
+                          setIsInLiveRoom(true);
+                          window.scrollTo({ top: 120, behavior: 'smooth' });
+                        }}
+                        className="btn btn-primary"
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          padding: '0.6rem 1rem',
+                          fontSize: '0.85rem',
+                          backgroundColor: '#e53e3e',
+                          borderColor: '#e53e3e',
+                          color: '#fff',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 10px rgba(229, 62, 62, 0.25)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Play style={{ width: '14px', height: '14px', fill: '#fff' }} />
+                        লাইভ ক্লাসে যোগ দিন
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          alert('শিক্ষক এখনো এই ক্লাসটি লাইভ শুরু করেননি। শিক্ষক লাইভে আসার সাথে সাথে জয়েন বাটনটি সক্রিয় হয়ে যাবে।');
+                        }}
+                        className="btn btn-secondary"
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          padding: '0.6rem 1rem',
+                          fontSize: '0.82rem',
+                          backgroundColor: '#f1f5f9',
+                          color: '#64748b',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          cursor: 'not-allowed'
+                        }}
+                        title="শিক্ষক লাইভে আসা পর্যন্ত অপেক্ষা করুন"
+                      >
+                        <Clock style={{ width: '14px', height: '14px', color: '#94a3b8' }} />
+                        লাইভ শুরু হওয়ার অপেক্ষায়
+                      </button>
+                    )}
 
                     <button
                       onClick={() => toggleReminder(session.id)}
@@ -1176,133 +1713,268 @@ export default function LiveClassesPage() {
         {/* MODE 2: RECORDED CLASSES GRID */}
         {pageMode === 'recordings' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-            {filteredRecordings.map((rec) => (
-              <div
-                key={rec.id}
-                style={{
-                  backgroundColor: 'var(--white)',
-                  borderRadius: 'var(--border-radius-md)',
-                  border: '1px solid var(--gray-200)',
-                  overflow: 'hidden',
-                  boxShadow: 'var(--shadow-sm)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <div>
-                  {/* Thumbnail / Video Preview Bar */}
-                  <div
-                    onClick={() => setActiveRecordingForPlayer(rec)}
-                    style={{
-                      height: '170px',
-                      backgroundColor: '#111827',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      position: 'relative',
-                      cursor: 'pointer',
-                      color: '#fff'
-                    }}
-                  >
-                    <div style={{
-                      width: '52px',
-                      height: '52px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(49, 151, 149, 0.9)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-                    }}>
-                      <Play style={{ width: '22px', height: '22px', marginLeft: '3px', color: '#fff' }} />
+            {filteredRecordings.map((rec) => {
+              const isPending = !rec.videoUrl || rec.videoUploaded === false || rec.status === 'pending_upload';
+
+              return (
+                <div
+                  key={rec.id}
+                  style={{
+                    backgroundColor: 'var(--white)',
+                    borderRadius: 'var(--border-radius-md)',
+                    border: isPending ? '1.5px solid #fed7aa' : '1px solid var(--gray-200)',
+                    overflow: 'hidden',
+                    boxShadow: isPending ? '0 4px 12px rgba(245, 158, 11, 0.12)' : 'var(--shadow-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <div>
+                    {/* Thumbnail / Video Preview Bar */}
+                    {isPending ? (
+                      <div
+                        onClick={() => alert('শিক্ষক এখনও এই ক্লাসের ভিডিও ফাইল আপলোড করেননি। শিক্ষক তার পিসি থেকে ভিডিও আপলোড করার সাথে সাথে এটি আপনার জন্য উন্মুক্ত হবে।')}
+                        style={{
+                          height: '170px',
+                          backgroundColor: '#1f2937',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          cursor: 'not-allowed',
+                          color: '#fff',
+                          borderBottom: '1px solid #374151'
+                        }}
+                        title="ভিডিও ফাইল আপলোড হওয়ার পর দেখতে পারবেন"
+                      >
+                        <div style={{
+                          width: '52px',
+                          height: '52px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          border: '2px dashed #f59e0b',
+                          color: '#f59e0b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '0.4rem'
+                        }}>
+                          <Clock style={{ width: '22px', height: '22px' }} />
+                        </div>
+
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f59e0b' }}>
+                          ⏳ ভিডিও আপলোড প্রক্রিয়াধীন
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                          শিক্ষক কর্তৃক আপলোড সম্পন্ন হলে সক্রিয় হবে
+                        </span>
+
+                        <span style={{
+                          position: 'absolute',
+                          top: '12px',
+                          left: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          {rec.group}
+                        </span>
+
+                        <span style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          backgroundColor: '#d97706',
+                          color: '#fff',
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#fff', display: 'inline-block' }} />
+                          আপলোড অপেক্ষমাণ
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => handleOpenRecordingPlayer(rec)}
+                        style={{
+                          height: '170px',
+                          backgroundColor: '#111827',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          cursor: 'pointer',
+                          color: '#fff'
+                        }}
+                      >
+                        <div style={{
+                          width: '52px',
+                          height: '52px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(49, 151, 149, 0.9)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                        }}>
+                          <Play style={{ width: '22px', height: '22px', marginLeft: '3px', color: '#fff' }} />
+                        </div>
+
+                        <span style={{
+                          position: 'absolute',
+                          top: '12px',
+                          left: '12px',
+                          backgroundColor: 'var(--primary-teal)',
+                          color: '#fff',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          {rec.group}
+                        </span>
+
+                        <span style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          backgroundColor: '#16a34a',
+                          color: '#fff',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          fontWeight: 800
+                        }}>
+                          ✓ প্রস্তুত
+                        </span>
+
+                        <span style={{
+                          position: 'absolute',
+                          bottom: '12px',
+                          right: '12px',
+                          backgroundColor: 'rgba(0,0,0,0.8)',
+                          color: '#fff',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 600
+                        }}>
+                          {rec.duration}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Body Details */}
+                    <div style={{ padding: '1.25rem' }}>
+                      <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem', color: 'var(--text-charcoal)', lineHeight: 1.4 }}>
+                        {rec.title}
+                      </h3>
+                      <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.85rem', color: 'var(--gray-500)', lineHeight: 1.5 }}>
+                        {rec.description || 'সম্পূর্ণ ভিডিও লেকচার ও রিভিশন ম্যাটেরিয়াল।'}
+                      </p>
+
+                      {isPending && (
+                        <div style={{
+                          backgroundColor: '#fffbeb',
+                          border: '1px solid #fef3c7',
+                          borderRadius: '6px',
+                          padding: '0.45rem 0.75rem',
+                          fontSize: '0.78rem',
+                          color: '#b45309',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          marginBottom: '0.75rem'
+                        }}>
+                          <Clock style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                          <span>ভিডিও ফাইল আপলোডের অপেক্ষায় রয়েছে। আপলোড হলেই বাটনটি সক্রিয় হবে।</span>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--gray-500)' }}>
+                        <span>📅 {rec.date}</span>
+                        <span>👁️ {rec.views || 0} ভিউস</span>
+                      </div>
                     </div>
-
-                    <span style={{
-                      position: 'absolute',
-                      top: '12px',
-                      left: '12px',
-                      backgroundColor: 'var(--primary-teal)',
-                      color: '#fff',
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '4px',
-                      fontSize: '0.72rem',
-                      fontWeight: 700
-                    }}>
-                      {rec.group}
-                    </span>
-
-                    <span style={{
-                      position: 'absolute',
-                      bottom: '12px',
-                      right: '12px',
-                      backgroundColor: 'rgba(0,0,0,0.8)',
-                      color: '#fff',
-                      padding: '0.15rem 0.5rem',
-                      borderRadius: '4px',
-                      fontSize: '0.72rem',
-                      fontWeight: 600
-                    }}>
-                      {rec.duration}
-                    </span>
                   </div>
 
-                  {/* Body Details */}
-                  <div style={{ padding: '1.25rem' }}>
-                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem', color: 'var(--text-charcoal)', lineHeight: 1.4 }}>
-                      {rec.title}
-                    </h3>
-                    <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.85rem', color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                      {rec.description || 'সম্পূর্ণ ভিডিও লেকচার ও রিভিশন ম্যাটেরিয়াল।'}
-                    </p>
+                  {/* Footer Actions */}
+                  <div style={{
+                    padding: '0.85rem 1.25rem',
+                    borderTop: '1px solid var(--gray-200)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: 'var(--bg-light)',
+                    gap: '0.5rem',
+                    flexWrap: 'wrap'
+                  }}>
+                    {isPending ? (
+                      <button
+                        disabled
+                        style={{
+                          padding: '0.45rem 1rem',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          backgroundColor: '#f1f5f9',
+                          color: '#94a3b8',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          cursor: 'not-allowed'
+                        }}
+                        title="শিক্ষক এখনও এই ক্লাসের ভিডিও ফাইল আপলোড করেননি।"
+                      >
+                        <Clock style={{ width: '13px', height: '13px' }} />
+                        ভিডিও আপলোড দেয়ার পর দেখতে পারবেন
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleOpenRecordingPlayer(rec)}
+                        className="btn btn-teal"
+                        style={{ padding: '0.45rem 1.1rem', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                      >
+                        <Play style={{ width: '13px', height: '13px', fill: '#fff' }} />
+                        ক্লাসটি দেখুন (Watch Class)
+                      </button>
+                    )}
 
-                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.78rem', color: 'var(--gray-500)' }}>
-                      <span>📅 {rec.date}</span>
-                      <span>👁️ {rec.views || 0} ভিউস</span>
-                    </div>
+                    {rec.sheetUrl && (
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          alert(`"${rec.sheetUrl || 'লেকচার শিট'}" ডাউনলোড সম্পন্ন হয়েছে।`);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontSize: '0.78rem',
+                          color: 'var(--primary-teal)',
+                          textDecoration: 'none',
+                          fontWeight: 600
+                        }}
+                      >
+                        <Download style={{ width: '13px', height: '13px' }} /> শিট
+                      </a>
+                    )}
                   </div>
                 </div>
-
-                {/* Footer Actions */}
-                <div style={{
-                  padding: '0.85rem 1.25rem',
-                  borderTop: '1px solid var(--gray-200)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  backgroundColor: 'var(--bg-light)'
-                }}>
-                  <button
-                    onClick={() => setActiveRecordingForPlayer(rec)}
-                    className="btn btn-teal"
-                    style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                  >
-                    <Play style={{ width: '13px', height: '13px' }} />
-                    ক্লাসটি দেখুন
-                  </button>
-
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert(`"${rec.sheetUrl || 'লেকচার শিট'}" ডাউনলোড সম্পন্ন হয়েছে।`);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem',
-                      fontSize: '0.78rem',
-                      color: 'var(--primary-teal)',
-                      textDecoration: 'none',
-                      fontWeight: 600
-                    }}
-                  >
-                    <Download style={{ width: '13px', height: '13px' }} />
-                    লেকচার শিট
-                  </a>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {filteredRecordings.length === 0 && (
               <div style={{
@@ -1324,9 +1996,9 @@ export default function LiveClassesPage() {
 
         {/* Student Recording Video Modal */}
         {activeRecordingForPlayer && (
-          <div className="modal-backdrop" onClick={() => setActiveRecordingForPlayer(null)}>
+          <div className="modal-backdrop" onClick={() => { setActiveRecordingForPlayer(null); setVideoPlaybackError(false); }}>
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '820px', padding: '1.5rem' }}>
-              <button className="modal-close" onClick={() => setActiveRecordingForPlayer(null)}>&times;</button>
+              <button className="modal-close" onClick={() => { setActiveRecordingForPlayer(null); setVideoPlaybackError(false); }}>&times;</button>
               
               <h3 style={{ margin: '0 0 0.4rem 0', color: 'var(--text-charcoal)', fontSize: '1.3rem' }}>
                 {activeRecordingForPlayer.title}
@@ -1335,24 +2007,64 @@ export default function LiveClassesPage() {
                 গ্রুপ: {activeRecordingForPlayer.group} • সময়কাল: {activeRecordingForPlayer.duration}
               </span>
 
-              <div style={{ backgroundColor: '#000', borderRadius: '8px', overflow: 'hidden', minHeight: '400px', marginBottom: '1rem' }}>
-                {activeRecordingForPlayer.videoUrl.includes('youtube') ? (
-                  <iframe
-                    src={activeRecordingForPlayer.videoUrl}
-                    title={activeRecordingForPlayer.title}
-                    style={{ width: '100%', height: '400px', border: 'none' }}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : (
-                  <video
-                    src={activeRecordingForPlayer.videoUrl}
-                    controls
-                    autoPlay
-                    style={{ width: '100%', height: '400px' }}
-                  />
-                )}
-              </div>
+              {(() => {
+                const rawUrl = activeRecordingForPlayer.videoUrl || '';
+                const resolvedUrl = rawUrl.startsWith('/uploads') ? `${getCustomServerUrl()}${rawUrl}` : rawUrl;
+                const isYouTube = isYouTubeUrl(resolvedUrl);
+
+                return (
+                  <div style={{ backgroundColor: '#000', borderRadius: '8px', overflow: 'hidden', minHeight: '400px', marginBottom: '1rem', position: 'relative' }}>
+                    {videoPlaybackError ? (
+                      <div style={{ padding: '3.5rem 1.5rem', textAlign: 'center', color: '#fff' }}>
+                        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📹 ⚠️</div>
+                        <h4 style={{ margin: '0 0 0.5rem 0', color: '#fff', fontSize: '1.15rem' }}>ভিডিও ফাইলটি লোড করা যাচ্ছে না</h4>
+                        <p style={{ margin: '0 auto 1.25rem auto', fontSize: '0.85rem', color: '#94a3b8', maxWidth: '440px', lineHeight: 1.5 }}>
+                          শিক্ষক এখনও এই ক্লাসের ভিডিও ফাইলটি সার্ভারে সম্পূর্ণ আপলোড করেননি বা ফাইলটি সরিয়ে ফেলেছেন। শিক্ষক ভিডিওটি আবার আপলোড করলে এটি দেখতে পাবেন।
+                        </p>
+                      </div>
+                    ) : isYouTube ? (
+                      <div style={{ position: 'relative', width: '100%', height: '400px' }}>
+                        <iframe
+                          src={formatYouTubeEmbedUrl(resolvedUrl, true)}
+                          title={activeRecordingForPlayer.title}
+                          style={{ width: '100%', height: '100%', border: 'none' }}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                        {/* EduFast Custom Branding Pill */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          left: '12px',
+                          background: 'rgba(15, 23, 42, 0.88)',
+                          backdropFilter: 'blur(8px)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          borderRadius: '8px',
+                          padding: '0.25rem 0.65rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          pointerEvents: 'none',
+                          zIndex: 4
+                        }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--primary-teal, #14b8a6)' }}>EduFast Archive</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <video
+                        key={resolvedUrl}
+                        src={resolvedUrl}
+                        controls
+                        autoPlay
+                        playsInline
+                        preload="auto"
+                        onError={() => setVideoPlaybackError(true)}
+                        style={{ width: '100%', height: '400px', display: 'block', backgroundColor: '#000' }}
+                      />
+                    )}
+                  </div>
+                );
+              })()}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--gray-600)', maxWidth: '540px' }}>

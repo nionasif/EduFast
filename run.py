@@ -7,7 +7,7 @@ Includes automatic crash recovery & port clearing.
 
 import os
 import sys
-import shutil
+import shutil   
 import signal
 import threading
 import subprocess
@@ -43,6 +43,23 @@ shutting_down = False
 _lock_socket = None
 
 
+def get_backend_port():
+    """Reads PORT from backend/.env or defaults to 5000."""
+    backend_env = BACKEND_DIR / ".env"
+    if backend_env.exists():
+        try:
+            with open(backend_env, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("PORT="):
+                        val = line.split("=", 1)[1].strip()
+                        if val.isdigit():
+                            return int(val)
+        except Exception:
+            pass
+    return 5000
+
+
 def free_ports(ports):
     """Frees specified ports if an old crashed process is still occupying them."""
     if sys.platform != "win32":
@@ -57,16 +74,17 @@ def free_ports(ports):
                 stderr=subprocess.DEVNULL,
             )
             for line in output.splitlines():
-                if "LISTENING" in line or "ESTABLISHED" in line:
+                if "LISTENING" in line:
                     parts = line.strip().split()
-                    pid = parts[-1]
-                    if pid and pid.isdigit() and int(pid) != 0 and int(pid) != os.getpid():
-                        subprocess.run(
-                            ["taskkill", "/F", "/T", "/PID", pid],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                        killed_any = True
+                    if len(parts) >= 5 and parts[1].endswith(f":{port}"):
+                        pid = parts[-1]
+                        if pid and pid.isdigit() and int(pid) != 0 and int(pid) != os.getpid():
+                            subprocess.run(
+                                ["taskkill", "/F", "/T", "/PID", pid],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                            )
+                            killed_any = True
         except Exception:
             pass
     if killed_any:
@@ -76,7 +94,7 @@ def free_ports(ports):
 def acquire_single_instance_lock():
     """Ensure previous duplicate instances are cleanly closed and single instance acquired."""
     global _lock_socket
-    free_ports([50999, 5001, 5173])
+    free_ports([50999, 5000, 5001, 5173])
     _lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         _lock_socket.bind(("127.0.0.1", 50999))
@@ -133,8 +151,8 @@ def check_prerequisites():
         npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
         subprocess.run([npm_cmd, "install"], cwd=FRONTEND_DIR, check=True)
 
-    # 4. Clean up any leftover processes on ports 5001 / 5173
-    free_ports([5001, 5173])
+    # 4. Clean up any leftover processes on ports 5000 / 5001 / 5173
+    free_ports([5000, 5001, 5173])
 
 
 def stream_logs(pipe, log_func):
@@ -178,7 +196,7 @@ def stop_all(*args):
             except Exception:
                 pass
 
-    free_ports([5001, 5173, 50999])
+    free_ports([5000, 5001, 5173, 50999])
     log_system("All services stopped. Goodbye!")
     sys.exit(0)
 
@@ -187,10 +205,12 @@ def main():
     acquire_single_instance_lock()
     check_prerequisites()
 
+    backend_port = get_backend_port()
+
     print(f"\n{BOLD}{CYAN}===================================================={RESET}")
     print(f"{BOLD}{GREEN}           🚀 EduFast Platform Launcher              {RESET}")
     print(f"{BOLD}{CYAN}===================================================={RESET}")
-    print(f"  • Backend URL:  {BOLD}http://localhost:5001{RESET}")
+    print(f"  • Backend URL:  {BOLD}http://localhost:{backend_port}{RESET}")
     print(f"  • Frontend URL: {BOLD}http://localhost:5173{RESET}")
     print(f"  • Stop Servers: Press {YELLOW}{BOLD}Ctrl + C{RESET} at any time")
     print(f"{BOLD}{CYAN}===================================================={RESET}\n")
@@ -203,7 +223,7 @@ def main():
     npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
 
     def start_backend():
-        free_ports([5001])
+        free_ports([backend_port, 5000, 5001])
         proc = subprocess.Popen(
             [node_cmd, "server.js"],
             cwd=BACKEND_DIR,

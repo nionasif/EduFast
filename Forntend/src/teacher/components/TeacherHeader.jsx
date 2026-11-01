@@ -41,7 +41,7 @@ export default function TeacherHeader({
     { id: 'recordings', label: language === 'bn' ? 'রেকর্ডিংস' : 'Recordings', icon: Video, count: recordingsCount },
     { id: 'courses', label: language === 'bn' ? 'কোর্সেস' : 'Courses', icon: BookOpen, count: coursesCount },
     { id: 'notices', label: language === 'bn' ? 'নোটিশ' : 'Notices', icon: AlertCircle, count: noticesCount },
-    { id: 'settings', label: language === 'bn' ? 'প্রোফাইল সেটিংস' : 'Settings', icon: Settings }
+    { id: 'settings', label: language === 'bn' ? 'প্রোফাইল সেটিংস' : 'Profile Settings', icon: Settings }
   ];
 
   return (
@@ -143,31 +143,6 @@ export default function TeacherHeader({
 
       {/* Right Action Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
-        {/* Language Switcher Toggle */}
-        <button
-          type="button"
-          onClick={toggleLanguage}
-          title={language === 'bn' ? 'Switch to English' : 'বাংলায় পরিবর্তন করুন'}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            backgroundColor: 'rgba(13, 148, 136, 0.15)',
-            border: '1px solid rgba(13, 148, 136, 0.35)',
-            borderRadius: '20px',
-            padding: '0.3rem 0.65rem',
-            color: 'var(--primary-teal)',
-            fontSize: '0.75rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <Globe style={{ width: '13px', height: '13px' }} />
-          <span>{language === 'bn' ? 'English' : 'বাংলা'}</span>
-        </button>
-
         {/* Dark / Light Mode Toggle */}
         <button
           type="button"

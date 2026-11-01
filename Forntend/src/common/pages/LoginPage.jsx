@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import EmailOTPModal from '../components/EmailOTPModal';
+import api, { setAuthSession } from '../../services/api';
 
 export default function LoginPage({
   onLoginSuccess,
@@ -30,7 +31,7 @@ export default function LoginPage({
     } catch {}
   }, [initialRole, onNavigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!email || !password) {
@@ -38,82 +39,68 @@ export default function LoginPage({
       return;
     }
 
-    if (role === 'teacher') {
-      // Teacher Login Logic
-      try {
-        const storedProfile = localStorage.getItem('edufast_teacher_profile');
-        const teacherProfile = storedProfile ? JSON.parse(storedProfile) : null;
-        
-        if (teacherProfile && teacherProfile.email && email.toLowerCase() === teacherProfile.email.toLowerCase()) {
-          localStorage.setItem('edufast_teacher_session', JSON.stringify(teacherProfile));
-          if (onTeacherLoginSuccess) {
-            onTeacherLoginSuccess(teacherProfile);
-          } else {
-            onNavigate('teacher');
-          }
-          addToast(`Welcome back, ${teacherProfile.name || 'Instructor'}!`, 'success');
+    setIsSubmitting(true);
+    const cleanIdentifier = email.trim();
+
+    try {
+      const data = await api.post('/auth/login', {
+        email: cleanIdentifier,
+        password,
+        role
+      });
+
+      setIsSubmitting(false);
+
+      if (data.requiresVerification) {
+        addToast(data.error || 'Please verify your email before logging in.', 'error');
+        setUnverifiedEmail(data.email || cleanIdentifier);
+        setIsVerifyingOtp(true);
+        return;
+      }
+
+      if (data.success && data.user) {
+        const userRole = (data.role || role || 'student').toLowerCase();
+        const expectedRole = (role || 'student').toLowerCase();
+
+        // Extra client-side safeguard: Prevent cross-role redirect
+        if (userRole !== expectedRole) {
+          addToast(`Security Notice: Cannot log in as ${userRole} from ${expectedRole} portal. Please select the correct tab.`, 'error');
           return;
         }
-      } catch {}
 
-      if (email.includes('@') && password.length >= 6) {
-        const teacherData = {
-          id: `teacher-${Date.now()}`,
-          name: email.split('@')[0],
-          email: email,
-          designation: 'Senior Instructor',
-          subject: 'Higher Mathematics'
-        };
-        localStorage.setItem('edufast_teacher_session', JSON.stringify(teacherData));
-        if (onTeacherLoginSuccess) {
-          onTeacherLoginSuccess(teacherData);
+        setAuthSession(data.token, data.user, userRole);
+
+        if (userRole === 'teacher') {
+          if (onTeacherLoginSuccess) {
+            onTeacherLoginSuccess(data.user);
+          } else if (onNavigate) {
+            onNavigate('teacher');
+          }
+          addToast(`Welcome back, Instructor ${data.user.name || ''}!`, 'success');
+        } else if (userRole === 'mentor') {
+          if (onNavigate) onNavigate('mentor');
+          addToast(`Welcome back, Mentor ${data.user.name || ''}!`, 'success');
+        } else if (userRole === 'admin') {
+          if (onNavigate) onNavigate('admin');
+          addToast('Welcome to EduFast Admin Portal!', 'success');
         } else {
-          onNavigate('teacher');
+          if (onLoginSuccess) onLoginSuccess(data.user);
+          addToast('Welcome back to EduFast!', 'success');
         }
-        addToast(`Logged in successfully as ${teacherData.name}.`, 'success');
-      } else {
-        addToast('Invalid teacher credentials. Password must be at least 6 characters.', 'error');
+        return;
       }
-    } else {
-      // Student Login
-      setIsSubmitting(true);
-      const cleanIdentifier = email.trim();
 
-      fetch('http://localhost:5001/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanIdentifier, password })
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          return { ok: res.ok, status: res.status, data };
-        })
-        .then(({ ok, status, data }) => {
-          setIsSubmitting(false);
-
-          if (status === 403 || data.requiresVerification) {
-            addToast(data.error || 'Please verify your email before logging in.', 'error');
-            setUnverifiedEmail(data.email || cleanIdentifier);
-            setIsVerifyingOtp(true);
-            return;
-          }
-
-          if (ok && data.success) {
-            try {
-              localStorage.setItem('edufast_student_session', JSON.stringify(data.user));
-            } catch (e) {}
-            onLoginSuccess(data.user);
-            addToast('Welcome back to Edufast!', 'success');
-            return;
-          }
-
-          addToast(data.error || 'Invalid credentials. Please check your email and password.', 'error');
-        })
-        .catch((err) => {
-          setIsSubmitting(false);
-          console.warn('Backend login unavailable:', err.message);
-          addToast('Could not connect to authentication server. Please ensure backend is running.', 'error');
-        });
+      addToast(data.error || 'Invalid credentials. Please check your details.', 'error');
+    } catch (err) {
+      setIsSubmitting(false);
+      console.warn('Backend login notice:', err.message);
+      if (err.data?.requiresVerification) {
+        addToast(err.data?.error || 'Please verify your email before logging in.', 'error');
+        setUnverifiedEmail(err.data?.email || cleanIdentifier);
+        setIsVerifyingOtp(true);
+        return;
+      }
+      addToast(err.message || 'Could not connect to authentication server.', 'error');
     }
   };
 
@@ -121,6 +108,31 @@ export default function LoginPage({
     setRole(newRole);
     setEmail('');
     setPassword('');
+  };
+
+  const handlePreFill = () => {
+    if (role === 'teacher') {
+      setEmail('teacher@edufast.com');
+      setPassword('teacher123');
+    } else if (role === 'mentor') {
+      setEmail('mentor@edufast.com');
+      setPassword('mentor123');
+    } else if (role === 'admin') {
+      setEmail('admin@edufast.com');
+      setPassword('admin123');
+    } else {
+      setEmail('student@edufast.com');
+      setPassword('password123');
+    }
+  };
+
+  const getRoleLabel = () => {
+    switch (role) {
+      case 'teacher': return 'Teacher';
+      case 'mentor': return 'Mentor';
+      case 'admin': return 'Admin';
+      default: return 'Student';
+    }
   };
 
   return (
@@ -145,65 +157,60 @@ export default function LoginPage({
         {/* Role Toggle Selector */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '8px',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '6px',
           backgroundColor: 'var(--gray-100, #f1f5f9)',
           padding: '5px',
           borderRadius: '12px',
           marginBottom: '1.75rem'
         }}>
-          <button
-            type="button"
-            onClick={() => handleSwitchRole('student')}
-            style={{
-              padding: '0.75rem',
-              borderRadius: '9px',
-              border: 'none',
-              backgroundColor: role === 'student' ? 'var(--primary-teal, #319795)' : 'transparent',
-              color: role === 'student' ? '#ffffff' : 'var(--gray-700, #4a5568)',
-              fontWeight: 700,
-              fontSize: '0.92rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem'
-            }}
-          >
-            🎓 Student (শিক্ষার্থী)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchRole('teacher')}
-            style={{
-              padding: '0.75rem',
-              borderRadius: '9px',
-              border: 'none',
-              backgroundColor: role === 'teacher' ? 'var(--primary-teal, #319795)' : 'transparent',
-              color: role === 'teacher' ? '#ffffff' : 'var(--gray-700, #4a5568)',
-              fontWeight: 700,
-              fontSize: '0.92rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.4rem'
-            }}
-          >
-            👨‍🏫 Teacher (শিক্ষক)
-          </button>
+          {[
+            { id: 'student', label: 'Student', icon: '🎓' },
+            { id: 'teacher', label: 'Teacher', icon: '👨‍🏫' },
+            { id: 'mentor', label: 'Mentor', icon: '🧑‍🏫' },
+            { id: 'admin', label: 'Admin', icon: '🛡️' }
+          ].map(r => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => handleSwitchRole(r.id)}
+              style={{
+                padding: '0.65rem 0.25rem',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: role === r.id ? 'var(--primary-teal, #319795)' : 'transparent',
+                color: role === r.id ? '#ffffff' : 'var(--gray-700, #4a5568)',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.15rem'
+              }}
+            >
+              <span style={{ fontSize: '1rem' }}>{r.icon}</span>
+              <span>{r.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Heading Header */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <h1 style={{ color: 'var(--primary-teal)', fontSize: '1.75rem', margin: '0 0 0.4rem 0', fontWeight: 800 }}>
-            {role === 'teacher' ? 'Teacher Studio Log In' : 'Student Log In'}
+            {role === 'teacher' ? 'Teacher Studio Log In' :
+             role === 'mentor' ? 'Mentor Doubt Portal Log In' :
+             role === 'admin' ? 'Admin Portal Log In' :
+             'Student Log In'}
           </h1>
           <p style={{ color: 'var(--gray-500)', fontSize: '0.88rem', margin: 0 }}>
             {role === 'teacher'
               ? 'Enter instructor credentials to manage courses and live streams.'
+              : role === 'mentor'
+              ? 'Enter mentor credentials to solve student doubts & review questions.'
+              : role === 'admin'
+              ? 'Enter system administrator credentials to access the control panel.'
               : 'Enter your registered credentials to access your courses & mock tests.'}
           </p>
         </div>
@@ -212,13 +219,21 @@ export default function LoginPage({
         <form onSubmit={handleSubmit}>
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: '0.4rem' }}>
-              {role === 'teacher' ? 'Email Address' : 'Email or Mobile Number (ইমেইল অথবা মোবাইল নম্বর)'}
+              {role === 'teacher' ? 'Email Address' :
+               role === 'mentor' ? 'Email or Mobile' :
+               role === 'admin' ? 'Username or Email' :
+               'Email or Mobile Number (ইমেইল অথবা মোবাইল নম্বর)'}
             </label>
             <input
               type={role === 'teacher' ? 'email' : 'text'}
               className="form-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
-              placeholder={role === 'teacher' ? 'e.g. teacher@edufast.com' : 'e.g. student@edufast.com or 018xxxxxxxx'}
+              placeholder={
+                role === 'teacher' ? 'e.g. teacher@edufast.com' :
+                role === 'mentor' ? 'e.g. mentor@edufast.com' :
+                role === 'admin' ? 'e.g. admin@edufast.com or admin' :
+                'e.g. student@edufast.com or 018xxxxxxxx'
+              }
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -250,6 +265,25 @@ export default function LoginPage({
             />
           </div>
 
+          {/* Quick Pre-fill helper */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+            <button
+              type="button"
+              onClick={handlePreFill}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary-teal, #319795)',
+                fontSize: '0.85rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              💡 Auto-fill {getRoleLabel()} Test Credentials
+            </button>
+          </div>
+
           <button
             type="submit"
             className="btn btn-primary"
@@ -257,7 +291,10 @@ export default function LoginPage({
             style={{
               width: '100%',
               height: '48px',
-              backgroundColor: role === 'teacher' ? 'var(--primary-teal, #319795)' : 'var(--cta-orange, #dd6b20)',
+              backgroundColor: role === 'teacher' ? 'var(--primary-teal, #319795)' :
+                               role === 'mentor' ? '#6366f1' :
+                               role === 'admin' ? '#0f172a' :
+                               'var(--cta-orange, #dd6b20)',
               border: 'none',
               borderRadius: '8px',
               color: '#ffffff',
@@ -286,7 +323,10 @@ export default function LoginPage({
                 Signing In...
               </>
             ) : (
-              role === 'teacher' ? 'Log In to Teacher Studio' : 'Log In as Student'
+              role === 'teacher' ? 'Log In to Teacher Studio' :
+              role === 'mentor' ? 'Log In as Mentor' :
+              role === 'admin' ? 'Log In to Admin Panel' :
+              'Log In as Student'
             )}
           </button>
         </form>

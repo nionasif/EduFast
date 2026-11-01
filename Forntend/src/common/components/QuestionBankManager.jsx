@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-const BACKEND_URL = 'http://localhost:5001';
+const BACKEND_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+
 
 const SUBJECT_OPTIONS = [
   { id: 'Physics', label: 'Physics (পদার্থবিজ্ঞান)', icon: '⚛️', color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.15)' },

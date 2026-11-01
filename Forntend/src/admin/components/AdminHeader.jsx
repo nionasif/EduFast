@@ -15,8 +15,6 @@ export default function AdminHeader({
     'students': 'Student Registry & CRM',
     'courses': 'Course Hub Management (Add / Edit / Remove Courses)',
     'universities': 'University & Admission Management (Add / Edit Varsities)',
-    'live-classes': 'Live Masterclasses & Schedule Management',
-    'question-bank': 'Past 15 Years Question Bank Archive Management',
     'analytics': 'Academic Performance Analytics',
     'notices': 'Broadcast & Notice Management',
     'settings': 'System Settings & Security'
@@ -26,9 +24,9 @@ export default function AdminHeader({
     <header className="admin-topbar">
       <div className="admin-topbar-left">
         <button
-          className="admin-icon-btn"
-          style={{ display: 'none' }}
+          className="admin-icon-btn admin-mobile-toggle-btn"
           onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
+          aria-label="Toggle admin sidebar"
         >
           ☰
         </button>
