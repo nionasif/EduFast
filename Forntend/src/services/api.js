@@ -12,7 +12,11 @@ export const getCustomServerUrl = () => {
     // If native Capacitor on mobile (or running as file/capacitor protocol)
     const isCapacitor = window.Capacitor?.isNativePlatform?.() || window.location?.protocol === 'capacitor:';
     if (isCapacitor) {
-      return 'http://192.168.10.16:5000';
+      return 'https://edufast-sp6h.onrender.com';
+    }
+    // If running in production (Vercel, custom domain, etc.)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return (import.meta.env.VITE_SOCKET_URL || 'https://edufast-sp6h.onrender.com').replace(/\/+$/, '');
     }
   }
   return (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000').replace(/\/+$/, '');
