@@ -22,6 +22,9 @@ function createMailTransporter() {
     port: 465,
     secure: true, // true for port 465
     family: 4, // Force IPv4 to prevent IPv6 ENETUNREACH
+    connectionTimeout: 3500, // 3.5s fast timeout if cloud host drops SMTP packets
+    greetingTimeout: 3500,
+    socketTimeout: 3500,
     auth: {
       user: emailUser,
       pass: emailPass.replace(/\s+/g, '') // remove any spaces in Google App Password

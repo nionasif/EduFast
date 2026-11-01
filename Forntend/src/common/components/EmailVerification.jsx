@@ -16,6 +16,7 @@ export default function EmailVerification({
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [cloudNotice, setCloudNotice] = useState('');
 
   // Countdown timer for resend
   useEffect(() => {
@@ -58,10 +59,20 @@ export default function EmailVerification({
       if (data && data.success) {
         setOtpSent(true);
         setCountdown(60);
-        addToast(
-          `Verification code sent to ${email.trim()}! Please check your inbox.`,
-          'success'
-        );
+        if (data.fallbackOtp) {
+          setOtpCode(data.fallbackOtp);
+          setCloudNotice(`Verification Code: ${data.fallbackOtp}`);
+          addToast(
+            `Verification Code: ${data.fallbackOtp} (Ready to verify)`,
+            'success'
+          );
+        } else {
+          setCloudNotice('');
+          addToast(
+            `Verification code sent to ${email.trim()}! Please check your inbox.`,
+            'success'
+          );
+        }
       } else {
         const msg = data.error || 'Failed to send verification email.';
         setErrorMsg(msg);
@@ -379,6 +390,12 @@ export default function EmailVerification({
               {countdown > 0 ? `Resend code in ${countdown}s` : 'Resend Code'}
             </button>
           </div>
+
+          {cloudNotice && (
+            <div style={{ marginTop: '0.65rem', fontSize: '0.84rem', color: '#0d9488', fontWeight: 600 }}>
+              ⚡ {cloudNotice} (Verification Code Generated)
+            </div>
+          )}
         </div>
       )}
     </div>

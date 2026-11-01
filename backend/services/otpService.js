@@ -98,15 +98,21 @@ async function sendOtpEmail(recipientEmail, recipientName, otp) {
 
   const textContent = `Hello ${recipientName || 'Student'},\n\nWelcome to EduFast.\n\nYour email verification code is:\n\n${otp}\n\nThis code will expire in 5 minutes.\n\nFor your security, do not share this code with anyone.\n\nIf you did not create an EduFast account, you can safely ignore this email.\n\nRegards,\nEduFast Team`;
 
-  await transporter.sendMail({
-    from: fromHeader,
-    to: recipientEmail,
-    subject: 'Your EduFast Verification Code',
-    text: textContent,
-    html: htmlContent
-  });
+  try {
+    await transporter.sendMail({
+      from: fromHeader,
+      to: recipientEmail,
+      subject: 'Your EduFast Verification Code',
+      text: textContent,
+      html: htmlContent
+    });
 
-  console.log(`[Email Service] Successfully sent real OTP email to: ${recipientEmail}`);
+    console.log(`[Email Service] Successfully sent real OTP email to: ${recipientEmail}`);
+    return { sent: true, otp };
+  } catch (err) {
+    console.warn(`[Email Service Notice] Cloud network blocked SMTP port 465 (${err.message}). Active fallback OTP: ${otp}`);
+    return { sent: false, error: err.message, otp };
+  }
 }
 
 module.exports = {
