@@ -7,21 +7,64 @@ try {
   puppeteer = null;
 }
 
-// Active verification sessions map (sessionId -> { browser, page, examType, board, year, roll, reg, createdAt })
+// Active verification sessions map (sessionId -> { page, examType, board, year, roll, reg, createdAt })
 const activeSessions = new Map();
 
-// Clean up expired sessions periodically (older than 3 minutes)
+// Shared Singleton Browser Instance Pool for lightning-fast subsequent launches
+let sharedBrowser = null;
+let browserLaunchPromise = null;
+
+async function getSharedBrowser() {
+  if (!puppeteer) {
+    throw new Error('Puppeteer is not installed on the server.');
+  }
+  if (sharedBrowser && sharedBrowser.isConnected()) {
+    return sharedBrowser;
+  }
+  if (browserLaunchPromise) {
+    return browserLaunchPromise;
+  }
+
+  const executablePath = getChromeExecutablePath();
+  browserLaunchPromise = puppeteer.launch({
+    executablePath: executablePath || undefined,
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote'
+    ]
+  }).then((b) => {
+    sharedBrowser = b;
+    browserLaunchPromise = null;
+    b.on('disconnected', () => {
+      sharedBrowser = null;
+    });
+    return b;
+  }).catch((err) => {
+    browserLaunchPromise = null;
+    throw err;
+  });
+
+  return browserLaunchPromise;
+}
+
+// Clean up expired sessions periodically (older than 2 minutes)
 setInterval(() => {
   const now = Date.now();
   for (const [id, sess] of activeSessions.entries()) {
-    if (now - sess.createdAt > 180000) {
+    if (now - sess.createdAt > 120000) {
       activeSessions.delete(id);
       try {
-        sess.browser.close();
+        if (sess.page) sess.page.close().catch(() => {});
       } catch (e) {}
     }
   }
-}, 60000);
+}, 30000);
 
 /**
  * Searches local verified board result registry and SQLite database.
@@ -172,42 +215,53 @@ function getChromeExecutablePath() {
 /**
  * Initializes a real-time live session on educationboardresults.gov.bd/v2/home
  * Returns the session ID and live CAPTCHA image (data:image/png;base64,...).
+ * Uses shared browser pool and asset blocking for ultra-fast response.
  */
 async function startVerificationSession(examType, board, year, roll, reg) {
-  if (!puppeteer) {
-    throw new Error('Puppeteer is not installed on the server.');
-  }
-
-  const executablePath = getChromeExecutablePath();
+  const browser = await getSharedBrowser();
   const sessionId = 'board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-  console.log(`[Live Board Scraper] Starting session ${sessionId} for Roll ${roll}, Board: ${board}, Year: ${year}...`);
+  console.log(`[Live Board Scraper] Fast-track session ${sessionId} for Roll ${roll}, Board: ${board}, Year: ${year}...`);
 
-  const browser = await puppeteer.launch({
-    executablePath: executablePath || undefined,
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled'
-    ]
-  });
-
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
     await page.setViewport({ width: 1280, height: 800 });
 
-    // Navigate to government portal
-    console.log(`[Session ${sessionId}] Navigating to https://educationboardresults.gov.bd/v2/home ...`);
-    await page.goto('https://educationboardresults.gov.bd/v2/home', {
-      waitUntil: 'networkidle2',
-      timeout: 30000
+    // Performance Boost: Block heavy assets (media, fonts, tracking scripts) while keeping captcha & forms
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const type = req.resourceType();
+      const url = req.url().toLowerCase();
+      if (
+        url.includes('captcha') ||
+        type === 'document' ||
+        type === 'script' ||
+        type === 'xhr' ||
+        type === 'fetch' ||
+        type === 'stylesheet' ||
+        type === 'image'
+      ) {
+        return req.continue();
+      }
+      if (['media', 'font'].includes(type)) {
+        return req.abort();
+      }
+      if (url.includes('google-analytics') || url.includes('gtag') || url.includes('facebook') || url.includes('ads')) {
+        return req.abort();
+      }
+      req.continue();
     });
 
-    // Wait 5 seconds for BPanel challenge redirection to complete
-    await new Promise((r) => setTimeout(r, 5000));
+    // Fast DOMContentLoaded navigation
+    await page.goto('https://educationboardresults.gov.bd/v2/home', {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000
+    });
+
+    // Dynamic wait for challenge redirection to finish and #exam dropdown to appear
+    await page.waitForSelector('#exam', { visible: true, timeout: 12000 });
 
     // Map board name
     const rawBoard = (board || '').toLowerCase().trim();
@@ -237,7 +291,13 @@ async function startVerificationSession(examType, board, year, roll, reg) {
     await page.select('#result_type', '1'); // 1 = Individual/Detailed Result
 
     // Wait for dynamic inputs to unlock
-    await new Promise((r) => setTimeout(r, 2000));
+    await Promise.race([
+      page.waitForFunction(() => {
+        const el = document.querySelector('#roll');
+        return el && !el.disabled;
+      }),
+      new Promise((r) => setTimeout(r, 1200))
+    ]);
 
     // Type Roll and Registration
     await page.type('#roll', String(roll));
@@ -246,7 +306,7 @@ async function startVerificationSession(examType, board, year, roll, reg) {
     }
 
     // Capture the official live captcha image
-    const captchaEl = await page.$('#captcha_img');
+    const captchaEl = await page.waitForSelector('#captcha_img', { visible: true, timeout: 6000 });
     if (!captchaEl) {
       throw new Error('Could not find captcha image on education board portal.');
     }
@@ -257,7 +317,6 @@ async function startVerificationSession(examType, board, year, roll, reg) {
 
     // Store active session in memory
     activeSessions.set(sessionId, {
-      browser,
       page,
       examType,
       board: mappedBoard,
@@ -267,7 +326,7 @@ async function startVerificationSession(examType, board, year, roll, reg) {
       createdAt: Date.now()
     });
 
-    console.log(`[Session ${sessionId}] Live captcha captured successfully.`);
+    console.log(`[Session ${sessionId}] Live captcha captured successfully in fast-track mode.`);
     return {
       success: true,
       sessionId,
@@ -275,7 +334,7 @@ async function startVerificationSession(examType, board, year, roll, reg) {
     };
   } catch (err) {
     try {
-      await browser.close();
+      await page.close();
     } catch (closeErr) {}
     console.error(`[Session ${sessionId}] Failed to initialize:`, err.message);
     throw err;
@@ -296,10 +355,10 @@ async function reloadSessionCaptcha(sessionId) {
     const reloadBtn = await page.$('#captcha_reload');
     if (reloadBtn) {
       await reloadBtn.click();
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 1000));
     }
 
-    const captchaEl = await page.$('#captcha_img');
+    const captchaEl = await page.waitForSelector('#captcha_img', { visible: true, timeout: 5000 });
     const buffer = await captchaEl.screenshot();
     const base64Data = buffer.toString('base64');
     return {
@@ -320,7 +379,7 @@ async function submitCaptchaAndGetResult(sessionId, captchaDigits) {
     throw new Error('Verification session has expired. Please try again.');
   }
 
-  const { browser, page, examType, board, year, roll, reg } = sess;
+  const { page, examType, board, year, roll, reg } = sess;
   activeSessions.delete(sessionId);
 
   try {
@@ -330,26 +389,39 @@ async function submitCaptchaAndGetResult(sessionId, captchaDigits) {
     }
 
     console.log(`[Session ${sessionId}] Typing captcha ${cleanDigits} and submitting...`);
+    
+    // Auto-dismiss any potential alert dialog from government site
+    page.once('dialog', async (dialog) => {
+      console.warn(`[Session ${sessionId}] Portal Alert:`, dialog.message());
+      await dialog.dismiss().catch(() => {});
+    });
+
     await page.focus('#captcha');
     await page.type('#captcha', cleanDigits);
 
-    // Set up AJAX interception for /v2/getres
+    // Set up AJAX interception for /v2/getres with 12s timeout
     const resultPromise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('Government server response timed out after 18 seconds.'));
-      }, 18000);
+        reject(new Error('Government server response timed out after 12 seconds.'));
+      }, 12000);
 
-      page.on('response', async (res) => {
-        if (res.url().includes('getres')) {
-          clearTimeout(timer);
-          try {
-            const json = await res.json();
-            resolve(json);
-          } catch (e) {
-            reject(new Error('Failed to parse education board response.'));
+      const responseHandler = async (res) => {
+        try {
+          if (res.url().includes('getres')) {
+            clearTimeout(timer);
+            page.off('response', responseHandler);
+            const text = await res.text();
+            try {
+              const json = JSON.parse(text);
+              resolve(json);
+            } catch {
+              reject(new Error('Failed to parse education board response.'));
+            }
           }
-        }
-      });
+        } catch (e) {}
+      };
+
+      page.on('response', responseHandler);
     });
 
     // Click submit
@@ -432,9 +504,23 @@ async function submitCaptchaAndGetResult(sessionId, captchaDigits) {
     };
   } finally {
     try {
-      await browser.close();
+      await page.close();
     } catch (e) {}
   }
+}
+
+/**
+ * Cleanly cancels and closes a verification session.
+ */
+async function cancelVerificationSession(sessionId) {
+  const sess = activeSessions.get(sessionId);
+  if (sess) {
+    activeSessions.delete(sessionId);
+    try {
+      if (sess.page) await sess.page.close();
+    } catch (e) {}
+  }
+  return { success: true };
 }
 
 /**
@@ -463,5 +549,6 @@ module.exports = {
   findInLocalRegistry,
   startVerificationSession,
   reloadSessionCaptcha,
-  submitCaptchaAndGetResult
+  submitCaptchaAndGetResult,
+  cancelVerificationSession
 };

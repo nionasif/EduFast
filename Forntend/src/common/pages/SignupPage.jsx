@@ -212,6 +212,18 @@ export default function SignupPage({
     }
   };
 
+  const handleCancelBoardVerification = () => {
+    if (captchaSessionId) {
+      api.post('/board/cancel-session', { sessionId: captchaSessionId }).catch(() => {});
+    }
+    setShowBoardCaptchaModal(false);
+    setCaptchaSessionId('');
+    setCaptchaImage('');
+    setCaptchaInput('');
+    setCaptchaError('');
+    setIsSubmittingCaptcha(false);
+  };
+
   const handleBoardCaptchaSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!captchaInput || captchaInput.trim().length !== 4) {
@@ -1361,7 +1373,7 @@ export default function SignupPage({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowBoardCaptchaModal(false)}
+                  onClick={handleCancelBoardVerification}
                   style={{
                     background: 'rgba(255, 255, 255, 0.2)',
                     border: 'none',
@@ -1508,7 +1520,7 @@ export default function SignupPage({
                   <div style={{ display: 'flex', gap: '0.75rem' }}>
                     <button
                       type="button"
-                      onClick={() => setShowBoardCaptchaModal(false)}
+                      onClick={handleCancelBoardVerification}
                       style={{
                         flex: 1,
                         padding: '0.65rem',

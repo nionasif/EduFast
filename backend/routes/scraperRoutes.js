@@ -5,7 +5,8 @@ const {
   findInLocalRegistry,
   startVerificationSession,
   reloadSessionCaptcha,
-  submitCaptchaAndGetResult
+  submitCaptchaAndGetResult,
+  cancelVerificationSession
 } = require('../services/scraperService');
 
 // ROUTE 1: Start Live Verification Session & Fetch Captcha Image from educationboardresults.gov.bd
@@ -86,6 +87,19 @@ router.post('/api/board/reload-captcha', async (req, res) => {
       success: false,
       error: err.message
     });
+  }
+});
+
+// ROUTE 4: Cancel verification session cleanly
+router.post('/api/board/cancel-session', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (sessionId) {
+      await cancelVerificationSession(sessionId);
+    }
+    return res.json({ success: true });
+  } catch {
+    return res.json({ success: true });
   }
 });
 
