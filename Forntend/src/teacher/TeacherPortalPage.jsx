@@ -317,6 +317,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const whiteboardCanvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const isDrawingRef = useRef(false);
+  const lastPointRef = useRef(null);
 
   useEffect(() => {
     if (isLiveStudioActive && whiteboardCanvasRef.current) {
@@ -341,29 +342,61 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     } catch {}
   };
 
+  // Helper to accurately translate screen client coordinates to internal canvas coordinates
+  const getCanvasCoords = (e, canvas) => {
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    let clientX = e.clientX;
+    let clientY = e.clientY;
+    if (clientX === undefined && e.touches && e.touches[0]) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    }
+    if (clientX === undefined) return null;
+
+    const cssX = clientX - rect.left;
+    const cssY = clientY - rect.top;
+
+    // Scale CSS display coordinate space to internal canvas pixel buffer
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const x = cssX * scaleX;
+    const y = cssY * scaleY;
+
+    // Normalized 0 to 1 for student real-time synchronization
+    const normX = Math.max(0, Math.min(1, cssX / rect.width));
+    const normY = Math.max(0, Math.min(1, cssY / rect.height));
+
+    return { x, y, normX, normY };
+  };
+
   const startDrawing = (e) => {
-    isDrawingRef.current = true;
-    setIsDrawing(true);
     const canvas = whiteboardCanvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const coords = getCanvasCoords(e, canvas);
+    if (!coords) return;
 
+    isDrawingRef.current = true;
+    setIsDrawing(true);
+    lastPointRef.current = coords;
+
+    const ctx = canvas.getContext('2d');
     ctx.beginPath();
-    ctx.moveTo(x, y);
+    ctx.moveTo(coords.x, coords.y);
 
     if (activeBoardTool === 'pen') {
       ctx.strokeStyle = boardColor;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.lineTo(x, y);
+      ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
     } else if (activeBoardTool === 'eraser') {
       ctx.fillStyle = '#1a202c';
-      ctx.fillRect(x - 15, y - 15, 30, 30);
+      ctx.fillRect(coords.x - 15, coords.y - 15, 30, 30);
     }
 
     try {
@@ -371,8 +404,8 @@ export default function TeacherPortalPage({ onExitToPublic }) {
         tool: activeBoardTool,
         color: boardColor,
         type: 'start',
-        normX: canvas.width > 0 ? x / canvas.width : 0,
-        normY: canvas.height > 0 ? y / canvas.height : 0
+        normX: coords.normX,
+        normY: coords.normY
       });
     } catch {}
   };
@@ -381,26 +414,30 @@ export default function TeacherPortalPage({ onExitToPublic }) {
     if (!isDrawingRef.current) return;
     const canvas = whiteboardCanvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const coords = getCanvasCoords(e, canvas);
+    if (!coords) return;
 
-    const normX = canvas.width > 0 ? x / canvas.width : 0;
-    const normY = canvas.height > 0 ? y / canvas.height : 0;
+    const ctx = canvas.getContext('2d');
 
     if (activeBoardTool === 'pen') {
       ctx.strokeStyle = boardColor;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x, y);
+      if (lastPointRef.current) {
+        ctx.beginPath();
+        ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+        ctx.lineTo(coords.x, coords.y);
+        ctx.stroke();
+      } else {
+        ctx.lineTo(coords.x, coords.y);
+        ctx.stroke();
+      }
+      lastPointRef.current = coords;
     } else if (activeBoardTool === 'eraser') {
       ctx.fillStyle = '#1a202c';
-      ctx.fillRect(x - 15, y - 15, 30, 30);
+      ctx.fillRect(coords.x - 15, coords.y - 15, 30, 30);
+      lastPointRef.current = coords;
     }
 
     try {
@@ -408,8 +445,8 @@ export default function TeacherPortalPage({ onExitToPublic }) {
         tool: activeBoardTool,
         color: boardColor,
         type: 'draw',
-        normX,
-        normY
+        normX: coords.normX,
+        normY: coords.normY
       });
     } catch {}
   };
@@ -417,6 +454,7 @@ export default function TeacherPortalPage({ onExitToPublic }) {
   const stopDrawing = () => {
     isDrawingRef.current = false;
     setIsDrawing(false);
+    lastPointRef.current = null;
     const canvas = whiteboardCanvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');

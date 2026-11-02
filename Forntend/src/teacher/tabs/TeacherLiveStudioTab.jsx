@@ -795,12 +795,14 @@ export default function TeacherLiveStudioTab({
                   onMouseUp={stopDrawing}
                   onMouseLeave={stopDrawing}
                   onTouchStart={(e) => {
+                    if (e.cancelable) e.preventDefault();
                     if (e.touches && e.touches[0]) {
                       const t = e.touches[0];
                       startDrawing({ clientX: t.clientX, clientY: t.clientY });
                     }
                   }}
                   onTouchMove={(e) => {
+                    if (e.cancelable) e.preventDefault();
                     if (e.touches && e.touches[0]) {
                       const t = e.touches[0];
                       draw({ clientX: t.clientX, clientY: t.clientY });
